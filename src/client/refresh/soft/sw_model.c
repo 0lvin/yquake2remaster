@@ -585,7 +585,7 @@ Mod_LoadBrushModel(model_t *mod, const void *buffer, int modfilelen)
 		((int *)header)[i] = LittleLong(((int *)header)[i]);
 	}
 
-	maptype = Mod_LoadValidateLumps(mod->name, header);
+	maptype = Mod_LoadValidateLumps(mod->name, header, NULL);
 	if (maptype == map_quake2)
 	{
 		/* Can't detect use provided */

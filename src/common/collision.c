@@ -2124,7 +2124,7 @@ CM_LoadCachedMap(const char *name, model_t *mod)
 				__func__, name, header.version, BSPSINVERSION);
 	}
 
-	maptype = Mod_LoadValidateLumps(name, &header);
+	maptype = Mod_LoadValidateLumps(name, &header, (byte *)buf);
 
 	cmod_base = (byte *)buf;
 

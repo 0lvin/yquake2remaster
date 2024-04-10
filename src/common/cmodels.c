@@ -232,7 +232,7 @@ Mod_MaptypeName(maptype_t maptype)
 }
 
 maptype_t
-Mod_LoadValidateLumps(const char *name, const dheader_t *header)
+Mod_LoadValidateLumps(const char *name, const dheader_t *header, const byte* data)
 {
 	const size_t *rules = NULL;
 	qboolean error = false;
@@ -299,6 +299,23 @@ Mod_LoadValidateLumps(const char *name, const dheader_t *header)
 						__func__, name, s, header->lumps[s].filelen, rules[s]);
 					error = true;
 				}
+
+				if (!data)
+				{
+					continue;
+				}
+
+				int i;
+				printf("\n\nDump #%d\n\n", s);
+				for (i = 0; i < header->lumps[s].filelen; i ++)
+				{
+					if ((i % rules[s]) == 0 && (rules[s] > 2))
+					{
+						printf("\n");
+					}
+					printf("%02x", *(data + header->lumps[s].fileofs + i));
+				}
+				printf("\n\n---------------------------\n\n");
 			}
 		}
 	}
