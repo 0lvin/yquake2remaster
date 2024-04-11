@@ -26,6 +26,7 @@
 
 #include "header/common.h"
 #include "header/cmodel.h"
+#include "header/flags.h"
 
 /*
 =================
@@ -143,4 +144,230 @@ Mod_LoadPlanes(const char *name, cplane_t **planes, int *numplanes,
 		out->type = LittleLong(in->type);
 		out->signbits = bits;
 	}
+}
+
+static const size_t idbsplumps[HEADER_LUMPS] = {
+	sizeof(char), // LUMP_ENTITIES
+	sizeof(dplane_t), // LUMP_PLANES
+	sizeof(dvertex_t), // LUMP_VERTEXES
+	sizeof(char), // LUMP_VISIBILITY
+	sizeof(dnode_t), // LUMP_NODES
+	sizeof(texinfo_t), // LUMP_TEXINFO
+	sizeof(dface_t), // LUMP_FACES
+	sizeof(char), // LUMP_LIGHTING
+	sizeof(dleaf_t), // LUMP_LEAFS
+	sizeof(short), // LUMP_LEAFFACES
+	sizeof(short), // LUMP_LEAFBRUSHES
+	sizeof(dedge_t), // LUMP_EDGES
+	sizeof(int), // LUMP_SURFEDGES
+	sizeof(dmodel_t), // LUMP_MODELS
+	sizeof(dbrush_t), // LUMP_BRUSHES
+	sizeof(dbrushside_t), // LUMP_BRUSHSIDES
+	0, // LUMP_POP
+	sizeof(darea_t), // LUMP_AREAS
+	sizeof(dareaportal_t), // LUMP_AREAPORTALS
+};
+
+static const size_t rbsplumps[HEADER_LUMPS] = {
+	sizeof(char), // LUMP_ENTITIES
+	sizeof(dplane_t), // LUMP_PLANES
+	sizeof(dvertex_t), // LUMP_VERTEXES
+	sizeof(char), // LUMP_VISIBILITY
+	sizeof(dnode_t), // LUMP_NODES
+	sizeof(texrinfo_t), // LUMP_TEXINFO
+	sizeof(drface_t), // LUMP_FACES
+	sizeof(char), // LUMP_LIGHTING
+	sizeof(dleaf_t), // LUMP_LEAFS
+	sizeof(short), // LUMP_LEAFFACES
+	sizeof(short), // LUMP_LEAFBRUSHES
+	sizeof(dedge_t), // LUMP_EDGES
+	sizeof(int), // LUMP_SURFEDGES
+	sizeof(dmodel_t), // LUMP_MODELS
+	sizeof(dbrush_t), // LUMP_BRUSHES
+	sizeof(drbrushside_t), // LUMP_BRUSHSIDES
+	0, // LUMP_POP
+	sizeof(darea_t), // LUMP_AREAS
+	sizeof(dareaportal_t), // LUMP_AREAPORTALS
+};
+
+static const size_t qbsplumps[HEADER_LUMPS] = {
+	sizeof(char), // LUMP_ENTITIES
+	sizeof(dplane_t), // LUMP_PLANES
+	sizeof(dvertex_t), // LUMP_VERTEXES
+	sizeof(char), // LUMP_VISIBILITY
+	sizeof(dqnode_t), // LUMP_NODES
+	sizeof(texinfo_t), // LUMP_TEXINFO
+	sizeof(dqface_t), // LUMP_FACES
+	sizeof(char), // LUMP_LIGHTING
+	sizeof(dqleaf_t), // LUMP_LEAFS
+	sizeof(int), // LUMP_LEAFFACES
+	sizeof(int), // LUMP_LEAFBRUSHES
+	sizeof(dqedge_t), // LUMP_EDGES
+	sizeof(int), // LUMP_SURFEDGES
+	sizeof(dmodel_t), // LUMP_MODELS
+	sizeof(dbrush_t), // LUMP_BRUSHES
+	sizeof(dqbrushside_t), // LUMP_BRUSHSIDES
+	0, // LUMP_POP
+	sizeof(darea_t), // LUMP_AREAS
+	sizeof(dareaportal_t), // LUMP_AREAPORTALS
+};
+
+static const char*
+Mod_MaptypeName(maptype_t maptype)
+{
+	const char* maptypename;
+
+	switch(maptype)
+	{
+		case map_quake2: maptypename = "Quake2"; break;
+		case map_heretic2: maptypename = "Heretic 2"; break;
+		case map_daikatana: maptypename = "Daikatana"; break;
+		case map_kingpin: maptypename = "Kingpin"; break;
+		case map_anachronox: maptypename = "Anachronox"; break;
+		case map_sin: maptypename = "SiN"; break;
+		default: maptypename = "Unknown"; break;
+	}
+
+	return maptypename;
+}
+
+maptype_t
+Mod_LoadValidateLumps(const char *name, const dheader_t *header, const byte* data)
+{
+	const size_t *rules = NULL;
+	qboolean error = false;
+	maptype_t maptype;
+
+	if (header->ident == IDBSPHEADER)
+	{
+		if (header->version == BSPDKMVERSION)
+		{
+			/* SiN demos used same version ids as Daikatana */
+			if ((header->lumps[LUMP_TEXINFO].filelen % sizeof(texrinfo_t) == 0) &&
+				(header->lumps[LUMP_FACES].filelen % sizeof(drface_t) == 0))
+			{
+				rules = rbsplumps;
+				maptype = map_sin;
+			}
+			else
+			{
+				rules = idbsplumps;
+				maptype = map_daikatana;
+			}
+		}
+		else
+		{
+			rules = idbsplumps;
+			maptype = map_quake2;
+		}
+	}
+	else if (header->ident == QBSPHEADER)
+	{
+		rules = qbsplumps;
+		maptype = map_quake2;
+	}
+	else if (header->ident == RBSPHEADER)
+	{
+		rules = rbsplumps;
+		maptype = map_sin;
+	}
+	else
+	{
+		rules = NULL;
+		maptype = map_quake2;
+	}
+
+	if (rules)
+	{
+		int s;
+		for (s = 0; s < HEADER_LUMPS; s++)
+		{
+			if (rules[s])
+			{
+				if ((maptype == map_daikatana) &&
+					(s == LUMP_LEAFS) &&
+					(header->lumps[s].filelen % sizeof(ddkleaf_t) == 0))
+				{
+					/* Small hack for daikatana,
+					 * bsp could have two different sizes of LUMP_LEAFS
+					 */
+					continue;
+				}
+				else if (header->lumps[s].filelen % rules[s])
+				{
+					Com_Printf("%s: Map %s lump #%d: incorrect size %d / " YQ2_COM_PRIdS "\n",
+						__func__, name, s, header->lumps[s].filelen, rules[s]);
+					error = true;
+				}
+
+				if (!data)
+				{
+					continue;
+				}
+
+				int i;
+				printf("\n\nDump #%d\n\n", s);
+				for (i = 0; i < header->lumps[s].filelen; i ++)
+				{
+					if ((i % rules[s]) == 0 && (rules[s] > 2))
+					{
+						printf("\n");
+					}
+					printf("%02x", *(data + header->lumps[s].fileofs + i));
+				}
+				printf("\n\n---------------------------\n\n");
+			}
+		}
+	}
+
+	Com_Printf("Map %s %c%c%c%c with version %d (%s)\n",
+				name,
+				(header->ident >> 0) & 0xFF,
+				(header->ident >> 8) & 0xFF,
+				(header->ident >> 16) & 0xFF,
+				(header->ident >> 24) & 0xFF,
+				header->version, Mod_MaptypeName(maptype));
+
+	if (error)
+	{
+		Com_Error(ERR_DROP, "%s: Map %s has incorrect lumps",
+			__func__, name);
+	}
+
+	return maptype;
+}
+
+/*
+ * Convert Other games flags to Quake 2 surface flags
+ */
+int
+Mod_LoadSurfConvertFlags(int flags, maptype_t maptype)
+{
+	const int *convert;
+	int sflags = 0;
+	int i;
+
+	switch (maptype)
+	{
+		case map_heretic2: convert = heretic2_flags; break;
+		case map_daikatana: convert = daikatana_flags; break;
+		case map_kingpin: convert = kingpin_flags; break;
+		case map_anachronox: convert = anachronox_flags; break;
+		default: convert = NULL; break;
+	}
+
+	if (!convert)
+	{
+		return flags;
+	}
+
+	for (i = 0; i < 32; i++)
+	{
+		if (flags & (1 << i))
+		{
+			sflags |= convert[i];
+		}
+	}
+
+	return sflags;
 }

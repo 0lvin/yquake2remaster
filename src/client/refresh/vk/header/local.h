@@ -31,12 +31,17 @@
 #include <stdio.h>
 #include <math.h>
 
+#ifdef USE_SDL3
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#else
 #if defined(__APPLE__)
 #include <SDL.h>
 #include <SDL_vulkan.h>
 #else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
+#endif
 #endif
 
 
@@ -137,6 +142,7 @@ extern  cvar_t  *vk_molten_fastmath;
 extern  cvar_t  *vk_molten_metalbuffers;
 #endif
 extern	cvar_t	*r_retexturing;
+extern	cvar_t	*r_maptype;
 extern	cvar_t	*r_scale8bittextures;
 extern	cvar_t	*r_nolerp_list;
 extern	cvar_t	*r_lerp_list;

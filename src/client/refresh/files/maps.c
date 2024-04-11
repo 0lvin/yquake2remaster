@@ -247,7 +247,8 @@ Mod_LoadQBSPNodes(const char *name, cplane_t *planes, int numplanes, mleaf_t *le
 	int numleafs, mnode_t **nodes, int *numnodes, const byte *mod_base,
 	const lump_t *l, int ident)
 {
-	if (ident == IDBSPHEADER)
+	if ((ident == IDBSPHEADER) ||
+		(ident == RBSPHEADER))
 	{
 		Mod_LoadNodes(name, planes, numplanes, leafs, numleafs, nodes, numnodes,
 			mod_base, l);
@@ -416,19 +417,12 @@ Mod_CalcSurfaceExtents(const int *surfedges, mvertex_t *vertexes, medge_t *edges
 	}
 }
 
-/*
-=================
-Mod_LoadTexinfo
-
-extra for skybox in soft render
-=================
-*/
 void
-Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
+Mod_LoadTexinfoRBSP(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
 	const byte *mod_base, const lump_t *l, findimage_t find_image,
-	struct image_s *notexture)
+	struct image_s *notexture, maptype_t maptype)
 {
-	texinfo_t *in;
+	texrinfo_t *in;
 	mtexinfo_t *out, *step;
 	int 	i, count;
 
@@ -441,6 +435,7 @@ Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
 	}
 
 	count = l->filelen / sizeof(*in);
+	/* extra for skybox in soft render */
 	out = Hunk_Alloc((count + EXTRA_LUMP_TEXINFO) * sizeof(*out));
 
 	*texinfo = out;
@@ -457,7 +452,8 @@ Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
 			out->vecs[1][j] = LittleFloat(in->vecs[1][j]);
 		}
 
-		out->flags = LittleLong(in->flags);
+		/* Convert flags for game type */
+		out->flags = Mod_LoadSurfConvertFlags(LittleLong(in->flags), maptype);
 
 		next = LittleLong(in->nexttexinfo);
 		if (next > 0)
@@ -493,6 +489,105 @@ Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
 		{
 			out->numframes++;
 		}
+	}
+}
+
+void
+Mod_LoadTexinfoQ2(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
+	const byte *mod_base, const lump_t *l, findimage_t find_image,
+	struct image_s *notexture, maptype_t maptype)
+{
+	texinfo_t *in;
+	mtexinfo_t *out, *step;
+	int 	i, count;
+
+	in = (void *)(mod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "%s: funny lump size in %s",
+				__func__, name);
+	}
+
+	count = l->filelen / sizeof(*in);
+	/* extra for skybox in soft render */
+	out = Hunk_Alloc((count + EXTRA_LUMP_TEXINFO) * sizeof(*out));
+
+	*texinfo = out;
+	*numtexinfo = count;
+
+	for ( i=0 ; i<count ; i++, in++, out++)
+	{
+		struct image_s *image;
+		int j, next;
+
+		for (j = 0; j < 4; j++)
+		{
+			out->vecs[0][j] = LittleFloat(in->vecs[0][j]);
+			out->vecs[1][j] = LittleFloat(in->vecs[1][j]);
+		}
+
+		/* Convert flags for game type */
+		out->flags = Mod_LoadSurfConvertFlags(LittleLong(in->flags), maptype);
+
+		next = LittleLong(in->nexttexinfo);
+		if (next > 0)
+		{
+			out->next = *texinfo + next;
+		}
+		else
+		{
+			/*
+			 * Fix for the problem where the game
+			 * domed core when loading a new level.
+			 */
+			out->next = NULL;
+		}
+
+		image = GetTexImage(in->texture, find_image);
+		if (!image)
+		{
+			R_Printf(PRINT_ALL, "%s: Couldn't load %s\n",
+				__func__, in->texture);
+			image = notexture;
+		}
+
+		out->image = image;
+	}
+
+	// count animation frames
+	for (i=0 ; i<count ; i++)
+	{
+		out = (*texinfo) + i;
+		out->numframes = 1;
+		for (step = out->next ; step && step != out ; step=step->next)
+		{
+			out->numframes++;
+		}
+	}
+}
+
+/*
+=================
+Mod_LoadTexinfo
+
+extra for skybox in soft render
+=================
+*/
+void
+Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
+	const byte *mod_base, const lump_t *l, findimage_t find_image,
+	struct image_s *notexture, maptype_t maptype)
+{
+	if (maptype == map_sin)
+	{
+		Mod_LoadTexinfoRBSP(name, texinfo, numtexinfo, mod_base, l, find_image,
+			notexture, maptype);
+	}
+	else
+	{
+		Mod_LoadTexinfoQ2(name, texinfo, numtexinfo, mod_base, l, find_image,
+			notexture, maptype);
 	}
 }
 
@@ -570,7 +665,8 @@ void
 Mod_LoadQBSPEdges(const char *name, medge_t **edges, int *numedges,
 	const byte *mod_base, const lump_t *l, int ident)
 {
-	if (ident == IDBSPHEADER)
+	if ((ident == IDBSPHEADER) ||
+		(ident == RBSPHEADER))
 	{
 		Mod_LoadEdges(name, edges, numedges, mod_base, l);
 	}
@@ -680,7 +776,7 @@ Mod_LoadBSPXFindLump(const bspx_header_t *bspx_header, const char *lumpname,
 }
 
 const bspx_header_t *
-Mod_LoadBSPX(int filesize, const byte *mod_base)
+Mod_LoadBSPX(int filesize, const byte *mod_base, maptype_t maptype)
 {
 	const bspx_header_t *xheader;
 	const dheader_t *header;
@@ -692,7 +788,8 @@ Mod_LoadBSPX(int filesize, const byte *mod_base)
 	xofs = 0;
 
 	numlumps = HEADER_LUMPS;
-	if (header->version == BSPDKMVERSION)
+	if ((header->version == BSPDKMVERSION) &&
+		(maptype == map_daikatana))
 	{
 		numlumps = 21;
 	}
@@ -864,7 +961,8 @@ void
 Mod_LoadQBSPMarksurfaces(const char *name, msurface_t ***marksurfaces, unsigned int *nummarksurfaces,
 	msurface_t *surfaces, int numsurfaces, const byte *mod_base, const lump_t *l, int ident)
 {
-	if (ident == IDBSPHEADER)
+	if ((ident == IDBSPHEADER) ||
+		(ident == RBSPHEADER))
 	{
 		Mod_LoadMarksurfaces(name, marksurfaces, nummarksurfaces,
 			surfaces, numsurfaces, mod_base, l);
@@ -882,6 +980,56 @@ Mod_LoadLeafs(const char *name, mleaf_t **leafs, int *numleafs,
 	const byte *mod_base, const lump_t *l)
 {
 	dleaf_t *in;
+	mleaf_t *out;
+	int i, j, count;
+
+	in = (void *)(mod_base + l->fileofs);
+
+	if (l->filelen % sizeof(*in))
+	{
+		Com_Error(ERR_DROP, "%s: funny lump size in %s",
+				__func__, name);
+	}
+
+	count = l->filelen / sizeof(*in);
+	out = Hunk_Alloc((count + EXTRA_LUMP_LEAFS) * sizeof(*out));
+
+	*leafs = out;
+	*numleafs = count;
+
+	for (i = 0; i < count; i++, in++, out++)
+	{
+		unsigned int firstleafface;
+
+		for (j = 0; j < 3; j++)
+		{
+			out->minmaxs[j] = LittleShort(in->mins[j]);
+			out->minmaxs[3 + j] = LittleShort(in->maxs[j]);
+		}
+
+		out->contents = LittleLong(in->contents);
+		out->cluster = LittleShort(in->cluster);
+		out->area = LittleShort(in->area);
+
+		// make unsigned long from signed short
+		firstleafface = LittleShort(in->firstleafface) & 0xFFFF;
+		out->nummarksurfaces = LittleShort(in->numleaffaces) & 0xFFFF;
+
+		out->firstmarksurface = marksurfaces + firstleafface;
+		if ((firstleafface + out->nummarksurfaces) > nummarksurfaces)
+		{
+			Com_Error(ERR_DROP, "%s: wrong marksurfaces position in %s",
+				__func__, name);
+		}
+	}
+}
+
+static void
+Mod_LoadDKLeafs(const char *name, mleaf_t **leafs, int *numleafs,
+	msurface_t **marksurfaces, unsigned int nummarksurfaces,
+	const byte *mod_base, const lump_t *l)
+{
+	ddkleaf_t *in;
 	mleaf_t *out;
 	int i, j, count;
 
@@ -979,12 +1127,22 @@ Mod_LoadQLeafs(const char *name, mleaf_t **leafs, int *numleafs,
 void
 Mod_LoadQBSPLeafs(const char *name, mleaf_t **leafs, int *numleafs,
 	msurface_t **marksurfaces, unsigned int nummarksurfaces,
-	const byte *mod_base, const lump_t *l, int ident)
+	const byte *mod_base, const lump_t *l, int ident, maptype_t maptype)
 {
-	if (ident == IDBSPHEADER)
+	if ((ident == IDBSPHEADER) ||
+		(ident == RBSPHEADER))
 	{
-		Mod_LoadLeafs(name, leafs, numleafs, marksurfaces, nummarksurfaces,
-			mod_base, l);
+		if ((maptype == map_daikatana) &&
+			(l->filelen % sizeof(ddkleaf_t) == 0))
+		{
+			Mod_LoadDKLeafs(name, leafs, numleafs, marksurfaces, nummarksurfaces,
+				mod_base, l);
+		}
+		else
+		{
+			Mod_LoadLeafs(name, leafs, numleafs, marksurfaces, nummarksurfaces,
+				mod_base, l);
+		}
 	}
 	else
 	{
@@ -1142,4 +1300,299 @@ Mod_LoadBSPXLightGrid(const bspx_header_t *bspx_header, const byte *mod_base)
 		grid = NULL;
 
 	return grid;
+}
+
+static int
+calcTexinfoAndFacesSize(const byte *mod_base, const lump_t *fl, const lump_t *tl)
+{
+	dface_t* face_in = (void *)(mod_base + fl->fileofs);
+	const texinfo_t* texinfo_in = (void *)(mod_base + tl->fileofs);
+
+	if (fl->filelen % sizeof(*face_in) || tl->filelen % sizeof(*texinfo_in))
+	{
+		// will error out when actually loading it
+		return 0;
+	}
+
+	int ret = 0;
+
+	int face_count = fl->filelen / sizeof(*face_in);
+	int texinfo_count = tl->filelen / sizeof(*texinfo_in);
+
+	{
+		int baseSize = (face_count + EXTRA_LUMP_FACES) * sizeof(msurface_t);
+		baseSize = (baseSize + 31) & ~31;
+		ret += baseSize;
+
+		int ti_size = texinfo_count * sizeof(mtexinfo_t);
+		ti_size = (ti_size + 31) & ~31;
+		ret += ti_size;
+	}
+
+	int numWarpFaces = 0;
+
+	for (int surfnum = 0; surfnum < face_count; surfnum++, face_in++)
+	{
+		int numverts = LittleShort(face_in->numedges);
+		int ti = LittleShort(face_in->texinfo);
+		if ((ti < 0) || (ti >= texinfo_count))
+		{
+			return 0; // will error out
+		}
+		int texFlags = LittleLong(texinfo_in[ti].flags);
+
+		/* set the drawing flags */
+		if (texFlags & SURF_WARP)
+		{
+			if (numverts > 60)
+				return 0; // will error out in R_SubdividePolygon()
+
+			// R_SubdivideSurface(out, loadmodel); /* cut up polygon for warps */
+			// for each (pot. recursive) call to R_SubdividePolygon():
+			//   sizeof(mpoly_t) + ((numverts - 4) + 2) * sizeof(mvtx_t)
+
+			// this is tricky, how much is allocated depends on the size of the surface
+			// which we don't know (we'd need the vertices etc to know, but we can't load
+			// those without allocating...)
+			// so we just count warped faces and use a generous estimate below
+
+			++numWarpFaces;
+		}
+		else
+		{
+			// LM_BuildPolygonFromSurface(out);
+			// => poly = Hunk_Alloc(sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t));
+			int polySize = sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t);
+			polySize = (polySize + 31) & ~31;
+			ret += polySize;
+		}
+	}
+
+	// yeah, this is a bit hacky, but it looks like for each warped face
+	// 256-55000 bytes are allocated (usually on the lower end),
+	// so just assume 48k per face to be safe
+	ret += numWarpFaces * 49152;
+
+	return ret;
+}
+
+static int
+calcRBSPTexinfoAndFacesSize(const byte *mod_base, const lump_t *fl, const lump_t *tl)
+{
+	drface_t* face_in = (void *)(mod_base + fl->fileofs);
+	const texrinfo_t* texinfo_in = (void *)(mod_base + tl->fileofs);
+
+	if (fl->filelen % sizeof(*face_in) || tl->filelen % sizeof(*texinfo_in))
+	{
+		// will error out when actually loading it
+		return 0;
+	}
+
+	int ret = 0;
+
+	int face_count = fl->filelen / sizeof(*face_in);
+	int texinfo_count = tl->filelen / sizeof(*texinfo_in);
+
+	{
+		int baseSize = (face_count + EXTRA_LUMP_FACES) * sizeof(msurface_t);
+		baseSize = (baseSize + 31) & ~31;
+		ret += baseSize;
+
+		int ti_size = texinfo_count * sizeof(mtexinfo_t);
+		ti_size = (ti_size + 31) & ~31;
+		ret += ti_size;
+	}
+
+	int numWarpFaces = 0;
+
+	for (int surfnum = 0; surfnum < face_count; surfnum++, face_in++)
+	{
+		int numverts = LittleShort(face_in->numedges);
+		int ti = LittleShort(face_in->texinfo);
+		if ((ti < 0) || (ti >= texinfo_count))
+		{
+			return 0; // will error out
+		}
+		int texFlags = LittleLong(texinfo_in[ti].flags);
+
+		/* set the drawing flags */
+		if (texFlags & SURF_WARP)
+		{
+			if (numverts > 60)
+				return 0; // will error out in R_SubdividePolygon()
+
+			// R_SubdivideSurface(out, loadmodel); /* cut up polygon for warps */
+			// for each (pot. recursive) call to R_SubdividePolygon():
+			//   sizeof(mpoly_t) + ((numverts - 4) + 2) * sizeof(mvtx_t)
+
+			// this is tricky, how much is allocated depends on the size of the surface
+			// which we don't know (we'd need the vertices etc to know, but we can't load
+			// those without allocating...)
+			// so we just count warped faces and use a generous estimate below
+
+			++numWarpFaces;
+		}
+		else
+		{
+			// LM_BuildPolygonFromSurface(out);
+			// => poly = Hunk_Alloc(sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t));
+			int polySize = sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t);
+			polySize = (polySize + 31) & ~31;
+			ret += polySize;
+		}
+	}
+
+	// yeah, this is a bit hacky, but it looks like for each warped face
+	// 256-55000 bytes are allocated (usually on the lower end),
+	// so just assume 48k per face to be safe
+	ret += numWarpFaces * 49152;
+
+	return ret;
+}
+
+static int
+calcTexinfoAndQFacesSize(const byte *mod_base, const lump_t *fl, const lump_t *tl)
+{
+	dqface_t* face_in = (void *)(mod_base + fl->fileofs);
+	const texinfo_t* texinfo_in = (void *)(mod_base + tl->fileofs);
+
+	if (fl->filelen % sizeof(*face_in) || tl->filelen % sizeof(*texinfo_in))
+	{
+		// will error out when actually loading it
+		return 0;
+	}
+
+	int ret = 0;
+
+	int face_count = fl->filelen / sizeof(*face_in);
+	int texinfo_count = tl->filelen / sizeof(*texinfo_in);
+
+	{
+		int baseSize = (face_count + EXTRA_LUMP_FACES) * sizeof(msurface_t);
+		baseSize = (baseSize + 31) & ~31;
+		ret += baseSize;
+
+		int ti_size = texinfo_count * sizeof(mtexinfo_t);
+		ti_size = (ti_size + 31) & ~31;
+		ret += ti_size;
+	}
+
+	int numWarpFaces = 0;
+
+	for (int surfnum = 0; surfnum < face_count; surfnum++, face_in++)
+	{
+		int numverts = LittleLong(face_in->numedges);
+		int ti = LittleLong(face_in->texinfo);
+		if ((ti < 0) || (ti >= texinfo_count))
+		{
+			return 0; // will error out
+		}
+		int texFlags = LittleLong(texinfo_in[ti].flags);
+
+		/* set the drawing flags */
+		if (texFlags & SURF_WARP)
+		{
+			if (numverts > 60)
+				return 0; // will error out in R_SubdividePolygon()
+
+			// R_SubdivideSurface(out, loadmodel); /* cut up polygon for warps */
+			// for each (pot. recursive) call to R_SubdividePolygon():
+			//   sizeof(mpoly_t) + ((numverts - 4) + 2) * sizeof(mvtx_t)
+
+			// this is tricky, how much is allocated depends on the size of the surface
+			// which we don't know (we'd need the vertices etc to know, but we can't load
+			// those without allocating...)
+			// so we just count warped faces and use a generous estimate below
+
+			++numWarpFaces;
+		}
+		else
+		{
+			// LM_BuildPolygonFromSurface(out);
+			// => poly = Hunk_Alloc(sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t));
+			int polySize = sizeof(mpoly_t) + (numverts - 4) * sizeof(mvtx_t);
+			polySize = (polySize + 31) & ~31;
+			ret += polySize;
+		}
+	}
+
+	// yeah, this is a bit hacky, but it looks like for each warped face
+	// 256-55000 bytes are allocated (usually on the lower end),
+	// so just assume 48k per face to be safe
+	ret += numWarpFaces * 49152;
+
+	return ret;
+}
+
+int
+Mod_CalcNonModelLumpHunkSize(const byte *mod_base, const dheader_t *header,
+	maptype_t maptype)
+{
+	int hunkSize = 0;
+
+	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_VERTEXES],
+		sizeof(dvertex_t), sizeof(mvertex_t), EXTRA_LUMP_VERTEXES);
+
+	if ((header->ident == IDBSPHEADER) ||
+		(header->ident == RBSPHEADER))
+	{
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_EDGES],
+			sizeof(dedge_t), sizeof(medge_t), EXTRA_LUMP_EDGES);
+
+		if (maptype == map_sin)
+		{
+			hunkSize += calcRBSPTexinfoAndFacesSize(mod_base,
+				&header->lumps[LUMP_FACES], &header->lumps[LUMP_TEXINFO]);
+		}
+		else
+		{
+			hunkSize += calcTexinfoAndFacesSize(mod_base,
+				&header->lumps[LUMP_FACES], &header->lumps[LUMP_TEXINFO]);
+		}
+
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFFACES],
+			sizeof(short), sizeof(msurface_t *), 0); // yes, out is indeed a pointer!
+
+		if ((maptype == map_daikatana) &&
+			(header->lumps[LUMP_LEAFS].filelen % sizeof(ddkleaf_t) == 0))
+		{
+			hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFS],
+				sizeof(ddkleaf_t), sizeof(mleaf_t), 0);
+		}
+		else
+		{
+			hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFS],
+				sizeof(dleaf_t), sizeof(mleaf_t), 0);
+		}
+
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_NODES],
+			sizeof(dnode_t), sizeof(mnode_t), EXTRA_LUMP_NODES);
+	}
+	else
+	{
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_EDGES],
+			sizeof(dqedge_t), sizeof(medge_t), EXTRA_LUMP_EDGES);
+		hunkSize += calcTexinfoAndQFacesSize(mod_base,
+			&header->lumps[LUMP_FACES], &header->lumps[LUMP_TEXINFO]);
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFFACES],
+			sizeof(int), sizeof(msurface_t *), 0); // yes, out is indeed a pointer!
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFS],
+			sizeof(dqleaf_t), sizeof(mleaf_t), 0);
+		hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_NODES],
+			sizeof(dqnode_t), sizeof(mnode_t), EXTRA_LUMP_NODES);
+	}
+
+	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_SURFEDGES],
+		sizeof(int), sizeof(int), EXTRA_LUMP_SURFEDGES);
+	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LIGHTING],
+		1, 1, 0);
+	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_PLANES],
+		sizeof(dplane_t), sizeof(cplane_t), EXTRA_LUMP_PLANES);
+
+	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_VISIBILITY],
+		1, 1, 0);
+
+	hunkSize += 5000000; // and 5MB extra just in case
+
+	return hunkSize;
 }

@@ -53,6 +53,7 @@ Texture support:
 | ------ | -------------- | -------- |
 | wal    | Quake 2        | 8 bit    |
 | wal    | Daikatana      | 8 bit    |
+| swl    | SiN            | 8 bit    |
 | m8     | Heretic 2      | 8 bit    |
 | m32    | Heretic 2      | 24 bit   |
 | pcx    | Quake2         | 24 bit   |
@@ -66,7 +67,8 @@ Maps support:
 | Format | Version | Game                                       |
 | ------ | ------- | ------------------------------------------ |
 | IBSP   | 39      | Quake 2 / Anachronox / Kingpin / Heretic 2 |
-| IBSP   | 41      | Daikatana                                  |
+| IBSP   | 41      | Daikatana / SIN (Unfinished)               |
+| RBSP   | 1       | SIN (Unfinished)                           |
 | QBSP   | 39      | Quake 2 ReRelease                          |
 | BSPX   | 39      | Quake 2 ReRelease (Extension to IBSP)      |
 
@@ -75,6 +77,25 @@ Note:
    unsupported.
  * Non Quake 2 maps are limmited mostly view only, and could have issues
    with tranparency or some animations flags and properties.
+
+Games:
+ * Quake 2:
+   * SDK: https://github.com/id-Software/quake2-rerelease-dll
+   * Tech info: https://bethesda.net/en/article/6NIyBxapXOurTKtF4aPiF4/enhancing-quake-ii
+ * Anachronox:
+   * SDK: https://github.com/hogsy/chronon
+   * Tech info: https://anachrodox.talonbrave.info/
+ * Kingpin:
+   * SDK: https://github.com/QuakeTools/Kingpin-SDK-v1.21
+   * Tech info: https://www.kingpin.info/
+ * Daikatana:
+   * Info: http://daikatananews.net/
+ * Heretic 2:
+   * SDK: https://www.quaddicted.com/files/idgames2/planetquake/hereticii/files/Ht2Toolkit_v1.06.exe
+   * Tech info: http://h2vault.infinityfreeapp.com/index.html
+ * SiN:
+   * Tools: https://www.moddb.com/games/sin/downloads/sin-modding-tools-and-other-stuff
+   * SDK: https://github.com/NightDive-Studio/sin-ex-game
 
 Goals (finished):
   * BSPX DECOUPLEDLM light map support (base1),
@@ -85,16 +106,15 @@ Goals (finished):
   * Daikatana/Heretic 2 map partial format support,
   * md5 improve load speed,
   * support Anachronox .dat format,
+  * suport Daikatana/SiN .pak/.sin format from pakextract,
   * add debug progress loading code for maps.
 
-
 Goals (none of it finished):
-
   * Single player support,
-  * support surface flags for Daikatana, Heretic 2, Anachronox,
-  * modified ReRelease game code support with removed KEX only related code.
+  * Support effects and additional flags for ReRelease when possible.
 
 Bonus goals:
+  * support surface flags and content types for Daikatana, Heretic 2, Anachronox,
   * Use shared model cache in client code insted reimplemnet in each render,
   * Check load soft colormap as 24bit color,
   * Use separete texture hi-color buffer for ui in soft render,
@@ -102,7 +122,8 @@ Bonus goals:
   * Cleanup function declarations in game save code,
   * Use 3 bytes vertex normal,
   * Support scalled textures for models and walls in soft render and fix
-    lighting with remastered maps.
+    lighting with remastered maps,
+  * modified ReRelease game code support with removed KEX only related code.
 
 Not a goal:
   * multiplayer protocol support with KEX engine,

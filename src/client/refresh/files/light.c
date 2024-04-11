@@ -297,20 +297,19 @@ R_AddDynamicLights(const msurface_t *surf, const refdef_t *r_newrefdef,
 	float *s_blocklights, const float *s_blocklights_max)
 {
 	int lnum;
-	float fdist, frad, fminlight;
-	vec3_t impact, local;
-	int t;
-	int i;
 	int smax, tmax;
-	dlight_t *dl;
-	float *plightdest;
-	float fsacc, ftacc;
 
 	smax = (surf->extents[0] >> surf->lmshift) + 1;
 	tmax = (surf->extents[1] >> surf->lmshift) + 1;
 
 	for (lnum = 0; lnum < r_newrefdef->num_dlights; lnum++)
 	{
+		float ftacc, fdist, frad, fminlight;
+		vec3_t impact, local;
+		float *plightdest;
+		dlight_t *dl;
+		int t, i;
+
 		if (!(surf->dlightbits & (1 << lnum)))
 		{
 			continue; /* not lit by this light */
@@ -347,6 +346,7 @@ R_AddDynamicLights(const msurface_t *surf, const refdef_t *r_newrefdef,
 
 		for (t = 0, ftacc = 0; t < tmax; t++, ftacc += (1 << surf->lmshift))
 		{
+			float fsacc;
 			int s, td;
 
 			td = local[1] - ftacc;
@@ -358,7 +358,7 @@ R_AddDynamicLights(const msurface_t *surf, const refdef_t *r_newrefdef,
 
 			td *= surf->lmvlen[1];
 
-			for (s = 0, fsacc = 0; s < smax; s++, fsacc += (1 << surf->lmshift), plightdest += 3)
+			for (s = 0, fsacc = 0; s < smax; s++, fsacc += (1 << surf->lmshift))
 			{
 				int sd;
 
@@ -383,10 +383,17 @@ R_AddDynamicLights(const msurface_t *surf, const refdef_t *r_newrefdef,
 				if ((fdist < fminlight) && (plightdest < (s_blocklights_max - 3)))
 				{
 					float diff = frad - fdist;
+					int j;
 
-					plightdest[0] += diff * dl->color[0];
-					plightdest[1] += diff * dl->color[1];
-					plightdest[2] += diff * dl->color[2];
+					for (j = 0; j < 3; j++)
+					{
+						*plightdest += diff * dl->color[j];
+						plightdest ++;
+					}
+				}
+				else
+				{
+					plightdest += 3;
 				}
 			}
 		}
@@ -484,6 +491,94 @@ R_GetTemporaryLMBuffer(size_t size)
 	return s_bufferlights;
 }
 
+static void
+R_StoreLightMap(byte *dest, int stride, const byte *destmax, int smax, int tmax)
+{
+	float *bl;
+	int i;
+
+	/* put into texture format */
+	stride -= (smax << 2);
+	bl = s_blocklights;
+
+	if ((dest + (stride * (tmax - 1)) + smax * LIGHTMAP_BYTES) > destmax)
+	{
+		Com_Error(ERR_DROP, "%s destination too small for lightmap %d > " YQ2_COM_PRIdS,
+			__func__, (stride * (tmax - 1)) + smax * LIGHTMAP_BYTES, destmax - dest);
+	}
+
+	for (i = 0; i < tmax; i++, dest += stride)
+	{
+		int j;
+
+		for (j = 0; j < smax; j++)
+		{
+			int r, g, b, a, max;
+
+			r = Q_ftol(bl[0]);
+			g = Q_ftol(bl[1]);
+			b = Q_ftol(bl[2]);
+
+			/* catch negative lights */
+			if (r < 0)
+			{
+				r = 0;
+			}
+
+			if (g < 0)
+			{
+				g = 0;
+			}
+
+			if (b < 0)
+			{
+				b = 0;
+			}
+
+			/* determine the brightest of the three color components */
+			if (r > g)
+			{
+				max = r;
+			}
+			else
+			{
+				max = g;
+			}
+
+			if (b > max)
+			{
+				max = b;
+			}
+
+			/* alpha is ONLY used for the mono lightmap case. For this
+			   reason we set it to the brightest of the color components
+			   so that things don't get too dim. */
+			a = max;
+
+			/* rescale all the color components if the
+			   intensity of the greatest channel exceeds
+			   1.0 */
+			if (max > 255)
+			{
+				float t = 255.0F / max;
+
+				r = r * t;
+				g = g * t;
+				b = b * t;
+				a = a * t;
+			}
+
+			dest[0] = r;
+			dest[1] = g;
+			dest[2] = b;
+			dest[3] = a;
+
+			bl += 3;
+			dest += LIGHTMAP_BYTES;
+		}
+	}
+}
+
 /*
  * Combine and scale multiple lightmaps into the floating format in blocklights
  */
@@ -492,8 +587,7 @@ R_BuildLightMap(const msurface_t *surf, byte *dest, int stride, const byte *dest
 	const refdef_t *r_newrefdef, float modulate, int r_framecount)
 {
 	int smax, tmax;
-	int r, g, b, a, max;
-	int i, j, size, numlightmaps;
+	int i, size, numlightmaps;
 	byte *lightmap;
 	float scale[4];
 	float *bl;
@@ -523,7 +617,8 @@ R_BuildLightMap(const msurface_t *surf, byte *dest, int stride, const byte *dest
 			s_blocklights[i] = 255;
 		}
 
-		goto store;
+		R_StoreLightMap(dest, stride, destmax, smax, tmax);
+		return;
 	}
 
 	/* count the # of maps */
@@ -620,83 +715,7 @@ R_BuildLightMap(const msurface_t *surf, byte *dest, int stride, const byte *dest
 		R_AddDynamicLights(surf, r_newrefdef, s_blocklights, s_blocklights_max);
 	}
 
-store:
-	/* put into texture format */
-	stride -= (smax << 2);
-	bl = s_blocklights;
-
-	if ((dest + (stride * (tmax - 1)) + smax * LIGHTMAP_BYTES) > destmax)
-	{
-		Com_Error(ERR_DROP, "%s destination too small for lightmap %d > %ld",
-			__func__, (stride * (tmax - 1)) + smax * LIGHTMAP_BYTES, destmax - dest);
-	}
-
-	for (i = 0; i < tmax; i++, dest += stride)
-	{
-		for (j = 0; j < smax; j++)
-		{
-			r = Q_ftol(bl[0]);
-			g = Q_ftol(bl[1]);
-			b = Q_ftol(bl[2]);
-
-			/* catch negative lights */
-			if (r < 0)
-			{
-				r = 0;
-			}
-
-			if (g < 0)
-			{
-				g = 0;
-			}
-
-			if (b < 0)
-			{
-				b = 0;
-			}
-
-			/* determine the brightest of the three color components */
-			if (r > g)
-			{
-				max = r;
-			}
-			else
-			{
-				max = g;
-			}
-
-			if (b > max)
-			{
-				max = b;
-			}
-
-			/* alpha is ONLY used for the mono lightmap case. For this
-			   reason we set it to the brightest of the color components
-			   so that things don't get too dim. */
-			a = max;
-
-			/* rescale all the color components if the
-			   intensity of the greatest channel exceeds
-			   1.0 */
-			if (max > 255)
-			{
-				float t = 255.0F / max;
-
-				r = r * t;
-				g = g * t;
-				b = b * t;
-				a = a * t;
-			}
-
-			dest[0] = r;
-			dest[1] = g;
-			dest[2] = b;
-			dest[3] = a;
-
-			bl += 3;
-			dest += LIGHTMAP_BYTES;
-		}
-	}
+	R_StoreLightMap(dest, stride, destmax, smax, tmax);
 }
 
 static void

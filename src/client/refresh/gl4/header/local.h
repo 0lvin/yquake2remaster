@@ -383,6 +383,7 @@ extern qboolean GL4_IsVsyncActive(void);
 extern void GL4_EndFrame(void);
 extern void GL4_SetVsync(void);
 extern void GL4_ShutdownContext(void);
+extern int GL4_GetSDLVersion(void);
 
 // gl4_misc.c
 extern void GL4_InitParticleTexture(void);
@@ -497,6 +498,7 @@ extern void GL4_UpdateUBOLights(void);
 extern cvar_t *gl_msaa_samples;
 extern cvar_t *r_vsync;
 extern cvar_t *r_retexturing;
+extern cvar_t *r_maptype;
 extern cvar_t *r_scale8bittextures;
 extern cvar_t *vid_fullscreen;
 extern cvar_t *r_mode;

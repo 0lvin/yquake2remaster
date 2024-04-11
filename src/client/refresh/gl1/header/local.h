@@ -175,6 +175,7 @@ extern cvar_t *r_customwidth;
 extern cvar_t *r_customheight;
 
 extern cvar_t *r_retexturing;
+extern cvar_t *r_maptype;
 extern cvar_t *r_scale8bittextures;
 extern cvar_t *r_validation;
 
@@ -424,6 +425,13 @@ void *RI_GetProcAddress (const char* proc);
  * Fills the actual size of the drawable into width and height.
  */
 void RI_GetDrawableSize(int* width, int* height);
+
+/*
+ * Returns the SDL major version. Implemented
+ * here to not polute gl1_main.c with the SDL
+ * headers.
+ */
+int RI_GetSDLVersion();
 
 /* g11_draw */
 extern image_t * RDraw_FindPic(const char *name);

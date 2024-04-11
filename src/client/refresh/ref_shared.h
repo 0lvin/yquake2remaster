@@ -102,6 +102,8 @@ extern struct image_s* LoadM8(const char *origname, const char *namewe, imagetyp
 	loadimage_t load_image);
 extern struct image_s* LoadM32(const char *origname, const char *namewe, imagetype_t type,
 	loadimage_t load_image);
+extern struct image_s* LoadSWL(const char *origname, const char *namewe, imagetype_t type,
+	loadimage_t load_image);
 extern void FixFileExt(const char *origname, const char *ext, char *filename, size_t size);
 extern void GetPCXPalette(byte **colormap, unsigned *d_8to24table);
 extern void GetPCXPalette24to8(const byte *d_8to24table, byte** d_16to8table);
@@ -110,6 +112,7 @@ extern void GetPCXInfo(const char *origname, int *width, int *height);
 extern void GetWalInfo(const char *name, int *width, int *height);
 extern void GetM8Info(const char *name, int *width, int *height);
 extern void GetM32Info(const char *name, int *width, int *height);
+extern void GetSWLInfo(const char *name, int *width, int *height);
 
 extern qboolean LoadSTB(const char *origname, const char* type, byte **pic, int *width, int *height);
 extern qboolean ResizeSTB(const byte *input_pixels, int input_width, int input_height,
@@ -344,7 +347,7 @@ extern void Mod_LoadQBSPNodes(const char *name, cplane_t *planes, int numplanes,
 	const byte *mod_base, const lump_t *l, int ident);
 extern void Mod_LoadQBSPLeafs(const char *name, mleaf_t **leafs, int *numleafs,
 	msurface_t **marksurfaces, unsigned int nummarksurfaces,
-	const byte *mod_base, const lump_t *l, int ident);
+	const byte *mod_base, const lump_t *l, int ident, maptype_t maptype);
 extern void Mod_LoadQBSPEdges(const char *name, medge_t **edges, int *numedges,
 	const byte *mod_base, const lump_t *l, int ident);
 extern void Mod_LoadVertexes(const char *name, mvertex_t **vertexes, int *numvertexes,
@@ -356,15 +359,18 @@ extern void Mod_CalcSurfaceExtents(const int *surfedges, mvertex_t *vertexes,
 	medge_t *edges, msurface_t *s);
 extern void Mod_LoadTexinfo(const char *name, mtexinfo_t **texinfo, int *numtexinfo,
 	const byte *mod_base, const lump_t *l, findimage_t find_image,
-	struct image_s *notexture);
+	struct image_s *notexture, maptype_t maptype);
 extern void Mod_LoadSurfedges(const char *name, int **surfedges, int *numsurfedges,
 	const byte *mod_base, const lump_t *l);
 extern mleaf_t *Mod_PointInLeaf(const vec3_t p, mnode_t *node);
 extern const void *Mod_LoadBSPXFindLump(const bspx_header_t *bspx_header,
 	const char *lumpname, int *plumpsize, const byte *mod_base);
-extern const bspx_header_t *Mod_LoadBSPX(int filesize, const byte *mod_base);
+extern const bspx_header_t *Mod_LoadBSPX(int filesize, const byte *mod_base,
+	maptype_t maptype);
 extern int Mod_LoadBSPXDecoupledLM(const dlminfo_t* lminfos, int surfnum, msurface_t *out);
 extern int Mod_LoadFile(const char *name, void **buffer);
+extern int Mod_CalcNonModelLumpHunkSize(const byte *mod_base, const dheader_t *header,
+	maptype_t maptype);
 
 /* Surface logic */
 #define DLIGHT_CUTOFF 64

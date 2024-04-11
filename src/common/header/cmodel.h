@@ -39,10 +39,22 @@
 #define EXTRA_LUMP_BRUSHSIDES 6
 #define EXTRA_LUMP_LEAFS 1
 
+typedef enum
+{
+	map_quake2 = 0,
+	map_heretic2 = 1,
+	map_daikatana = 2,
+	map_kingpin = 3,
+	map_anachronox = 4,
+	map_sin = 5,
+} maptype_t;
+
+extern int Mod_LoadSurfConvertFlags(int flags, maptype_t maptype);
 extern int Mod_CalcLumpHunkSize(const lump_t *l, int inSize, int outSize, int extra);
 extern void Mod_LoadVisibility(const char *name, dvis_t **vis, int *numvisibility,
 	const byte *mod_base, const lump_t *l);
 extern void Mod_LoadPlanes(const char *name, cplane_t **planes, int *numplanes,
 	const byte *mod_base, const lump_t *l);
+extern maptype_t Mod_LoadValidateLumps(const char *name, const dheader_t *header, const byte* data);
 
 #endif
