@@ -177,6 +177,7 @@ PF_setmodel(edict_t *ent, const char *name)
 		return;
 	}
 
+	printf("%s: %s\n", __func__, name);
 	i = SV_ModelIndex(name);
 
 	ent->s.modelindex = i;

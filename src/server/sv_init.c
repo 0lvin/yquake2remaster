@@ -67,6 +67,10 @@ SV_FindIndex(const char *name, int start, int max, qboolean create)
 	{
 		/* send the update to everyone */
 		MSG_WriteChar(&sv.multicast, svc_configstring);
+		if ((start + i == CS_MODELS) || (start + i == CS_MODELS + 1))
+		{
+			printf("%s: changed %d '%s':%d\n", __func__, start + i, name, strlen(name));
+		}
 		/* i in native server range */
 		MSG_WriteShort(&sv.multicast,
 				P_ConvertConfigStringTo(start + i, sv_client->protocol));
@@ -80,6 +84,7 @@ SV_FindIndex(const char *name, int start, int max, qboolean create)
 int
 SV_ModelIndex(const char *name)
 {
+	printf("%s: %s\n", __func__, name);
 	return SV_FindIndex(name, CS_MODELS, MAX_MODELS, true);
 }
 
@@ -286,6 +291,7 @@ SV_SpawnServer(char *server, char *spawnpoint, server_state_t serverstate,
 	sv.state = ss_loading;
 	Com_SetServerState(sv.state);
 
+	printf("entity string: %s\n, inline: %d\n", sv.name, CM_NumInlineModels());
 	/* load and spawn all other entities */
 	ge->SpawnEntities(sv.name, CM_EntityString(), spawnpoint);
 
@@ -313,7 +319,7 @@ SV_SpawnServer(char *server, char *spawnpoint, server_state_t serverstate,
 	/* set serverinfo variable */
 	Cvar_FullSet("mapname", sv.name, CVAR_SERVERINFO | CVAR_NOSET);
 
-	Com_Printf("------------------------------------\n\n");
+	Com_Printf("------------------------------------%s:%s\n\n", sv.name, spawnpoint);
 }
 
 /*

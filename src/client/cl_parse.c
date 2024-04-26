@@ -1165,6 +1165,11 @@ CL_ParseConfigString(void)
 
 	s = MSG_ReadString(&net_message);
 
+	if ((i == CS_MODELS) || (i == (CS_MODELS + 1)))
+	{
+		printf("%s: %d changed to: '%s': %d\n", __func__, i, s, strlen(s));
+	}
+
 	Q_strlcpy(olds, cl.configstrings[i], sizeof(olds));
 
 	length = strlen(s);

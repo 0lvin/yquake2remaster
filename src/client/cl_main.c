@@ -475,6 +475,7 @@ CL_Precache_f(void)
 	{
 		unsigned map_checksum;    /* for detecting cheater maps */
 
+		printf("%s: changed to: '%s'\n", __func__, cl.configstrings[CS_MODELS + 1]);
 		CM_LoadMap(cl.configstrings[CS_MODELS + 1], true, &map_checksum);
 		CL_RegisterSounds();
 		CL_PrepRefresh();
@@ -493,6 +494,7 @@ CL_Precache_f(void)
 static void
 CL_CurrentMap_f(void)
 {
+	printf("%s: changed to: '%s'\n", __func__, cl.configstrings[CS_MODELS + 1]);
 	Com_Printf("%s\n", cl.configstrings[CS_MODELS + 1]);
 }
 

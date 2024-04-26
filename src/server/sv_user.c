@@ -158,6 +158,10 @@ SV_Configstrings_f(void)
 		{
 			MSG_WriteByte(&sv_client->netchan.message, svc_configstring);
 			/* start in native server range */
+			if ((start == CS_MODELS) || (start == CS_MODELS + 1))
+			{
+				printf("%s: changed %d '%s':%d\n", __func__, start, sv.configstrings[start], strlen(sv.configstrings[start]));
+			}
 			MSG_WriteShort(&sv_client->netchan.message,
 					P_ConvertConfigStringTo(start, sv_client->protocol));
 			MSG_WriteString(&sv_client->netchan.message,
