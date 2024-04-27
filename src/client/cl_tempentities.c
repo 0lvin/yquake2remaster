@@ -160,6 +160,7 @@ CL_RegisterTEntModels(void)
 	cl_mod_bfg_explo = R_RegisterModel("sprites/s_bfg2.sp2");
 	cl_mod_powerscreen = R_RegisterModel("models/items/armor/effect/tris.md2");
 
+	printf("%s()\n", __func__);
 	R_RegisterModel("models/objects/laser/tris.md2");
 	R_RegisterModel("models/objects/grenade2/tris.md2");
 	R_RegisterModel("models/weapons/v_machn/tris.md2");

@@ -116,7 +116,7 @@ typedef struct
 	void *extradata;
 } model_t;
 
-#define MAX_MOD_KNOWN 8
+#define MAX_MOD_KNOWN 1
 
 /* Just empty model for cinematic */
 static model_t empty_model;

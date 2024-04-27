@@ -612,6 +612,10 @@ SV_ServerRecord_f(void)
 		{
 			MSG_WriteByte(&buf, svc_configstring);
 			/* i in native server range */
+			if ((i == CS_MODELS) || (i == CS_MODELS + 1))
+			{
+				printf("%s: changed %d '%s':%d\n", __func__, i, sv.configstrings[i], strlen(sv.configstrings[i]));
+			}
 			MSG_WriteShort(&buf,
 					P_ConvertConfigStringTo(i, sv_client->protocol));
 			MSG_WriteString(&buf, sv.configstrings[i]);

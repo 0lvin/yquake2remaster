@@ -354,7 +354,7 @@ CL_PrepRefresh(void)
 	CL_PrintInSameLine("Models");
 	for (i = 1; i < MAX_MODELS && cl.configstrings[CS_MODELS + i][0]; i++)
 	{
-		strcpy(name, cl.configstrings[CS_MODELS + i]);
+		strncpy(name, cl.configstrings[CS_MODELS + i], sizeof(name));
 		name[37] = 0; /* never go beyond one line */
 
 		if (name[0] != '*')
