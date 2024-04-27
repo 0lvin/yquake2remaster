@@ -186,8 +186,6 @@ Mod_LoadFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 		lminfos = NULL;
 	}
 
-	LM_BeginBuildingLightmaps(loadmodel);
-
 	for (surfnum = 0; surfnum < count; surfnum++, in++, out++)
 	{
 		int	side, ti, planenum, lightofs;
@@ -267,19 +265,8 @@ Mod_LoadFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 			}
 		}
 
-		/* create lightmaps and polygons */
-		if (!(out->texinfo->flags & (SURF_SKY | SURF_TRANSPARENT | SURF_WARP)))
-		{
-			LM_CreateSurfaceLightmap(out);
-		}
-
-		if (!(out->texinfo->flags & SURF_WARP))
-		{
-			LM_BuildPolygonFromSurface(loadmodel, out);
-		}
+		LM_CreateLightmapsPoligon(loadmodel, out);
 	}
-
-	LM_EndBuildingLightmaps();
 }
 
 static void
@@ -314,8 +301,6 @@ Mod_LoadRFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 		lminfos = NULL;
 	}
 
-	LM_BeginBuildingLightmaps(loadmodel);
-
 	for (surfnum = 0; surfnum < count; surfnum++, in++, out++)
 	{
 		int	side, ti, planenum, lightofs;
@@ -395,19 +380,8 @@ Mod_LoadRFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 			}
 		}
 
-		/* create lightmaps and polygons */
-		if (!(out->texinfo->flags & (SURF_SKY | SURF_TRANSPARENT | SURF_WARP)))
-		{
-			LM_CreateSurfaceLightmap(out);
-		}
-
-		if (!(out->texinfo->flags & SURF_WARP))
-		{
-			LM_BuildPolygonFromSurface(loadmodel, out);
-		}
+		LM_CreateLightmapsPoligon(loadmodel, out);
 	}
-
-	LM_EndBuildingLightmaps();
 }
 
 static void
@@ -441,8 +415,6 @@ Mod_LoadQFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 			__func__, loadmodel->name, lminfosize / sizeof(dlminfo_t), loadmodel->numsurfaces);
 		lminfos = NULL;
 	}
-
-	LM_BeginBuildingLightmaps(loadmodel);
 
 	for (surfnum = 0; surfnum < count; surfnum++, in++, out++)
 	{
@@ -523,19 +495,8 @@ Mod_LoadQFaces(model_t *loadmodel, const byte *mod_base, const lump_t *l,
 			}
 		}
 
-		/* create lightmaps and polygons */
-		if (!(out->texinfo->flags & (SURF_SKY | SURF_TRANSPARENT | SURF_WARP)))
-		{
-			LM_CreateSurfaceLightmap(out);
-		}
-
-		if (!(out->texinfo->flags & SURF_WARP))
-		{
-			LM_BuildPolygonFromSurface(loadmodel, out);
-		}
+		LM_CreateLightmapsPoligon(loadmodel, out);
 	}
-
-	LM_EndBuildingLightmaps();
 }
 
 static void
@@ -630,6 +591,9 @@ Mod_LoadBrushModel(model_t *mod, const void *buffer, int modfilelen)
 	Mod_LoadTexinfo(mod->name, &mod->texinfo, &mod->numtexinfo,
 		mod_base, &header->lumps[LUMP_TEXINFO], (findimage_t)Vk_FindImage,
 		r_notexture, maptype);
+
+	LM_BeginBuildingLightmaps(mod);
+
 	if ((header->ident == IDBSPHEADER) ||
 		(header->ident == RBSPHEADER))
 	{
@@ -646,6 +610,9 @@ Mod_LoadBrushModel(model_t *mod, const void *buffer, int modfilelen)
 	{
 		Mod_LoadQFaces(mod, mod_base, &header->lumps[LUMP_FACES], bspx_header);
 	}
+
+	LM_EndBuildingLightmaps();
+
 	Mod_LoadQBSPMarksurfaces(mod->name, &mod->marksurfaces, &mod->nummarksurfaces,
 		mod->surfaces, mod->numsurfaces, mod_base, &header->lumps[LUMP_LEAFFACES],
 		header->ident);

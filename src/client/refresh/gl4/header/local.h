@@ -452,8 +452,7 @@ extern void GL4_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride);
 extern void LM_InitBlock(void);
 extern void LM_UploadBlock(void);
 extern qboolean LM_AllocBlock(int w, int h, int *x, int *y);
-extern void LM_BuildPolygonFromSurface(gl4model_t *currentmodel, msurface_t *fa);
-extern void LM_CreateSurfaceLightmap(msurface_t *surf);
+extern void LM_CreateLightmapsPoligon(gl4model_t *currentmodel, msurface_t *fa);
 extern void LM_BeginBuildingLightmaps(gl4model_t *m);
 extern void LM_EndBuildingLightmaps(void);
 
@@ -496,6 +495,7 @@ extern void GL4_UpdateUBOLights(void);
 // ############ Cvars ###########
 
 extern cvar_t *gl_msaa_samples;
+extern cvar_t *gl_version_override;
 extern cvar_t *r_vsync;
 extern cvar_t *r_retexturing;
 extern cvar_t *r_maptype;

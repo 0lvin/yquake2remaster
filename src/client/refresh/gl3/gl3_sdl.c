@@ -250,8 +250,16 @@ int GL3_PrepareForWindow(void)
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #else // Desktop GL
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+	if (gl_version_override->value)
+	{
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, gl_version_override->value);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	}
+	else
+	{
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+	}
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #endif
 
@@ -316,7 +324,8 @@ int GL3_InitContext(void* win)
 	// Coders are stupid.
 	if (win == NULL)
 	{
-		Com_Error(ERR_FATAL, "R_InitContext() must not be called with NULL argument!");
+		Com_Error(ERR_FATAL, "%s() must not be called with NULL argument!",
+			__func__);
 
 		return false;
 	}
@@ -328,7 +337,8 @@ int GL3_InitContext(void* win)
 
 	if(context == NULL)
 	{
-		R_Printf(PRINT_ALL, "GL3_InitContext(): Creating OpenGL Context failed: %s\n", SDL_GetError());
+		R_Printf(PRINT_ALL, "%s(): Creating OpenGL Context failed: %s\n",
+			__func__, SDL_GetError());
 
 		window = NULL;
 
@@ -367,7 +377,8 @@ int GL3_InitContext(void* win)
 	if( !gladLoadGLLoader((void *)SDL_GL_GetProcAddress))
 #endif
 	{
-		R_Printf(PRINT_ALL, "GL3_InitContext(): ERROR: loading OpenGL function pointers failed!\n");
+		R_Printf(PRINT_ALL, "%s(): ERROR: loading OpenGL function pointers failed!\n",
+			__func__);
 
 		return false;
 	}
@@ -377,9 +388,21 @@ int GL3_InitContext(void* win)
 	else if (GLVersion.major < 3 || (GLVersion.major == 3 && GLVersion.minor < 2))
 #endif
 	{
-		R_Printf(PRINT_ALL, "GL3_InitContext(): ERROR: glad only got GL version %d.%d!\n", GLVersion.major, GLVersion.minor);
+		if ((!gl_version_override->value) ||
+			(GLVersion.major < gl_version_override->value))
+		{
+			R_Printf(PRINT_ALL, "%s(): ERROR: glad only got GL version %d.%d!\n",
+				__func__, GLVersion.major, GLVersion.minor);
 
-		return false;
+			return false;
+		}
+		else
+		{
+			R_Printf(PRINT_ALL, "%s(): Warning: glad only got GL version %d.%d.\n"
+				"Some functionality could be broken.\n",
+				__func__, GLVersion.major, GLVersion.minor);
+
+		}
 	}
 	else
 	{
