@@ -1015,7 +1015,7 @@ Mod_LoadGetRules(const dheader_t *header, const rule_t **rules)
 }
 
 maptype_t
-Mod_LoadValidateLumps(const char *name, const dheader_t *header, const byte* data)
+Mod_LoadValidateLumps(const char *name, const dheader_t *header)
 {
 	const rule_t *rules = NULL;
 	qboolean error = false;
@@ -1036,23 +1036,6 @@ Mod_LoadValidateLumps(const char *name, const dheader_t *header, const byte* dat
 						__func__, name, s, header->lumps[s].filelen, rules[s].size);
 					error = true;
 				}
-
-				if (!data)
-				{
-					continue;
-				}
-
-				int i;
-				printf("\n\nDump #%d\n\n", s);
-				for (i = 0; i < header->lumps[s].filelen; i ++)
-				{
-					if ((i % rules[s].size) == 0 && (rules[s].size > 2))
-					{
-						printf("\n");
-					}
-					printf("%02x", *(data + header->lumps[s].fileofs + i));
-				}
-				printf("\n\n---------------------------\n\n");
 			}
 		}
 	}
@@ -1145,6 +1128,27 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 				result_size += (
 					qbsplumps[s].size * header.lumps[s].filelen / rules[s].size
 				);
+			}
+		}
+	}
+
+	if (rules)
+	{
+		for (s = 0; s < HEADER_LUMPS; s++)
+		{
+			if (rules[s].size)
+			{
+				int i;
+				printf("\n\nDump #%d\n\n", s);
+				for (i = 0; i < header.lumps[s].filelen; i ++)
+				{
+					if ((i % rules[s].size) == 0 && (rules[s].size > 2))
+					{
+						printf("\n");
+					}
+					printf("%02x", *(inbuf + header.lumps[s].fileofs + i));
+				}
+				printf("\n\n---------------------------\n\n");
 			}
 		}
 	}
