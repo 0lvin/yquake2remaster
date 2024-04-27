@@ -17,9 +17,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+// m_demon.c
 
 #include "../../header/local.h"
-#include "demon.h"
 
 static int sound_death;
 static int sound_hit;
@@ -105,7 +105,7 @@ void DemonJumpTouch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *
 {
 	if (self->health < 1)
 		return;
-	if (other->takedamage)
+	if (other->takedamage && other->monster_team != self->monster_team)
 	{
 		if (VectorLength(self->velocity) > 400)
 		{
@@ -321,7 +321,10 @@ void SP_monster_demon(edict_t *self)
 	VectorSet(self->mins, -32, -32, -24);
 	VectorSet(self->maxs, 32, 32, 64);
 	self->health = 300;
+	self->monster_name = "Fiend";
 
+	if (self->solid == SOLID_NOT)
+		return;
 	sound_death = gi.soundindex("demon/ddeath.wav");
 	sound_hit = gi.soundindex("demon/dhit2.wav");
 	sound_jump = gi.soundindex("demon/djump.wav");
