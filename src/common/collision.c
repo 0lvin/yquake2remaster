@@ -132,6 +132,7 @@ static cbrush_t *box_brush;
 static cleaf_t *box_leaf;
 static cplane_t *box_planes;
 static cvar_t *map_noareas;
+static cvar_t *r_maptype;
 static int box_headnode;
 static int checkcount;
 static int floodvalid;
@@ -1343,7 +1344,7 @@ static void
 CMod_LoadSurfaces(const char *name, mapsurface_t **map_surfaces, int *numtexinfo,
 	const byte *cmod_base, const lump_t *l)
 {
-	texinfo_t *in;
+	xtexinfo_t *in;
 	mapsurface_t *out;
 	int i, count;
 
@@ -1758,6 +1759,8 @@ CM_LoadCachedMap(const char *name, model_t *mod)
 
 	mod->checksum = LittleLong(Com_BlockChecksum(filebuf, filelen));
 
+	/* Can't detect will use provided */
+	maptype = r_maptype->value;
 	cmod_base = Mod_Load2QBSP(name, (byte *)filebuf, filelen, &length, &maptype);
 	header = (dheader_t *)cmod_base;
 
@@ -1765,7 +1768,7 @@ CM_LoadCachedMap(const char *name, model_t *mod)
 	strcpy(mod->name, name);
 
 	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_TEXINFO],
-		sizeof(texinfo_t), sizeof(mapsurface_t), EXTRA_LUMP_TEXINFO);
+		sizeof(xtexinfo_t), sizeof(mapsurface_t), EXTRA_LUMP_TEXINFO);
 	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFS],
 		sizeof(dqleaf_t), sizeof(cleaf_t), 0);
 	hunkSize += Mod_CalcLumpHunkSize(&header->lumps[LUMP_LEAFBRUSHES],
@@ -1848,6 +1851,7 @@ CM_LoadMap(const char *name, qboolean clientload, unsigned *checksum)
 	int i, sec_start;
 
 	map_noareas = Cvar_Get("map_noareas", "0", 0);
+	r_maptype = Cvar_Get("maptype", "0", CVAR_ARCHIVE);
 
 	if (!name[0])
 	{

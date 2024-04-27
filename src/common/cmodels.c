@@ -146,6 +146,74 @@ Mod_LoadPlanes(const char *name, cplane_t **planes, int *numplanes,
 	}
 }
 
+/*
+ * Convert Other games flags to Quake 2 flags
+ */
+static int
+Mod_LoadConvertFlags(int flags, const int *convert)
+{
+	int sflags = 0;
+	int i;
+
+	if (!convert)
+	{
+		return flags;
+	}
+
+	for (i = 0; i < 32; i++)
+	{
+		if (flags & (1 << i))
+		{
+			sflags |= convert[i];
+		}
+	}
+
+	return sflags;
+}
+
+/*
+ * Convert other games flags to Quake 2 surface flags
+ */
+static int
+Mod_LoadSurfConvertFlags(int flags, maptype_t maptype)
+{
+	const int *convert;
+
+	switch (maptype)
+	{
+		case map_heretic2: convert = heretic2_flags; break;
+		case map_daikatana: convert = daikatana_flags; break;
+		case map_kingpin: convert = kingpin_flags; break;
+		case map_anachronox: convert = anachronox_flags; break;
+		case map_sin: convert = sin_flags; break;
+		default: convert = NULL; break;
+	}
+
+	return Mod_LoadConvertFlags(flags, convert);
+}
+
+/*
+ * Convert other games flags to Quake 2 context flags
+ */
+static int
+Mod_LoadContextConvertFlags(int flags, maptype_t maptype)
+{
+	const int *convert;
+
+	switch (maptype)
+	{
+		case map_quake2: convert = quake2_contents_flags; break;
+		case map_heretic2: convert = heretic2_contents_flags; break;
+		case map_daikatana: convert = daikatana_contents_flags; break;
+		case map_kingpin: convert = kingpin_contents_flags; break;
+		case map_anachronox: convert = anachronox_contents_flags; break;
+		case map_sin: convert = sin_contents_flags; break;
+		default: convert = NULL; break;
+	}
+
+	return Mod_LoadConvertFlags(flags, convert);
+}
+
 static void
 Mod_Load2QBSP_IBSP_ENTITIES(byte *outbuf, dheader_t *outheader, const byte *inbuf,
 	const dheader_t *inheader, size_t rule_size, maptype_t maptype)
@@ -292,12 +360,13 @@ static void
 Mod_Load2QBSP_IBSP_TEXINFO(byte *outbuf, dheader_t *outheader, const byte *inbuf,
 	const dheader_t *inheader, size_t rule_size, maptype_t maptype)
 {
-	texinfo_t *in, *out;
+	texinfo_t *in;
+	xtexinfo_t *out;
 	int i, count;
 
 	count = inheader->lumps[LUMP_TEXINFO].filelen / rule_size;
 	in = (texinfo_t *)(inbuf + inheader->lumps[LUMP_TEXINFO].fileofs);
-	out = (texinfo_t *)(outbuf + outheader->lumps[LUMP_TEXINFO].fileofs);
+	out = (xtexinfo_t *)(outbuf + outheader->lumps[LUMP_TEXINFO].fileofs);
 
 	for (i = 0; i < count; i++)
 	{
@@ -324,12 +393,12 @@ Mod_Load2QBSP_RBSP_TEXINFO(byte *outbuf, dheader_t *outheader, const byte *inbuf
 	const dheader_t *inheader, size_t rule_size, maptype_t maptype)
 {
 	texrinfo_t *in;
-	texinfo_t *out;
+	xtexinfo_t *out;
 	int i, count;
 
 	count = inheader->lumps[LUMP_TEXINFO].filelen / rule_size;
 	in = (texrinfo_t *)(inbuf + inheader->lumps[LUMP_TEXINFO].fileofs);
-	out = (texinfo_t *)(outbuf + outheader->lumps[LUMP_TEXINFO].fileofs);
+	out = (xtexinfo_t *)(outbuf + outheader->lumps[LUMP_TEXINFO].fileofs);
 
 	for (i = 0; i < count; i++)
 	{
@@ -343,6 +412,7 @@ Mod_Load2QBSP_RBSP_TEXINFO(byte *outbuf, dheader_t *outheader, const byte *inbuf
 
 		out->flags = Mod_LoadSurfConvertFlags(LittleLong(in->flags), maptype);
 		out->nexttexinfo = LittleLong(in->nexttexinfo);
+		/* TODO: Need to use longer texture path */
 		strncpy(out->texture, in->texture,
 			Q_min(sizeof(out->texture), sizeof(in->texture)));
 
@@ -463,7 +533,7 @@ Mod_Load2QBSP_IBSP_LEAFS(byte *outbuf, dheader_t *outheader, const byte *inbuf,
 			out->maxs[j] = LittleShort(in->maxs[j]);
 		}
 
-		out->contents = LittleLong(in->contents);
+		out->contents = Mod_LoadContextConvertFlags(LittleLong(in->contents), maptype);
 		out->cluster = LittleShort(in->cluster);
 		out->area = LittleShort(in->area);
 
@@ -500,7 +570,7 @@ Mod_Load2QBSP_DKBSP_LEAFS(byte *outbuf, dheader_t *outheader, const byte *inbuf,
 			out->maxs[j] = LittleShort(in->maxs[j]);
 		}
 
-		out->contents = LittleLong(in->contents);
+		out->contents = Mod_LoadContextConvertFlags(LittleLong(in->contents), maptype);
 		out->cluster = LittleShort(in->cluster);
 		out->area = LittleShort(in->area);
 
@@ -537,7 +607,7 @@ Mod_Load2QBSP_QBSP_LEAFS(byte *outbuf, dheader_t *outheader, const byte *inbuf,
 			out->maxs[j] = LittleFloat(in->maxs[j]);
 		}
 
-		out->contents = LittleLong(in->contents);
+		out->contents = Mod_LoadContextConvertFlags(LittleLong(in->contents), maptype);
 		out->cluster = LittleLong(in->cluster);
 		out->area = LittleLong(in->area);
 
@@ -743,7 +813,7 @@ Mod_Load2QBSP_IBSP_BRUSHES(byte *outbuf, dheader_t *outheader, const byte *inbuf
 	{
 		out->firstside = LittleLong(in->firstside) & 0xFFFFFFFF;
 		out->numsides = LittleLong(in->numsides) & 0xFFFFFFFF;
-		out->contents = LittleLong(in->contents);
+		out->contents = Mod_LoadContextConvertFlags(LittleLong(in->contents), maptype);
 
 		out++;
 		in++;
@@ -946,6 +1016,29 @@ static const rule_t qbsplumps[HEADER_LUMPS] = {
 	{sizeof(dareaportal_t), Mod_Load2QBSP_IBSP_AREAPORTALS},
 };
 
+/* custom format with extended texture name */
+static const rule_t xbsplumps[HEADER_LUMPS] = {
+	{sizeof(char), Mod_Load2QBSP_IBSP_ENTITIES},
+	{sizeof(dplane_t), Mod_Load2QBSP_IBSP_PLANES},
+	{sizeof(dvertex_t), Mod_Load2QBSP_IBSP_VERTEXES},
+	{sizeof(char), Mod_Load2QBSP_IBSP_VISIBILITY},
+	{sizeof(dqnode_t), Mod_Load2QBSP_QBSP_NODES},
+	{sizeof(xtexinfo_t), Mod_Load2QBSP_IBSP_TEXINFO},
+	{sizeof(dqface_t), Mod_Load2QBSP_QBSP_FACES},
+	{sizeof(char), Mod_Load2QBSP_IBSP_LIGHTING},
+	{sizeof(dqleaf_t), Mod_Load2QBSP_QBSP_LEAFS},
+	{sizeof(int), Mod_Load2QBSP_QBSP_LEAFFACES},
+	{sizeof(int), Mod_Load2QBSP_QBSP_LEAFBRUSHES},
+	{sizeof(dqedge_t), Mod_Load2QBSP_QBSP_EDGES},
+	{sizeof(int), Mod_Load2QBSP_IBSP_SURFEDGES},
+	{sizeof(dmodel_t), Mod_Load2QBSP_IBSP_MODELS},
+	{sizeof(dbrush_t), Mod_Load2QBSP_IBSP_BRUSHES},
+	{sizeof(dqbrushside_t), Mod_Load2QBSP_QBSP_BRUSHSIDES},
+	{0, NULL}, // LUMP_POP
+	{sizeof(darea_t), Mod_Load2QBSP_IBSP_AREAS},
+	{sizeof(dareaportal_t), Mod_Load2QBSP_IBSP_AREAPORTALS},
+};
+
 static const char*
 Mod_MaptypeName(maptype_t maptype)
 {
@@ -953,6 +1046,7 @@ Mod_MaptypeName(maptype_t maptype)
 
 	switch(maptype)
 	{
+		case map_quake2rr: maptypename = "Quake2 ReRelease"; break;
 		case map_quake2: maptypename = "Quake2"; break;
 		case map_heretic2: maptypename = "Heretic 2"; break;
 		case map_daikatana: maptypename = "Daikatana"; break;
@@ -996,13 +1090,13 @@ Mod_LoadGetRules(const dheader_t *header, const rule_t **rules)
 		else if (header->version == BSPVERSION)
 		{
 			*rules = idbsplumps;
-			return map_quake2;
+			return map_quake2rr;
 		}
 	}
 	else if (header->ident == QBSPHEADER && header->version == BSPVERSION)
 	{
 		*rules = qbsplumps;
-		return map_quake2;
+		return map_quake2rr;
 	}
 	else if (header->ident == RBSPHEADER && header->version == BSPSINVERSION)
 	{
@@ -1011,85 +1105,7 @@ Mod_LoadGetRules(const dheader_t *header, const rule_t **rules)
 	}
 
 	*rules = NULL;
-	return map_quake2;
-}
-
-maptype_t
-Mod_LoadValidateLumps(const char *name, const dheader_t *header)
-{
-	const rule_t *rules = NULL;
-	qboolean error = false;
-	maptype_t maptype;
-
-	maptype = Mod_LoadGetRules(header, &rules);
-
-	if (rules)
-	{
-		int s;
-		for (s = 0; s < HEADER_LUMPS; s++)
-		{
-			if (rules[s].size)
-			{
-				if (header->lumps[s].filelen % rules[s].size)
-				{
-					Com_Printf("%s: Map %s lump #%d: incorrect size %d / " YQ2_COM_PRIdS "\n",
-						__func__, name, s, header->lumps[s].filelen, rules[s].size);
-					error = true;
-				}
-			}
-		}
-	}
-
-	Com_Printf("Map %s %c%c%c%c with version %d (%s)\n",
-				name,
-				(header->ident >> 0) & 0xFF,
-				(header->ident >> 8) & 0xFF,
-				(header->ident >> 16) & 0xFF,
-				(header->ident >> 24) & 0xFF,
-				header->version, Mod_MaptypeName(maptype));
-
-	if (error || !rules)
-	{
-		Com_Error(ERR_DROP, "%s: Map %s has incorrect lumps",
-			__func__, name);
-	}
-
-	return maptype;
-}
-
-/*
- * Convert Other games flags to Quake 2 surface flags
- */
-int
-Mod_LoadSurfConvertFlags(int flags, maptype_t maptype)
-{
-	const int *convert;
-	int sflags = 0;
-	int i;
-
-	switch (maptype)
-	{
-		case map_heretic2: convert = heretic2_flags; break;
-		case map_daikatana: convert = daikatana_flags; break;
-		case map_kingpin: convert = kingpin_flags; break;
-		case map_anachronox: convert = anachronox_flags; break;
-		default: convert = NULL; break;
-	}
-
-	if (!convert)
-	{
-		return flags;
-	}
-
-	for (i = 0; i < 32; i++)
-	{
-		if (flags & (1 << i))
-		{
-			sflags |= convert[i];
-		}
-	}
-
-	return sflags;
+	return map_quake2rr;
 }
 
 byte *
@@ -1102,6 +1118,7 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 	int s, xofs, numlumps;
 	qboolean error = false;
 	byte *outbuf;
+	maptype_t detected_maptype;
 
 	for (s = 0; s < sizeof(dheader_t) / 4; s++)
 	{
@@ -1110,7 +1127,12 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 
 	result_size = sizeof(dheader_t);
 
-	*maptype = Mod_LoadGetRules(&header, &rules);
+	detected_maptype = Mod_LoadGetRules(&header, &rules);
+	if (detected_maptype != map_quake2rr)
+	{
+		/* Use detected maptype only if for sure know */
+		*maptype  = detected_maptype;
+	}
 
 	if (rules)
 	{
@@ -1126,7 +1148,7 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 				}
 
 				result_size += (
-					qbsplumps[s].size * header.lumps[s].filelen / rules[s].size
+					xbsplumps[s].size * header.lumps[s].filelen / rules[s].size
 				);
 			}
 		}
@@ -1185,12 +1207,24 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 
 	if (xofs + sizeof(bspx_header_t) < filesize)
 	{
-		result_size += (filesize - xofs);
+		bspx_header_t* xheader;
+
+		xheader = (bspx_header_t*)(inbuf + xofs);
+		if (LittleLong(xheader->ident) == BSPXHEADER)
+		{
+			result_size += (filesize - xofs);
+			result_size += 4;
+		}
+		else
+		{
+			/* Have some other data at the end of file, just skip it */
+			xofs = filesize;
+		}
 	}
 
-	result_size += 4;
 	outbuf = malloc(result_size);
 	outheader = (dheader_t*)outbuf;
+	memset(outheader, 0, sizeof(dheader_t));
 	outheader->ident = QBSPHEADER;
 	outheader->version = BSPVERSION;
 	int ofs = sizeof(dheader_t);
@@ -1202,13 +1236,13 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 		{
 			outheader->lumps[s].fileofs = ofs;
 			outheader->lumps[s].filelen = (
-				qbsplumps[s].size * header.lumps[s].filelen / rules[s].size
+				xbsplumps[s].size * header.lumps[s].filelen / rules[s].size
 			);
 			ofs += outheader->lumps[s].filelen;
 		}
 	}
 
-	if ((filesize - xofs) > 0)
+	if (filesize > xofs)
 	{
 		bspx_header_t *bspx_header;
 		bspx_lump_t *lump;
@@ -1222,6 +1256,11 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 
 		/* fix positions */
 		numlumps = LittleLong(bspx_header->numlumps);
+		if ((numlumps * sizeof(*lump)) >= (filesize - xofs))
+		{
+			Com_Error(ERR_DROP, "%s: Map %s has incorrect bspx lumps",
+				__func__, name);
+		}
 
 		lump = (bspx_lump_t*)(bspx_header + 1);
 		for (i = 0; i < numlumps; i++, lump++)
