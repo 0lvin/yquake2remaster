@@ -1276,5 +1276,107 @@ typedef struct
 							      walking the bsp tree */
 } dq1model_t;
 
+/* Quake 3 BSP */
+#define BSPQ3VERSION 46
+
+#define LUMPQ3_ENTITIES 0
+#define LUMPQ3_SHADERS 1
+#define LUMPQ3_PLANES 2
+#define LUMPQ3_NODES 3
+#define LUMPQ3_LEAFS 4
+#define LUMPQ3_LEAFSURFACES 5
+#define LUMPQ3_LEAFBRUSHES 6
+#define LUMPQ3_MODELS 7
+#define LUMPQ3_BRUSHES 8
+#define LUMPQ3_BRUSHSIDES 9
+#define LUMPQ3_DRAWVERTS 10
+#define LUMPQ3_DRAWINDEXES 11
+#define LUMPQ3_FOGS 12
+#define LUMPQ3_SURFACES 13
+#define LUMPQ3_LIGHTMAPS 14
+#define LUMPQ3_LIGHTGRID 15
+#define LUMPQ3_VISIBILITY 16
+#define HEADER_Q3LUMPS 17
+
+typedef struct {
+	float mins[3], maxs[3];
+	int firstSurface, numSurfaces;
+	int firstBrush, numBrushes;
+} dq3model_t;
+
+typedef struct {
+	char shader[64];
+	int surfaceFlags;
+	int contentFlags;
+} dshader_t;
+
+// planes x^1 is allways the opposite of plane x
+typedef struct {
+	float normal[3];
+	float dist;
+} dq3plane_t;
+
+typedef struct {
+	int planeNum;
+	int children[2];	// negative numbers are -(leafs+1), not nodes
+	int mins[3];		// for frustom culling
+	int maxs[3];
+} dq3node_t;
+
+typedef struct {
+	int cluster;			// -1 = opaque cluster (do I still store these?)
+	int area;
+
+	int mins[3];			// for frustum culling
+	int maxs[3];
+
+	int firstLeafSurface;
+	int numLeafSurfaces;
+
+	int firstLeafBrush;
+	int numLeafBrushes;
+} dq3leaf_t;
+
+typedef struct {
+	int planeNum;			// positive plane side faces out of the leaf
+	int shaderNum;
+} dq3brushside_t;
+
+typedef struct {
+	int firstSide;
+	int numSides;
+	int shaderNum;		// the shader that determines the contents flags
+} dq3brush_t;
+
+typedef enum {
+	MST_BAD,
+	MST_PLANAR,
+	MST_PATCH,
+	MST_TRIANGLE_SOUP,
+	MST_FLARE
+} mapSurfaceType_t;
+
+typedef struct {
+	int shaderNum;
+	int fogNum;
+	int surfaceType;
+
+	int firstVert;
+	int numVerts;
+
+	int firstIndex;
+	int numIndexes;
+
+	int lightmapNum;
+	int lightmapX, lightmapY;
+	int lightmapWidth, lightmapHeight;
+
+	vec3_t lightmapOrigin;
+	vec3_t lightmapVecs[3];	// for patches, [0] and [1] are lodbounds
+
+	int patchWidth;
+	int patchHeight;
+} dq3surface_t;
+
 #endif
 
