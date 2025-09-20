@@ -14,7 +14,48 @@ concurrency:
   group: ${{github.workflow}}-${{github.event_name == 'pull_request' && github.head_ref || github.sha}}
   cancel-in-progress: true
 jobs:
-  analyze:
+  analyzeSDL2:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: actions
+          build-mode: none
+        - language: c-cpp
+          build-mode: manual
+    steps:
+    - name: Install build dependencies
+      run: |
+        sudo apt update
+        sudo apt install libgl1-mesa-dev libsdl2-dev libopenal-dev libcurl4-openssl-dev \
+            libavformat-dev libswscale-dev libvulkan-dev build-essential
+    - name: Checkout repository
+      uses: actions/checkout@v5
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+    - name: Configure with CMake
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DSDL3_SUPPORT=OFF
+    - name: Build Project
+      run: cmake --build build --config Release
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{ matrix.language }}"
+  analyzeSDL3:
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
@@ -32,6 +73,11 @@ jobs:
         - language: c-cpp
           build-mode: autobuild
     steps:
+    - name: Install build dependencies
+      run: |
+        sudo apt update
+        sudo apt install libgl1-mesa-dev libsdl3-dev libopenal-dev libcurl4-openssl-dev \
+            libavformat-dev libswscale-dev libvulkan-dev build-essential
     - name: Checkout repository
       uses: actions/checkout@v5
     - name: Initialize CodeQL
@@ -39,6 +85,13 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+    - name: Configure with CMake
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DSDL3_SUPPORT=ON
+    - name: Build Project
+      run: cmake --build build --config Release
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
