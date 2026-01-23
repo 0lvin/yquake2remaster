@@ -113,14 +113,14 @@ QuaternionSlerp(const vec4_t p, vec4_t q, float t, vec4_t qt)
 		}
 	}
 
-	cosom = p[0]*q[0] + p[1]*q[1] + p[2]*q[2] + p[3]*q[3];
+	cosom = p[0] * q[0] + p[1] * q[1] + p[2] * q[2] + p[3] * q[3];
 
 	if ((1.0f + cosom) > 0.00000001f)
 	{
 		if ((1.0f - cosom) > 0.00000001f)
 		{
 			omega = acosf(cosom);
-			sinom = sinf( omega );
+			sinom = sinf(omega);
 			sclp = sinf((1.0f - t) * omega) / sinom;
 			sclq = sinf(t * omega ) / sinom;
 		}
@@ -143,6 +143,7 @@ QuaternionSlerp(const vec4_t p, vec4_t q, float t, vec4_t qt)
 		qt[3] = p[2];
 		sclp = sinf( (1.0f - t) * 0.5f * M_PI);
 		sclq = sinf( t * 0.5f * M_PI);
+
 		for (i = 0; i < 3; i++)
 		{
 			qt[i] = sclp * p[i] + sclq * qt[i];
@@ -175,12 +176,21 @@ CalcBoneQuaternion(int frame, float s, hlmdl_bone_t *pbone, hlmdl_anim_t *panim,
 		{
 			panimvalue = (hlmdl_animvalue_t *)((byte*)panim + (*panim)[j + 3]);
 			int k = frame;
-			if (panimvalue->num.total < panimvalue->num.valid) k = 0;
-			while (panimvalue->num.total <= k) {
+			if (panimvalue->num.total < panimvalue->num.valid)
+			{
+				k = 0;
+			}
+
+			while (panimvalue->num.total <= k)
+			{
 				k -= panimvalue->num.total;
 				panimvalue = (hlmdl_animvalue_t *)((byte*)panimvalue + (panimvalue->num.valid + 1) * sizeof(hlmdl_animvalue_t));
-				if (panimvalue->num.total < panimvalue->num.valid) k = 0;
+				if (panimvalue->num.total < panimvalue->num.valid)
+				{
+					k = 0;
+				}
 			}
+
 			if (panimvalue->num.valid > k)
 			{
 				angle1[j] = panimvalue[k+1].value;
@@ -238,28 +248,52 @@ static void
 CalcBonePosition(int frame, float s, hlmdl_bone_t *pbone, hlmdl_anim_t *panim, float *pos)
 {
 	hlmdl_animvalue_t *panimvalue;
+	int j;
 
-	for (int j = 0; j < 3; j++) {
+	for (j = 0; j < 3; j++)
+	{
 		pos[j] = pbone->value[j];
-		if (panim && (*panim)[j] != 0) {
+
+		if (panim && (*panim)[j] != 0)
+		{
 			panimvalue = (hlmdl_animvalue_t *)((byte*)panim + (*panim)[j]);
 			int k = frame;
-			if (panimvalue->num.total < panimvalue->num.valid) k = 0;
-			while (panimvalue->num.total <= k) {
+			if (panimvalue->num.total < panimvalue->num.valid)
+			{
+				k = 0;
+			}
+
+			while (panimvalue->num.total <= k)
+			{
 				k -= panimvalue->num.total;
 				panimvalue = (hlmdl_animvalue_t *)((byte*)panimvalue + (panimvalue->num.valid + 1) * sizeof(hlmdl_animvalue_t));
-				if (panimvalue->num.total < panimvalue->num.valid) k = 0;
+				if (panimvalue->num.total < panimvalue->num.valid)
+				{
+					k = 0;
+				}
 			}
-			if (panimvalue->num.valid > k) {
+
+			if (panimvalue->num.valid > k)
+			{
 				if (panimvalue->num.valid > k + 1)
+				{
 					pos[j] += (panimvalue[k+1].value * (1.0f - s) + s * panimvalue[k+2].value) * pbone->scale[j];
+				}
 				else
+				{
 					pos[j] += panimvalue[k+1].value * pbone->scale[j];
-			} else {
+				}
+			}
+			else
+			{
 				if (panimvalue->num.total <= k + 1)
+				{
 					pos[j] += (panimvalue[panimvalue->num.valid].value * (1.0f - s) + s * panimvalue[panimvalue->num.valid + 2].value) * pbone->scale[j];
+				}
 				else
+				{
 					pos[j] += panimvalue[panimvalue->num.valid].value * pbone->scale[j];
+				}
 			}
 		}
 	}
@@ -744,6 +778,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	{
 		const hlmdl_sequence_t *pseq = &sequences[i];
 		hlmdl_anim_t *panim = NULL;
+		int j;
 
 		if (pseq->seqgroup == 0)
 		{
@@ -751,7 +786,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		}
 		// else handle seqgroup, but for now assume 0
 
-		for(int j = 0; j < sequences[i].num_frames; j ++)
+		for(j = 0; j < sequences[i].num_frames; j ++)
 		{
 			daliasxframe_t *frame = (daliasxframe_t *)(
 				(byte *)pheader + pheader->ofs_frames + total_frames * pheader->framesize);
@@ -762,51 +797,51 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			// compute bone transforms
 			if (nBones > 0)
 			{
-				if (bonetransform)
+				if (bonetransform && q && pos)
 				{
+					int b;
 					memset(bonetransform, 0, sizeof(float) * 12 * nBones);
 					memset(q, 0, sizeof(vec4_t) * nBones);
 					memset(pos, 0, sizeof(vec3_t) * nBones);
 
-					if (q && pos)
+					for (b = 0; b < nBones; ++b)
 					{
-						for (int b = 0; b < nBones; ++b)
+						CalcBoneQuaternion(j, 0.0f, &pbones[b], panim ? &panim[b] : NULL, q[b]);
+						CalcBonePosition(j, 0.0f, &pbones[b], panim ? &panim[b] : NULL, pos[b]);
+					}
+
+					for (b = 0; b < nBones; ++b)
+					{
+						float bonematrix[3][4];
+						QuaternionMatrix(q[b], bonematrix);
+						bonematrix[0][3] = pos[b][0];
+						bonematrix[1][3] = pos[b][1];
+						bonematrix[2][3] = pos[b][2];
+
+						int parent = pbones[b].parent;
+						if (parent == -1)
 						{
-							CalcBoneQuaternion(j, 0.0f, &pbones[b], panim ? &panim[b] : NULL, q[b]);
-							CalcBonePosition(j, 0.0f, &pbones[b], panim ? &panim[b] : NULL, pos[b]);
+							memcpy(bonetransform[b], bonematrix, sizeof(float) * 12);
+						}
+						else
+						{
+							R_ConcatTransforms(bonetransform[parent], bonematrix, bonetransform[b]);
+						}
+					}
+
+					// transform verts
+					if (temp_verts)
+					{
+						int v;
+
+						for (v = 0; v < num_verts; ++v)
+						{
+							int bone = out_boneids[v];
+							if (bone < 0 || bone >= nBones) bone = 0;
+							VectorTransform(out_vert[v].xyz, bonetransform[bone], temp_verts[v].xyz);
 						}
 
-						for (int b = 0; b < nBones; ++b)
-						{
-							float bonematrix[3][4];
-							QuaternionMatrix(q[b], bonematrix);
-							bonematrix[0][3] = pos[b][0];
-							bonematrix[1][3] = pos[b][1];
-							bonematrix[2][3] = pos[b][2];
-
-							int parent = pbones[b].parent;
-							if (parent == -1)
-							{
-								memcpy(bonetransform[b], bonematrix, sizeof(float) * 12);
-							}
-							else
-							{
-								R_ConcatTransforms(bonetransform[parent], bonematrix, bonetransform[b]);
-							}
-						}
-
-						// transform verts
-						if (temp_verts)
-						{
-							for (int v = 0; v < num_verts; ++v)
-							{
-								int bone = out_boneids[v];
-								if (bone < 0 || bone >= nBones) bone = 0;
-								VectorTransform(out_vert[v].xyz, bonetransform[bone], temp_verts[v].xyz);
-							}
-
-							PrepareFrameVertex(temp_verts, num_verts, frame);
-						}
+						PrepareFrameVertex(temp_verts, num_verts, frame);
 					}
 				}
 			}
