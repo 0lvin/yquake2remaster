@@ -158,14 +158,6 @@ VectorTransform(const vec3_t in1, const float in2[3][4], vec3_t out)
 	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
-static void
-VectorRotate(const vec3_t in1, const float in2[3][4], vec3_t out)
-{
-	out[0] = DotProduct(in1, in2[0]);
-	out[1] = DotProduct(in1, in2[1]);
-	out[2] = DotProduct(in1, in2[2]);
-}
-
 // Calculate quaternion from anim (port of StudioModel functions, assumes panim points to array per bone)
 static void
 CalcBoneQuaternion(int frame, float s, hlmdl_bone_t *pbone, hlmdl_anim_t *panim, float *q_out)
@@ -744,6 +736,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		q = malloc(sizeof(vec4_t) * nBones);
 		pos = malloc(sizeof(vec3_t) * nBones);
 	}
+	dmdx_vert_t *temp_verts = malloc(sizeof(dmdx_vert_t) * num_verts);
 
 	total_frames = 0;
 	hlmdl_bone_t *pbones = (hlmdl_bone_t *)((byte*)buffer + pinmodel.ofs_bones);
@@ -795,13 +788,14 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 							if (parent == -1)
 							{
 								memcpy(bonetransform[b], bonematrix, sizeof(float) * 12);
-							} else {
+							}
+							else
+							{
 								R_ConcatTransforms(bonetransform[parent], bonematrix, bonetransform[b]);
 							}
 						}
 
 						// transform verts
-						dmdx_vert_t *temp_verts = malloc(sizeof(dmdx_vert_t) * num_verts);
 						if (temp_verts)
 						{
 							for (int v = 0; v < num_verts; ++v)
@@ -809,12 +803,9 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 								int bone = out_boneids[v];
 								if (bone < 0 || bone >= nBones) bone = 0;
 								VectorTransform(out_vert[v].xyz, bonetransform[bone], temp_verts[v].xyz);
-								// set norm to up vector transformed
-								VectorRotate((vec3_t){0,0,1}, bonetransform[bone], temp_verts[v].norm);
 							}
 
 							PrepareFrameVertex(temp_verts, num_verts, frame);
-							free(temp_verts);
 						}
 					}
 				}
@@ -832,6 +823,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	free(bonetransform);
 	free(q);
 	free(pos);
+	free(temp_verts);
 
 	Mod_LoadHLMDLSkins(mod_name, pheader, &pinmodel, buffer);
 	Mod_LoadHLMDLAnimGroupList(pheader, sequences, pinmodel.num_seq);
