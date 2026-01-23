@@ -734,6 +734,13 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		num_tris * sizeof(dtriangle_t));
 	free(tri_tmp);
 
+	int nBones = pinmodel.num_bones;
+	float (*bonetransform)[3][4] = NULL;
+	if (nBones)
+	{
+		bonetransform = malloc(sizeof(float) * 12 * nBones);
+	}
+
 	total_frames = 0;
 	hlmdl_bone_t *pbones = (hlmdl_bone_t *)((byte*)buffer + pinmodel.ofs_bones);
 	for (i = 0; i < pinmodel.num_seq; i++)
@@ -756,10 +763,8 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			Q_strlcpy(frame->name, sequences[i].name, sizeof(frame->name));
 
 			// compute bone transforms
-			int nBones = pinmodel.num_bones;
 			if (nBones > 0)
 			{
-				float (*bonetransform)[3][4] = malloc(sizeof(float) * 12 * nBones);
 				if (bonetransform)
 				{
 					vec4_t *q = malloc(sizeof(vec4_t) * nBones);
@@ -808,7 +813,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 						free(q);
 						free(pos);
 					}
-					free(bonetransform);
 				}
 			}
 			else
@@ -821,6 +825,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	}
 	free(out_vert);
 	free(out_boneids);
+	free(bonetransform);
 
 	Mod_LoadHLMDLSkins(mod_name, pheader, &pinmodel, buffer);
 	Mod_LoadHLMDLAnimGroupList(pheader, sequences, pinmodel.num_seq);
