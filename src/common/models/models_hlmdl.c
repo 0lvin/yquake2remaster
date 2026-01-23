@@ -30,8 +30,6 @@
 
 // Basic types that mirror the original studio types
 
-typedef struct { short index_xyz[3]; short index_st[3]; } dmdx_triangle_t;
-
 /* bone controllers */
 typedef struct
 {
@@ -803,15 +801,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 								// set norm to up vector transformed
 								VectorRotate((vec3_t){0,0,1}, bonetransform[bone], temp_verts[v].norm);
 							}
-							if (i == 0 && j == 0) {
-								for (int v = 0; v < num_verts; ++v) {
-									printf("hlmdl vert %d bone %d: %f %f %f\n", v, out_boneids[v], temp_verts[v].xyz[0], temp_verts[v].xyz[1], temp_verts[v].xyz[2]);
-								}
-								dmdx_triangle_t *tris = (dmdx_triangle_t *)((byte*)pheader + pheader->ofs_tris);
-								for (int t = 0; t < pheader->num_tris; ++t) {
-									printf("hlmdl tri %d: %d %d %d\n", t, (int)tris[t].index_xyz[0], (int)tris[t].index_xyz[1], (int)tris[t].index_xyz[2]);
-								}
-							}
+
 							PrepareFrameVertex(temp_verts, num_verts, frame);
 							free(temp_verts);
 						}
