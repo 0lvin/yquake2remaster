@@ -513,6 +513,7 @@ main(int argc, char **argv)
 	// Collect transformed vertices and normals
 	float *g_verts = NULL; size_t g_verts_count = 0;
 	float *g_norms = NULL; size_t g_norms_count = 0;
+	byte *g_boneids = NULL; size_t g_boneids_count = 0;
 	typedef struct { int model_base_v; int model_base_n; } baseoff_t;
 	baseoff_t *bases = NULL; size_t nbases = 0;
 
@@ -535,6 +536,7 @@ main(int argc, char **argv)
 					vertbone = (byte *)hdr + pm->ofs_vertinfo;
 				size_t old = g_verts_count;
 				g_verts = realloc(g_verts, sizeof(float) * 3 * (g_verts_count + pm->num_verts));
+				g_boneids = realloc(g_boneids, sizeof(byte) * (g_boneids_count + pm->num_verts));
 				for (int k = 0; k < pm->num_verts; ++k)
 				{
 					vec3_t outv;
@@ -544,9 +546,11 @@ main(int argc, char **argv)
 						bone = 0;
 					VectorTransform(verts[k], bonetransform[bone], outv);
 					memcpy(g_verts + 3*(old + k), outv, sizeof(float)*3);
+					g_boneids[g_boneids_count + k] = bone;
 				}
 
 				g_verts_count += pm->num_verts;
+				g_boneids_count += pm->num_verts;
 			}
 
 			if (pm->num_norms > 0 &&
@@ -579,6 +583,11 @@ main(int argc, char **argv)
 			bases[nbases].model_base_n = (int)g_norms_count - pm->num_norms;
 			nbases++;
 		}
+	}
+
+	// Dump first 10 vertices
+	for (size_t i = 0; i < g_verts_count; ++i) {
+		printf("mdl2obj vert %zu bone %d: %f %f %f\n", i, (int)g_boneids[i], g_verts[3*i], g_verts[3*i+1], g_verts[3*i+2]);
 	}
 
 	// Prepare texture info if present
@@ -773,6 +782,8 @@ main(int argc, char **argv)
 	for (size_t fi = 0; fi < faces_count; ++fi)
 	{
 		int *f = &faces[fi*9];
+
+		printf("mdl2obj tri %zu: %d %d %d\n", fi, f[0]-1, f[3]-1, f[6]-1);
 
 		if (have_uvs && have_normals)
 		{
