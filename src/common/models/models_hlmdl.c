@@ -736,9 +736,13 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 
 	int nBones = pinmodel.num_bones;
 	float (*bonetransform)[3][4] = NULL;
+	vec4_t *q = NULL;
+	vec3_t *pos = NULL;
 	if (nBones)
 	{
 		bonetransform = malloc(sizeof(float) * 12 * nBones);
+		q = malloc(sizeof(vec4_t) * nBones);
+		pos = malloc(sizeof(vec3_t) * nBones);
 	}
 
 	total_frames = 0;
@@ -767,8 +771,10 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			{
 				if (bonetransform)
 				{
-					vec4_t *q = malloc(sizeof(vec4_t) * nBones);
-					vec3_t *pos = malloc(sizeof(vec3_t) * nBones);
+					memset(bonetransform, 0, sizeof(float) * 12 * nBones);
+					memset(q, 0, sizeof(vec4_t) * nBones);
+					memset(pos, 0, sizeof(vec3_t) * nBones);
+
 					if (q && pos)
 					{
 						for (int b = 0; b < nBones; ++b)
@@ -810,8 +816,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 							PrepareFrameVertex(temp_verts, num_verts, frame);
 							free(temp_verts);
 						}
-						free(q);
-						free(pos);
 					}
 				}
 			}
@@ -826,6 +830,8 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	free(out_vert);
 	free(out_boneids);
 	free(bonetransform);
+	free(q);
+	free(pos);
 
 	Mod_LoadHLMDLSkins(mod_name, pheader, &pinmodel, buffer);
 	Mod_LoadHLMDLAnimGroupList(pheader, sequences, pinmodel.num_seq);
