@@ -452,6 +452,11 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	int num_st = 0, st_size = 0;
 	int num_tris = 0, tri_size = 0;
 	int num_verts = 0, verts_size = 0;
+	bonematrix_t *bonetransform = NULL;
+	vec4_t *quaternion = NULL;
+	vec3_t *bonepos = NULL;
+	dmdx_vert_t *temp_verts = NULL;
+	hlmdl_bone_t *pbones;
 
 	Mod_LittleHeader((int *)buffer, sizeof(pinmodel) / sizeof(int),
 		(int *)&pinmodel);
@@ -739,19 +744,26 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		num_tris * sizeof(dtriangle_t));
 	free(tri_tmp);
 
-	bonematrix_t *bonetransform = NULL;
-	vec4_t *quaternion = NULL;
-	vec3_t *pos = NULL;
 	if (pinmodel.num_bones > 0)
 	{
 		bonetransform = malloc(sizeof(bonematrix_t) * pinmodel.num_bones);
+		YQ2_COM_CHECK_OOM(bonetransform, "malloc()", sizeof(bonematrix_t) * pinmodel.num_bones)
 		quaternion = malloc(sizeof(vec4_t) * pinmodel.num_bones);
-		pos = malloc(sizeof(vec3_t) * pinmodel.num_bones);
+		YQ2_COM_CHECK_OOM(quaternion, "malloc()", sizeof(vec4_t) * pinmodel.num_bones)
+		bonepos = malloc(sizeof(vec3_t) * pinmodel.num_bones);
+		YQ2_COM_CHECK_OOM(bonepos, "malloc()", sizeof(vec3_t) * pinmodel.num_bones)
 	}
-	dmdx_vert_t *temp_verts = malloc(sizeof(dmdx_vert_t) * num_verts);
+
+	temp_verts = malloc(sizeof(dmdx_vert_t) * num_verts);
+	YQ2_COM_CHECK_OOM(temp_verts, "malloc()", sizeof(dmdx_vert_t) * num_verts)
+	if (!temp_verts)
+	{
+		/* unaware about YQ2_ATTR_NORETURN_FUNCPTR? */
+		return NULL;
+	}
 
 	total_frames = 0;
-	hlmdl_bone_t *pbones = (hlmdl_bone_t *)((byte*)buffer + pinmodel.ofs_bones);
+	pbones = (hlmdl_bone_t *)((byte*)buffer + pinmodel.ofs_bones);
 	for (i = 0; i < pinmodel.num_seq; i++)
 	{
 		const hlmdl_sequence_t *pseq = &sequences[i];
@@ -775,20 +787,20 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			// compute bone transforms
 			if (pinmodel.num_bones > 0)
 			{
-				if (bonetransform && quaternion && pos)
+				if (bonetransform && quaternion && bonepos)
 				{
 					int b;
 
 					memset(bonetransform, 0, sizeof(bonematrix_t) * pinmodel.num_bones);
 					memset(quaternion, 0, sizeof(vec4_t) * pinmodel.num_bones);
-					memset(pos, 0, sizeof(vec3_t) * pinmodel.num_bones);
+					memset(bonepos, 0, sizeof(vec3_t) * pinmodel.num_bones);
 
 					for (b = 0; b < pinmodel.num_bones; ++b)
 					{
 						CalcBoneQuaternion(j, 0.0f, &pbones[b],
 							panim ? &panim[b] : NULL, quaternion[b]);
 						CalcBonePosition(j, 0.0f, &pbones[b],
-							panim ? &panim[b] : NULL, pos[b]);
+							panim ? &panim[b] : NULL, bonepos[b]);
 					}
 
 					for (b = 0; b < pinmodel.num_bones; ++b)
@@ -796,9 +808,9 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 						float bonematrix[3][4];
 
 						QuaternionMatrix(quaternion[b], bonematrix);
-						bonematrix[0][3] = pos[b][0];
-						bonematrix[1][3] = pos[b][1];
-						bonematrix[2][3] = pos[b][2];
+						bonematrix[0][3] = bonepos[b][0];
+						bonematrix[1][3] = bonepos[b][1];
+						bonematrix[2][3] = bonepos[b][2];
 
 						int parent = pbones[b].parent;
 						if (parent == -1)
@@ -843,7 +855,7 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	free(out_boneids);
 	free(bonetransform);
 	free(quaternion);
-	free(pos);
+	free(bonepos);
 	free(temp_verts);
 
 	Mod_LoadHLMDLSkins(mod_name, pheader, &pinmodel, buffer);
