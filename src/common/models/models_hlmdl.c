@@ -394,9 +394,6 @@ Mod_LoadHLMDLSkins(const char *mod_name, dmdx_t *pheader, const hlmdl_header_t *
 		width = LittleLong(in_skins[i].width);
 		height = LittleLong(in_skins[i].height);
 
-		Com_DPrintf("%s: Skin %s: %dx%d\n",
-			__func__, in_skins[i].name, width, height);
-
 		src = (byte *)buffer + in_skins[i].offset;
 		pal = src + width * height;
 
@@ -437,7 +434,6 @@ void *
 Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 {
 	const hlmdl_header_t pinmodel;
-	hlmdl_framegroup_t *seqgroups;
 	dmdx_t dmdxheader, *pheader;
 	dmdxmesh_t *mesh_nodes, *mesh_tmp;
 	void *extradata;
@@ -490,17 +486,12 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	}
 
 	sequences = (const hlmdl_sequence_t *)((const byte *)buffer + pinmodel.ofs_seq);
-	seqgroups = (hlmdl_framegroup_t *)((byte *)buffer + pinmodel.ofs_seqgroup);
-	for (i = 0; i < pinmodel.num_seqgroups; i++)
-	{
-		Com_Printf("%s: %s: Seqgroup  %s: %s\n",
-			__func__, mod_name, seqgroups[i].label, seqgroups[i].name);
-	}
 
 	Mod_LoadHLMDLSkinsSize(&pinmodel, buffer, &skinw, &skinh);
 
 	bodyparts = (hlmdl_bodypart_t *)((byte *)buffer + pinmodel.ofs_bodyparts);
 	mesh_tmp = calloc(pinmodel.num_bodyparts, sizeof(*mesh_tmp));
+
 	for (i = 0; i < pinmodel.num_bodyparts; i++)
 	{
 		hlmdl_bodymodel_t *bodymodels;
@@ -509,10 +500,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		/* TODO: convert submodels to additional meshes? */
 		mesh_tmp[i].ofs_tris = num_tris;
 
-		Com_Printf("%s: %s: Bodypart %s: nummodels %d, base %d\n",
-			__func__, mod_name, bodyparts[i].name, bodyparts[i].num_models,
-			bodyparts[i].base);
-
 		bodymodels = (hlmdl_bodymodel_t *)((byte *)buffer + bodyparts[i].ofs_model);
 		for (j = 0; j < bodyparts[i].num_models; j++)
 		{
@@ -520,10 +507,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			vec3_t *in_verts;
 			byte *in_boneids;
 			int k;
-
-			Com_Printf("%s: %s: body part '%s' model '%s' mesh %d\n",
-				__func__, mod_name, bodyparts[i].name, bodymodels[j].name,
-				bodymodels[j].num_mesh);
 
 			mesh_nodes = (hlmdl_bodymesh_t *)((byte *)buffer + bodymodels[j].ofs_mesh);
 			for (k = 0; k < bodymodels[j].num_mesh; k++)
@@ -644,8 +627,9 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			if (bodymodels[j].ofs_vertinfo > 0 &&
 				bodymodels[j].ofs_vertinfo + bodymodels[j].num_verts <= modfilelen)
 			{
-				in_boneids = (byte *)buffer + bodymodels[j].ofs_vertinfo;
+				in_boneids = (byte*)((byte *)buffer + bodymodels[j].ofs_vertinfo);
 			}
+
 			if (!out_vert ||
 				(num_verts + bodymodels[j].num_verts) >= verts_size)
 			{
@@ -726,9 +710,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 	dmdxheader.num_frames = total_frames;
 	dmdxheader.num_animgroup = pinmodel.num_seq;
 
-	Com_DPrintf("%s: %s has %d frames\n",
-		__func__, mod_name, total_frames);
-
 	pheader = Mod_LoadAllocate(mod_name, &dmdxheader, &extradata);
 
 	/* create single mesh */
@@ -774,9 +755,12 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		{
 			panim = (hlmdl_anim_t *)((byte*)buffer + pseq->animindex);
 		}
-		// else handle seqgroup, but for now assume 0
+		else
+		{
+			/* sequence group from other file is unsupported */
+		}
 
-		for(j = 0; j < sequences[i].num_frames; j ++)
+		for(j = 0; j < pseq->num_frames; j ++)
 		{
 			daliasxframe_t *frame = (daliasxframe_t *)(
 				(byte *)pheader + pheader->ofs_frames + total_frames * pheader->framesize);
@@ -784,70 +768,61 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 			/* name of frames will be duplicated */
 			Q_strlcpy(frame->name, sequences[i].name, sizeof(frame->name));
 
-			// compute bone transforms
-			if (pinmodel.num_bones > 0)
+			/* compute bone transforms */
+			if (pinmodel.num_bones > 0 && bonetransform && quaternion && bonepos)
 			{
-				if (bonetransform && quaternion && bonepos)
+				int v, b;
+
+				memset(bonetransform, 0, sizeof(bonematrix_t) * pinmodel.num_bones);
+				memset(quaternion, 0, sizeof(vec4_t) * pinmodel.num_bones);
+				memset(bonepos, 0, sizeof(vec3_t) * pinmodel.num_bones);
+
+				for (b = 0; b < pinmodel.num_bones; ++b)
 				{
-					int b;
+					float bonematrix[3][4];
+					int parent;
 
-					memset(bonetransform, 0, sizeof(bonematrix_t) * pinmodel.num_bones);
-					memset(quaternion, 0, sizeof(vec4_t) * pinmodel.num_bones);
-					memset(bonepos, 0, sizeof(vec3_t) * pinmodel.num_bones);
+					CalcBoneQuaternion(j, 0.0f, &pbones[b],
+						panim ? &panim[b] : NULL, quaternion[b]);
+					CalcBonePosition(j, 0.0f, &pbones[b],
+						panim ? &panim[b] : NULL, bonepos[b]);
 
-					for (b = 0; b < pinmodel.num_bones; ++b)
+					QuaternionMatrix(quaternion[b], bonematrix);
+					bonematrix[0][3] = bonepos[b][0];
+					bonematrix[1][3] = bonepos[b][1];
+					bonematrix[2][3] = bonepos[b][2];
+
+					parent = pbones[b].parent;
+					if (parent == -1)
 					{
-						CalcBoneQuaternion(j, 0.0f, &pbones[b],
-							panim ? &panim[b] : NULL, quaternion[b]);
-						CalcBonePosition(j, 0.0f, &pbones[b],
-							panim ? &panim[b] : NULL, bonepos[b]);
+						memcpy(bonetransform[b], bonematrix, sizeof(float) * 12);
 					}
-
-					for (b = 0; b < pinmodel.num_bones; ++b)
+					else
 					{
-						float bonematrix[3][4];
-
-						QuaternionMatrix(quaternion[b], bonematrix);
-						bonematrix[0][3] = bonepos[b][0];
-						bonematrix[1][3] = bonepos[b][1];
-						bonematrix[2][3] = bonepos[b][2];
-
-						int parent = pbones[b].parent;
-						if (parent == -1)
-						{
-							memcpy(bonetransform[b], bonematrix, sizeof(float) * 12);
-						}
-						else
-						{
-							R_ConcatTransforms(bonetransform[parent], bonematrix, bonetransform[b]);
-						}
-					}
-
-					// transform verts
-					if (temp_verts)
-					{
-						int v;
-
-						for (v = 0; v < num_verts; ++v)
-						{
-							int bone = out_boneids[v];
-							if (bone < 0 || bone >= pinmodel.num_bones)
-							{
-								bone = 0;
-							}
-
-							VectorTransform(out_vert[v].xyz, bonetransform[bone], temp_verts[v].xyz);
-						}
-
-						PrepareFrameVertex(temp_verts, num_verts, frame);
+						R_ConcatTransforms(bonetransform[parent], bonematrix, bonetransform[b]);
 					}
 				}
+
+				/* transform verts */
+				for (v = 0; v < num_verts; ++v)
+				{
+					int bone = out_boneids[v];
+					if (bone < 0 || bone >= pinmodel.num_bones)
+					{
+						bone = 0;
+					}
+
+					VectorTransform(out_vert[v].xyz, bonetransform[bone], temp_verts[v].xyz);
+				}
+
+				PrepareFrameVertex(temp_verts, num_verts, frame);
 			}
 			else
 			{
-				// no bones, just copy
+				/* no bones, just copy */
 				PrepareFrameVertex(out_vert, num_verts, frame);
 			}
+
 			total_frames++;
 		}
 	}
