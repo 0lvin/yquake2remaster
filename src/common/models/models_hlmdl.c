@@ -28,8 +28,6 @@
 #include "models.h"
 #include <math.h>
 
-// Basic types that mirror the original studio types
-
 /* bone controllers */
 typedef struct
 {
@@ -40,6 +38,8 @@ typedef struct
 	int rest;	/* byte index value at rest */
 	int index;	/* 0-3 user set controller, 4 mouth */
 } hlmdl_bonecontroller_t;
+
+typedef float bonematrix_t[3][4];
 
 typedef unsigned short hlmdl_anim_t[6];
 
@@ -526,22 +526,11 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 				short *trivert;
 				int l;
 
-				/*
-				Com_Printf("%s: %s: mesh #%d tris %d, ofs: %d, skin: %d, norms: %d\n",
-					__func__, mod_name, k, mesh_nodes[k].num_tris,
-						mesh_nodes[k].ofs_tris, mesh_nodes[k].skinref, mesh_nodes[k].num_norms);
-				*/
-
 				trivert = (short *)((byte *)buffer + mesh_nodes[k].ofs_tris);
 				while ((l = *(trivert++)))
 				{
 					int g, count = l, st_prefix = num_st;
 					int *verts = NULL;
-
-					/*
-					Com_Printf("%s: %s: tris %d\n",
-						__func__, mod_name, l);
-					*/
 
 					if (count < 0)
 					{
@@ -597,13 +586,6 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 						num_st++;
 
 						verts[g] = trivert[0];
-
-						/*
-						Com_Printf("%s: %s: tris #%d vert: %d, norm: %d, s: %d, t: %d\n",
-							__func__, mod_name, l,
-							trivert[0], trivert[1],
-							trivert[2], trivert[3]);
-						*/
 					}
 
 					/* Reconstruct triangles */
@@ -690,24 +672,21 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 
 			for (k = 0; k < bodymodels[j].num_verts; k++)
 			{
-				int l;
+				int l, bone = 0;
 
 				for (l = 0; l < 3; l++)
 				{
 					out_vert[num_verts].xyz[l] = LittleFloat(in_verts[k][l]);
 				}
 
-				int bone = 0;
-				if (in_boneids) bone = in_boneids[k];
+				if (in_boneids)
+				{
+					bone = in_boneids[k];
+				}
+
 				out_boneids[num_verts] = bone;
 
 				num_verts++;
-
-				/*
-				 Com_Printf("%s: vert[%03ld]: %.2fx%.2fx%.2fx\n",
-					__func__, k,
-					in_verts[k][0], in_verts[k][1], in_verts[k][2]);
-				*/
 			}
 		}
 
@@ -760,12 +739,12 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 		num_tris * sizeof(dtriangle_t));
 	free(tri_tmp);
 
-	float (*bonetransform)[3][4] = NULL;
+	bonematrix_t *bonetransform = NULL;
 	vec4_t *quaternion = NULL;
 	vec3_t *pos = NULL;
 	if (pinmodel.num_bones > 0)
 	{
-		bonetransform = malloc(sizeof(float) * 12 * pinmodel.num_bones);
+		bonetransform = malloc(sizeof(bonematrix_t) * pinmodel.num_bones);
 		quaternion = malloc(sizeof(vec4_t) * pinmodel.num_bones);
 		pos = malloc(sizeof(vec3_t) * pinmodel.num_bones);
 	}
@@ -799,7 +778,8 @@ Mod_LoadModel_HLMDL(const char *mod_name, const void *buffer, int modfilelen)
 				if (bonetransform && quaternion && pos)
 				{
 					int b;
-					memset(bonetransform, 0, sizeof(float) * 12 * pinmodel.num_bones);
+
+					memset(bonetransform, 0, sizeof(bonematrix_t) * pinmodel.num_bones);
 					memset(quaternion, 0, sizeof(vec4_t) * pinmodel.num_bones);
 					memset(pos, 0, sizeof(vec3_t) * pinmodel.num_bones);
 
