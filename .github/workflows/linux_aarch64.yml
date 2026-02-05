@@ -67,12 +67,13 @@ jobs:
         name: quake2-linux_aarch64-${{github.sha}}
         path: publish/
         if-no-files-found: error
-    - name: flawfinder_scan
-      uses: david-a-wheeler/flawfinder@2.0.19
+    - name: Run Flawfinder
+      id: flawfinder_scan
+      uses: david-a-wheeler/flawfinder_scan@v1
       with:
         arguments: '--sarif ./src'
-        output: 'flawfinder_results.sarif'
+        output: flawfinder_results.sarif
     - name: Upload SARIF to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v4
       with:
-        sarif_file: ${{ steps.flawfinder_scan.output }}
+        sarif_file: flawfinder_results.sarif
