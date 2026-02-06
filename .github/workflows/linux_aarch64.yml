@@ -30,7 +30,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install libgl1-mesa-dev libsdl2-dev libopenal-dev libcurl4-openssl-dev \
-            libavformat-dev libswscale-dev libvulkan-dev build-essential
+            libavformat-dev libswscale-dev libvulkan-dev build-essential cppcheck
     - name: Check out repository code
       uses: actions/checkout@v6
       with:
@@ -67,13 +67,22 @@ jobs:
         name: quake2-linux_aarch64-${{github.sha}}
         path: publish/
         if-no-files-found: error
-    - name: Run Flawfinder
-      id: flawfinder_scan
-      uses: david-a-wheeler/flawfinder@2.0.19
-      with:
-        arguments: '--sarif src'
-        output: flawfinder_results.sarif
+    - name: Create testbuild package
+      run: |
+    - name: Run Cppcheck
+      run: cppcheck -j 4 --enable=all --output-format=sarif --output-file=cppcheck_results.sarif --inconclusive --library=posix src
     - name: Upload SARIF to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v4
       with:
-        sarif_file: flawfinder_results.sarif
+        sarif_file: cppcheck_results.sarif
+
+    #- name: Run Flawfinder
+    #  id: flawfinder_scan
+    #  uses: david-a-wheeler/flawfinder@2.0.19
+    #  with:
+    #    arguments: '--sarif src'
+    #    output: flawfinder_results.sarif
+    #- name: Upload SARIF to GitHub Code Scanning
+      #uses: github/codeql-action/upload-sarif@v4
+      #with:
+        #sarif_file: flawfinder_results.sarif
