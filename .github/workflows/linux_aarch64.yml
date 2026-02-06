@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'master'
+      - 'cppchecks'
   pull_request:
     types:
       - edited
@@ -30,7 +31,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install libgl1-mesa-dev libsdl2-dev libopenal-dev libcurl4-openssl-dev \
-            libavformat-dev libswscale-dev libvulkan-dev build-essential cppcheck
+            libavformat-dev libswscale-dev libvulkan-dev build-essential snapd
     - name: Check out repository code
       uses: actions/checkout@v6
       with:
@@ -70,12 +71,9 @@ jobs:
     # --output-format=sarif --output-file=cppcheck_results.sarif needs cppcheck 2.16,
     # ubuntu 24.04 uses 2.13
     - name: Run Cppcheck
-      run: cppcheck -j 4 --enable=all --xml --output-file=cppcheck_results.xml --inconclusive --library=posix src
-    - name: Convert xml -> sarif
-      uses: Flast/cppcheck-sarif@v2
-      with:
-        input: cppcheck_results.xml
-        output: cppcheck_results.sarif
+      run: |
+        sudo snap install cppcheck
+        /snap/bin/cppcheck -j 4 --enable=all --output-format=sarif --output-file=cppcheck_results.sarif --inconclusive --library=posix src
     - name: Upload SARIF to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v4
       with:
