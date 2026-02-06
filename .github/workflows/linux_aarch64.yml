@@ -67,10 +67,15 @@ jobs:
         name: quake2-linux_aarch64-${{github.sha}}
         path: publish/
         if-no-files-found: error
-    - name: Create testbuild package
-      run: |
+    # --output-format=sarif --output-file=cppcheck_results.sarif needs cppcheck 2.16,
+    # ubuntu 24.04 uses 2.13
     - name: Run Cppcheck
-      run: cppcheck -j 4 --enable=all --output-format=sarif --output-file=cppcheck_results.sarif --inconclusive --library=posix src
+      run: cppcheck -j 4 --enable=all --xml --output-file=cppcheck_results.xml --inconclusive --library=posix src
+    - name: Convert xml -> sarif
+      uses: Flast/cppcheck-sarif@v2
+      with:
+        input: cppcheck_results.xml
+        output: cppcheck_results.sarif
     - name: Upload SARIF to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v4
       with:
