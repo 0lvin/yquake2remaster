@@ -442,8 +442,73 @@ SP_obj_material_stopmove(edict_t *self)
  *
  * Heretic 2: Chair (stone)
  */
+/*
+ * QUAKED obj_statue_corvus (0.3 0.3 1.0) (-16.0 -16.0 0.0) (16.0 16.0 32.0)
+ *
+ * Heretic 2: Corvus statue
+ */
+/*
+ * QUAKED obj_statue_guardian (0.3 0.3 1.0) (-100.0 -64.0 0.0) (64.0 64.0 128.0)
+ *
+ * Heretic 2: Guardian statue
+ */
+/*
+ * QUAKED obj_fountain_fish (0.3 0.3 1.0) (-52.0 -34.0 -48.0) (52.0 34.0 48.0)
+ *
+ * Heretic 2: Two-headed fish fountain. Water FX not included
+ */
+/*
+ * QUAKED obj_treetop (0.3 0.3 1.0) (-176.0 -176.0 -125.0) (176.0 176.0 125.0)
+ *
+ * Heretic 2: Tree canopy
+ */
+/*
+ * QUAKED obj_tree (0.3 0.3 1.0) (-100.0 -100.0 -120.0) (100.0 100.0 120.0)
+ *
+ * Heretic 2: Tree
+ */
+/*
+ * QUAKED obj_statue_dragonhead (0.3 0.3 1.0) (-76.0 -28.0 -46.0) (76.0 28.0 46.0)
+ *
+ * Heretic 2: Dragon head statue
+ */
+/*
+ * QUAKED obj_swampflat_top (0.3 0.3 1.0) (0.0 -100.0 -48.0) (2.0 100.0 48.0)
+ *
+ * Heretic 2: A flat poly to be used on the outer edge of swamp levels. Vegetation growing up.
+ */
+/*
+ * QUAKED obj_queenthrone (0.3 0.3 1.0) (-40.0 -56.0 -49.0) (40.0 56.0 49.0)
+ *
+ * Heretic 2: Hive queen throne
+ */
+/*
+ * QUAKED obj_skullpole (0.3 0.3 1.0) (-10.0 -10.0 -47.0) (10.0 10.0 47.0)
+ *
+ * Heretic 2: Skull pole
+ */
+/*
+ * QUAKED obj_torture_rack (0.3 0.3 1.0) (-22.0 -46.0 -19.0) (22.0 46.0 19.0)
+ *
+ * Heretic 2: Torture rack
+ */
+/*
+ * QUAKED obj_torture_bed (0.3 0.3 1.0) (-21.0 -43.0 -94.0) (21.0 43.0 94.0)
+ *
+ * Heretic 2: Bed of spikes
+ */
+/*
+ * QUAKED obj_wallringplaque (0.3 0.3 1.0) (-3.0 -20.0 -55.0) (3.0 20.0 55.0)
+ *
+ * Heretic 2: Wall ring plaque
+ */
+/*
+ * QUAKED obj_ring_plaque2 (0.3 0.3 1.0) (-2.0 -24.0 -20.0) (2.0 24.0 20.0)
+ *
+ * Heretic 2: Rings mounted on wall plate
+ */
 void
-SP_obj_chair3(edict_t *self)
+SP_obj_material_nomoveanddamage(edict_t *self)
 {
 	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
@@ -599,18 +664,6 @@ SP_obj_sign4(edict_t *self)
 }
 
 /*
- * QUAKED obj_statue_corvus (0.3 0.3 1.0) (-16.0 -16.0 0.0) (16.0 16.0 32.0)
- *
- * Heretic 2: Corvus statue
- */
-void
-SP_obj_statue_corvus(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_statue_dolphin1 (0.3 0.3 1.0) (-68.0 -22.0 -30.0) (68.0 22.0 30.0)
  *
  * Heretic 2: Dolphin statue on all fours
@@ -661,18 +714,6 @@ void
 SP_obj_statue_dolphin4(edict_t *self)
 {
 	self->s.frame = 2;
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_statue_guardian (0.3 0.3 1.0) (-100.0 -64.0 0.0) (64.0 64.0 128.0)
- *
- * Heretic 2: Guardian statue
- */
-void
-SP_obj_statue_guardian(edict_t *self)
-{
 	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
@@ -747,18 +788,6 @@ SP_obj_seasonglobe(edict_t *self)
 }
 
 /*
- * QUAKED obj_fountain_fish (0.3 0.3 1.0) (-52.0 -34.0 -48.0) (52.0 34.0 48.0)
- *
- * Heretic 2: Two-headed fish fountain. Water FX not included
- */
-void
-SP_obj_fountain_fish(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_plant1 (0.3 0.3 1.0) (-8.0 -8.0 -24.0) (8.0 8.0 24.0)
  *
  * Heretic 2: Plant
@@ -782,30 +811,6 @@ SP_obj_plant(edict_t *self)
 	}
 
 	self->spawnflags |= OBJ_STOPMOVE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_treetop (0.3 0.3 1.0) (-176.0 -176.0 -125.0) (176.0 176.0 125.0)
- *
- * Heretic 2: Tree canopy
- */
-void
-SP_obj_treetop(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_tree (0.3 0.3 1.0) (-100.0 -100.0 -120.0) (100.0 100.0 120.0)
- *
- * Heretic 2: Tree
- */
-void
-SP_obj_tree(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -972,18 +977,6 @@ SP_obj_floor_candelabrum(edict_t *self)
 }
 
 /*
- * QUAKED obj_statue_dragonhead (0.3 0.3 1.0) (-76.0 -28.0 -46.0) (76.0 28.0 46.0)
- *
- * Heretic 2: Dragon head statue
- */
-void
-SP_obj_statue_dragonhead(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_statue_dragon (0.3 0.3 1.0) (-53.0 -33.0 -72.0) (53.0 33.0 72.0)
  *
  * Heretic 2: Dragon statue
@@ -1104,18 +1097,6 @@ void
 SP_obj_cactus4(edict_t *self)
 {
 	self->spawnflags |= OBJ_STOPMOVE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_swampflat_top (0.3 0.3 1.0) (0.0 -100.0 -48.0) (2.0 100.0 48.0)
- *
- * Heretic 2: A flat poly to be used on the outer edge of swamp levels. Vegetation growing up.
- */
-void
-SP_obj_swampflat_top(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1329,18 +1310,6 @@ SP_obj_hivepriestessssymbol(edict_t *self)
 }
 
 /*
- * QUAKED obj_queenthrone (0.3 0.3 1.0) (-40.0 -56.0 -49.0) (40.0 56.0 49.0)
- *
- * Heretic 2: Hive queen throne
- */
-void
-SP_obj_queenthrone(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_shrine (0.3 0.3 1.0) (-26.0 -38.0 -38.0) (26.0 38.0 38.0)
  *
  * Heretic 2: Shrine model. Target with a matching shrine_(style) trigger brush.
@@ -1442,18 +1411,6 @@ SP_obj_spellbook(edict_t *self)
 }
 
 /*
- * QUAKED obj_skullpole (0.3 0.3 1.0) (-10.0 -10.0 -47.0) (10.0 10.0 47.0)
- *
- * Heretic 2: Skull pole
- */
-void
-SP_obj_skullpole(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_torture_table (0.3 0.3 1.0) (-46.0 -14.0 -14.0) (46.0 14.0 14.0)
  *
  * Heretic 2: Torture table
@@ -1524,30 +1481,6 @@ SP_obj_torture_ironmaiden(edict_t *self)
 }
 
 /*
- * QUAKED obj_torture_rack (0.3 0.3 1.0) (-22.0 -46.0 -19.0) (22.0 46.0 19.0)
- *
- * Heretic 2: Torture rack
- */
-void
-SP_obj_torture_rack(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_torture_bed (0.3 0.3 1.0) (-21.0 -43.0 -94.0) (21.0 43.0 94.0)
- *
- * Heretic 2: Bed of spikes
- */
-void
-SP_obj_torture_bed(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_biotank (0.3 0.3 1.0) (-20.0 -33.0 -52.0) (20.0 33.0 52.0)
  *
  * Heretic 2: Bio Tank
@@ -1555,18 +1488,6 @@ SP_obj_torture_bed(edict_t *self)
 void
 SP_obj_biotank(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_wallringplaque (0.3 0.3 1.0) (-3.0 -20.0 -55.0) (3.0 20.0 55.0)
- *
- * Heretic 2: Wall ring plaque
- */
-void
-SP_obj_wallringplaque(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1590,18 +1511,6 @@ void
 SP_obj_hanging_ogle(edict_t *self)
 {
 	self->spawnflags |= OBJ_STOPMOVE;
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_ring_plaque2 (0.3 0.3 1.0) (-2.0 -24.0 -20.0) (2.0 24.0 20.0)
- *
- * Heretic 2: Rings mounted on wall plate
- */
-void
-SP_obj_ring_plaque2(edict_t *self)
-{
-	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
