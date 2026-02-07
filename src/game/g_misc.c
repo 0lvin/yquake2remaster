@@ -1060,7 +1060,12 @@ SP_light(edict_t *self)
 		}
 		else if (*self->style_on >= '0' && *self->style_on <= '9')
 		{
-			self->style_on = gi.GetConfigString(CS_LIGHTS + atoi(self->style_on));
+			int style_on = atoi(self->style_on);
+
+			if (style_on < MAX_LIGHTSTYLES)
+			{
+				self->style_on = gi.GetConfigString(CS_LIGHTS + style_on);
+			}
 		}
 
 		if (!self->style_off || !*self->style_off)
@@ -1069,7 +1074,12 @@ SP_light(edict_t *self)
 		}
 		else if (*self->style_off >= '0' && *self->style_off <= '9')
 		{
-			self->style_off = gi.GetConfigString(CS_LIGHTS + atoi(self->style_off));
+			int style_off = atoi(self->style_off);
+
+			if (style_off < MAX_LIGHTSTYLES)
+			{
+				self->style_off = gi.GetConfigString(CS_LIGHTS + style_off);
+			}
 		}
 
 		if (self->spawnflags & START_OFF)
@@ -1150,7 +1160,7 @@ ParseShadowLight(const char **line)
 		return 0;
 	}
 
-	len = Q_min(end_line - *line, sizeof(token));
+	len = Q_min(end_line - *line, sizeof(token) - 1);
 	strncpy(token, *line, len);
 	token[len] = 0;
 	*line = end_line + 1;
@@ -1758,9 +1768,8 @@ barrel_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */, csurfa
 void
 barrel_explode(edict_t *self)
 {
-	vec3_t org;
+	vec3_t org, save;
 	float spd;
-	vec3_t save;
 
 	if (!self)
 	{

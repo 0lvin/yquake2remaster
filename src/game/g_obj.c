@@ -27,27 +27,34 @@
 
 #include "header/local.h"
 
+#define OBJ_NODAMAGE   1
+#define OBJ_WITHEFFECT 2
+#define OBJ_EXPLODE    4
+#define OBJ_STOPMOVE   8
+
 void
 destructible_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
 {
-	// Play explosion or debris effect
-	gi.WriteByte(svc_temp_entity);
-	gi.WriteByte(TE_EXPLOSION1);
-	gi.WritePosition(self->s.origin);
-	gi.multicast(self->s.origin, MULTICAST_PVS);
+	vec3_t org;
 
-	G_FreeEdict(self); // Remove object
-}
+	if (!self)
+	{
+		return;
+	}
 
-void
-DynamicObjectSpawn(edict_t *self)
-{
-	self->movetype = MOVETYPE_NONE;
-	self->takedamage = DAMAGE_YES;
+	org[0] = self->s.origin[0] + crandom() * self->size[0];
+	org[1] = self->s.origin[1] + crandom() * self->size[1];
+	org[2] = self->s.origin[2] + crandom() * self->size[2];
+	ThrowDebris(self, "models/objects/debris2/tris.md2", 5, org);
 
-	self->die = destructible_die;
-
-	gi.linkentity(self);
+	if (self->dmg > 0)
+	{
+		BecomeExplosion1(self);
+	}
+	else
+	{
+		G_FreeEdict(self); /* Remove object */
+	}
 }
 
 /*
@@ -163,8 +170,26 @@ DynamicObjectSpawn(edict_t *self)
 void
 SP_obj_material(edict_t *self)
 {
-	/* TODO: should rename to obj_meterial */
-	DynamicObjectSpawn(self);
+	if (self->spawnflags & OBJ_NODAMAGE)
+	{
+		self->takedamage = DAMAGE_NO;
+	}
+	else
+	{
+		self->takedamage = DAMAGE_YES;
+	}
+
+	if (!(self->spawnflags & OBJ_STOPMOVE))
+	{
+		self->movetype = MOVETYPE_STOP;
+	}
+	else
+	{
+		self->movetype = MOVETYPE_NONE;
+	}
+
+	self->die = destructible_die;
+	gi.linkentity(self);
 }
 
 /*
@@ -175,6 +200,7 @@ SP_obj_material(edict_t *self)
 void
 SP_obj_banner(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.sound = gi.soundindex("ambient/bannerflap.wav");
 	object_spawn(self);
 }
@@ -187,6 +213,7 @@ SP_obj_banner(edict_t *self)
 void
 SP_obj_banneronpole(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.sound = gi.soundindex("ambient/bannerflap.wav");
 	object_spawn(self);
 }
@@ -243,6 +270,12 @@ SP_object_flame1(edict_t *self)
 void
 SP_obj_barrel(edict_t *self)
 {
+	if (self->spawnflags & OBJ_EXPLODE)
+	{
+		self->dmg = 10;
+		self->s.skinnum = 1;
+	}
+
 	SP_obj_material(self);
 }
 
@@ -254,7 +287,7 @@ SP_obj_barrel(edict_t *self)
 void
 SP_object_barrel(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	SP_obj_material(self);
 }
 
 /*
@@ -262,20 +295,145 @@ SP_object_barrel(edict_t *self)
  *
  * Heretic 2: Broom
  */
-void
-SP_obj_broom(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
 /*
  * QUAKED obj_chair2 (0.3 0.3 1.0) (-18.0 -29.0 -30.0) (18.0 29.0 30.0)
  *
  * Heretic 2: Chair (wood, slanted)
  */
+/*
+ * QUAKED obj_table2 (0.3 0.3 1.0) (-28.0 -54.0 -18.0) (28.0 54.0 18.0)
+ *
+ * Heretic 2: Table (stone)
+ */
+/*
+ * QUAKED obj_throne (0.3 0.3 1.0) (-20.0 -22.0 -44.0) (20.0 22.0 44.0)
+ *
+ * Heretic 2: Throne
+ */
+/*
+ * QUAKED obj_statue_boulderfish (0.3 0.3 1.0) (-26.0 -16.0 -27.0) (26.0 16.0 27.0)
+ *
+ * Heretic 2: Fish statue
+ */
+/*
+ * QUAKED obj_shovel (0.3 0.3 1.0) (-8.0 -8.0 -20.0) (8.0 8.0 20.0)
+ *
+ * Heretic 2: Shovel
+ */
+/*
+ * QUAKED obj_woodpile (0.3 0.3 1.0) (-12.0 -20.0 -7.0) (12.0 20.0 7.0)
+ *
+ * Heretic 2: Wood Pile
+ */
+/*
+ * QUAKED obj_bench (0.3 0.3 1.0) (-10.0 -21.0 -10.0) (10.0 21.0 10.0)
+ *
+ * Heretic 2: Bench
+ */
+/*
+ * QUAKED obj_bucket (0.3 0.3 1.0) (-8.0 -8.0 -9.0) (8.0 8.0 10.0)
+ *
+ * Heretic 2: Bucket
+ */
+/*
+ * QUAKED obj_gorgonbones (0.3 0.3 1.0) (-18.0 -38.0 -9.0) (18.0 38.0 1.0)
+ *
+ * Heretic 2: Gorgon bones
+ */
+/*
+ * QUAKED obj_grass (0.3 0.3 1.0) (-8.0 -8.0 -10.0) (8.0 8.0 10.0)
+ *
+ * Heretic 2: Grass clump
+ */
+/*
+ * QUAKED obj_queenchair (0.3 0.3 1.0) (-30.0 -28.0 -31.0) (30.0 28.0 31.0)
+ *
+ * Heretic 2: Hive queen chair
+ */
+/*
+ * QUAKED obj_larvaegg (0.3 0.3 1.0) (-6.0 -14.0 -6.0) (6.0 14.0 6.0)
+ *
+ * Heretic 2: Hive egg
+ */
+/*
+ * QUAKED obj_larvabrokenegg (0.3 0.3 1.0) (-6.0 -7.0 -5.0) (6.0 7.0 5.0)
+ *
+ * Heretic 2: Hive egg
+ */
+/*
+ * QUAKED obj_cocoon (0.3 0.3 1.0) (-8.0 -8.0 -8.0) (8.0 8.0 8.0)
+ *
+ * Heretic 2: Hanging cocoon
+ */
+/*
+ * QUAKED obj_pot1 (0.3 0.3 1.0) (-3.0 -8.0 -8.0) (3.0 8.0 8.0)
+ *
+ * Heretic 2: Hanging cooking pot
+ */
+/*
+ * QUAKED obj_torture_wallring (0.3 0.3 1.0) (-2.0 -4.0 -6.0) (2.0 4.0 6.0)
+ *
+ * Heretic 2: Hanging ring
+ */
+/*
+ * QUAKED obj_statue_saraphbust (0.3 0.3 1.0) (-10.0 -20.0 -24.0) (10.0 20.0 24.0)
+ *
+ * Heretic 2: Seraph bust
+ */
+/*
+ * QUAKED obj_tapper (0.3 0.3 1.0) (-2.0 -5.0 -2.0) (2.0 5.0 2.0)
+ *
+ * Heretic 2: Keg tapper
+ */
+/*
+ * QUAKED obj_frypan (0.3 0.3 1.0) (-1.0 -3.0 -10.0) (1.0 3.0 10.0)
+ *
+ * Heretic 2: Hanging pan
+ */
+/*
+ * QUAKED obj_eggpan (0.3 0.3 1.0) (-4.0 -10.0 -1.0) (4.0 10.0 1.0)
+ *
+ * Heretic 2: Flat pan
+ */
+/*
+ * QUAKED obj_nest (0.3 0.3 1.0) (-25.0 -25.0 -4.0) (25.0 25.0 4.0)
+ *
+ * Heretic 2: Nest
+ */
+/*
+ * QUAKED obj_choppeddude (0.3 0.3 1.0) (-15.0 -40.0 -8.0) (15.0 40.0 8.0)
+ *
+ * Heretic 2: Lying chopped corpse
+ */
+/*
+ * QUAKED obj_eyeball_jar (0.3 0.3 1.0) (-13.0 -13.0 -18.0) (13.0 13.0 18.0)
+ *
+ * Heretic 2: Jar of joy
+ */
+/*
+ * QUAKED obj_statue_sariph (0.3 0.3 1.0) (-13.0 -16.0 -41.0) (13.0 16.0 41.0)
+ *
+ * Heretic 2: Seraph statue
+ */
+/*
+ * QUAKED obj_rocks1 (0.3 0.3 1.0) (-12.0 -13.0 -4.0) (12.0 13.0 4.0)
+ *
+ * Heretic 2: Rock cluster
+ */
+/*
+ * QUAKED obj_rocks2 (0.3 0.3 1.0) (-9.0 -30.0 -4.0) (9.0 30.0 4.0)
+ *
+ * Heretic 2: Big rock
+ */
+/*
+ * QUAKED obj_lab_tray (0.3 0.3 1.0) (-8.0 -8.0 -5.0) (8.0 8.0 5.0)
+ *
+ * Heretic 2: Tray with heart and tools
+ */
 void
-SP_obj_chair2(edict_t *self)
+SP_obj_material_stopmove(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -287,6 +445,7 @@ SP_obj_chair2(edict_t *self)
 void
 SP_obj_chair3(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -309,6 +468,7 @@ SP_obj_chest1(edict_t *self)
 void
 SP_obj_chest2(edict_t *self)
 {
+	self->spawnflags &= ~OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -320,6 +480,7 @@ SP_obj_chest2(edict_t *self)
 void
 SP_obj_chest3(edict_t *self)
 {
+	self->spawnflags &= ~OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -331,6 +492,7 @@ SP_obj_chest3(edict_t *self)
 void
 SP_obj_cog1(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -409,13 +571,9 @@ SP_obj_sign1(edict_t *self)
 		self->s.skinnum = self->style;
 	}
 
-	self->movetype = MOVETYPE_NONE;
-	/*
-	 * object_spawn(self);
-	 */
 	self->s.frame = 3;
-
-	gi.linkentity(self);
+	self->spawnflags |= OBJ_STOPMOVE;
+	SP_obj_material(self);
 }
 
 /*
@@ -426,6 +584,8 @@ SP_obj_sign1(edict_t *self)
 void
 SP_obj_sign4(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
+
 	if (!self->style)
 	{
 		self->s.skinnum = 0;
@@ -446,6 +606,7 @@ SP_obj_sign4(edict_t *self)
 void
 SP_obj_statue_corvus(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -457,6 +618,11 @@ SP_obj_statue_corvus(edict_t *self)
 void
 SP_obj_statue_dolphin1(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
+
+	/* Toggle destructibility */
+	self->spawnflags ^= OBJ_NODAMAGE;
+
 	SP_obj_material(self);
 }
 
@@ -469,7 +635,7 @@ void
 SP_obj_statue_dolphin2(edict_t *self)
 {
 	self->s.frame = 1;
-
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -482,7 +648,7 @@ void
 SP_obj_statue_dolphin3(edict_t *self)
 {
 	self->s.frame = 3;
-
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -495,7 +661,7 @@ void
 SP_obj_statue_dolphin4(edict_t *self)
 {
 	self->s.frame = 2;
-
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -507,28 +673,7 @@ SP_obj_statue_dolphin4(edict_t *self)
 void
 SP_obj_statue_guardian(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_table2 (0.3 0.3 1.0) (-28.0 -54.0 -18.0) (28.0 54.0 18.0)
- *
- * Heretic 2: Table (stone)
- */
-void
-SP_obj_table2(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_throne (0.3 0.3 1.0) (-20.0 -22.0 -44.0) (20.0 22.0 44.0)
- *
- * Heretic 2: Throne
- */
-void
-SP_obj_throne(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -540,6 +685,13 @@ SP_obj_throne(edict_t *self)
 void
 SP_obj_cauldron(edict_t *self)
 {
+	if (self->spawnflags & OBJ_WITHEFFECT)
+	{
+		self->s.sound = gi.soundindex("ambient/cauldronbubble.wav");
+	}
+
+	self->spawnflags |= OBJ_STOPMOVE;
+
 	SP_obj_material(self);
 }
 
@@ -553,6 +705,7 @@ SP_obj_firepot(edict_t *self)
 {
 	self->s.sound = gi.soundindex("ambient/fireplace.wav");
 
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -565,6 +718,7 @@ void
 SP_obj_statue_duckbill1(edict_t *self)
 {
 	self->s.frame = 0;
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -577,6 +731,7 @@ void
 SP_obj_statue_duckbill2(edict_t *self)
 {
 	self->s.frame = 1;
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -588,7 +743,7 @@ SP_obj_statue_duckbill2(edict_t *self)
 void
 SP_obj_seasonglobe(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	SP_obj_material(self);
 }
 
 /*
@@ -599,17 +754,7 @@ SP_obj_seasonglobe(edict_t *self)
 void
 SP_obj_fountain_fish(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_statue_boulderfish (0.3 0.3 1.0) (-26.0 -16.0 -27.0) (26.0 16.0 27.0)
- *
- * Heretic 2: Fish statue
- */
-void
-SP_obj_statue_boulderfish(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -636,6 +781,7 @@ SP_obj_plant(edict_t *self)
 		self->s.skinnum = self->style;
 	}
 
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -647,6 +793,7 @@ SP_obj_plant(edict_t *self)
 void
 SP_obj_treetop(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -658,6 +805,7 @@ SP_obj_treetop(edict_t *self)
 void
 SP_obj_tree(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -669,6 +817,7 @@ SP_obj_tree(edict_t *self)
 void
 SP_obj_tree2(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -680,7 +829,8 @@ SP_obj_tree2(edict_t *self)
 void
 SP_obj_tree3(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+	SP_obj_material(self);
 }
 
 /*
@@ -691,7 +841,8 @@ SP_obj_tree3(edict_t *self)
 void
 SP_obj_treetall(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+	SP_obj_material(self);
 }
 
 /*
@@ -703,51 +854,7 @@ void
 SP_obj_treefallen(edict_t *self)
 {
 	self->s.frame = 1;
-
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_shovel (0.3 0.3 1.0) (-8.0 -8.0 -20.0) (8.0 8.0 20.0)
- *
- * Heretic 2: Shovel
- */
-void
-SP_obj_shovel(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_woodpile (0.3 0.3 1.0) (-12.0 -20.0 -7.0) (12.0 20.0 7.0)
- *
- * Heretic 2: Wood Pile
- */
-void
-SP_obj_woodpile(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_bench (0.3 0.3 1.0) (-10.0 -21.0 -10.0) (10.0 21.0 10.0)
- *
- * Heretic 2: Bench
- */
-void
-SP_obj_bench(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_bucket (0.3 0.3 1.0) (-8.0 -8.0 -9.0) (8.0 8.0 10.0)
- *
- * Heretic 2: Bucket
- */
-void
-SP_obj_bucket(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -759,6 +866,8 @@ SP_obj_bucket(edict_t *self)
 void
 SP_obj_ropechain(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+
 	if (self->s.skinnum == 0)
 	{
 		self->gib = GIB_WOOD;
@@ -780,6 +889,7 @@ SP_obj_ropechain(edict_t *self)
 void
 SP_obj_wheelbarrowdamaged(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	self->s.frame = 1;
 	SP_obj_material(self);
 }
@@ -792,6 +902,7 @@ SP_obj_wheelbarrowdamaged(edict_t *self)
 void
 SP_obj_bigcrystal(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -827,7 +938,7 @@ SP_obj_moss(edict_t *self)
 	{
 		self->s.skinnum = 1;
 	}
-	if (!strcmp(self->classname, "obj_moss3"))
+	else if (!strcmp(self->classname, "obj_moss3"))
 	{
 		self->s.skinnum = 2;
 	}
@@ -845,6 +956,7 @@ SP_obj_moss(edict_t *self)
 	}
 
 	self->s.renderfx |= RF_TRANSLUCENT;
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -867,6 +979,7 @@ SP_obj_floor_candelabrum(edict_t *self)
 void
 SP_obj_statue_dragonhead(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -878,6 +991,8 @@ SP_obj_statue_dragonhead(edict_t *self)
 void
 SP_obj_statue_dragon(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+
 	if (!self->style)
 	{
 		self->s.frame = 0;
@@ -898,6 +1013,8 @@ SP_obj_statue_dragon(edict_t *self)
 void
 SP_obj_flagonpole(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+
 	self->s.sound = gi.soundindex("ambient/bannerflap.wav");
 	object_spawn(self);
 }
@@ -910,6 +1027,7 @@ SP_obj_flagonpole(edict_t *self)
 void
 SP_obj_lever1(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -921,6 +1039,7 @@ SP_obj_lever1(edict_t *self)
 void
 SP_obj_lever2(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -948,6 +1067,7 @@ SP_obj_lever3(edict_t *self)
 void
 SP_obj_bush(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -959,6 +1079,7 @@ SP_obj_bush(edict_t *self)
 void
 SP_obj_cactus(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -970,6 +1091,7 @@ SP_obj_cactus(edict_t *self)
 void
 SP_obj_cactus3(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -981,28 +1103,7 @@ SP_obj_cactus3(edict_t *self)
 void
 SP_obj_cactus4(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_gorgonbones (0.3 0.3 1.0) (-18.0 -38.0 -9.0) (18.0 38.0 1.0)
- *
- * Heretic 2: Gorgon bones
- */
-void
-SP_obj_gorgonbones(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_grass (0.3 0.3 1.0) (-8.0 -8.0 -10.0) (8.0 8.0 10.0)
- *
- * Heretic 2: Grass clump
- */
-void
-SP_obj_grass(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -1014,6 +1115,7 @@ SP_obj_grass(edict_t *self)
 void
 SP_obj_swampflat_top(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1025,6 +1127,8 @@ SP_obj_swampflat_top(edict_t *self)
 void
 SP_obj_swampflat_bottom(edict_t *self)
 {
+	self->s.skinnum = 1;
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1037,6 +1141,7 @@ void
 SP_obj_treestump(edict_t *self)
 {
 	self->s.skinnum = 1;
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1072,7 +1177,7 @@ SP_obj_barrel_metal(edict_t *self)
 void
 SP_obj_barrel_exploding(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	SP_obj_material(self);
 }
 
 /*
@@ -1083,7 +1188,7 @@ SP_obj_barrel_exploding(edict_t *self)
 void
 SP_obj_barrel_indestructible(edict_t *self)
 {
-	DynamicObjectSpawn(self);
+	SP_obj_material(self);
 }
 
 /*
@@ -1135,6 +1240,7 @@ SP_obj_pipe(edict_t *self)
 void
 SP_obj_pipewheel(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	self->s.skinnum = 1;
 	SP_obj_material(self);
 }
@@ -1211,22 +1317,6 @@ SP_obj_metalchunk(edict_t *self)
 }
 
 /*
- * QUAKED obj_rocks1 (0.3 0.3 1.0) (-12.0 -13.0 -4.0) (12.0 13.0 4.0)
- *
- * Heretic 2: Rock cluster
- */
-/*
- * QUAKED obj_rocks2 (0.3 0.3 1.0) (-9.0 -30.0 -4.0) (9.0 30.0 4.0)
- *
- * Heretic 2: Big rock
- */
-void
-SP_obj_rocks(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_hivepriestessssymbol (0.3 1.0 0) (-4.0 -13.0 4.0) (4.0 13.0 shadow)
  *
  * Heretic 2: Hive Priestess symbol (triggered)
@@ -1234,6 +1324,7 @@ SP_obj_rocks(edict_t *self)
 void
 SP_obj_hivepriestessssymbol(edict_t *self)
 {
+	self->spawnflags |= OBJ_NODAMAGE; // can't be destroyed
 	SP_obj_material(self);
 }
 
@@ -1245,17 +1336,7 @@ SP_obj_hivepriestessssymbol(edict_t *self)
 void
 SP_obj_queenthrone(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_queenchair (0.3 0.3 1.0) (-30.0 -28.0 -31.0) (30.0 28.0 31.0)
- *
- * Heretic 2: Hive queen chair
- */
-void
-SP_obj_queenchair(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1267,39 +1348,7 @@ SP_obj_queenchair(edict_t *self)
 void
 SP_obj_shrine(edict_t *self)
 {
-	DynamicObjectSpawn(self);
-}
-
-/*
- * QUAKED obj_larvaegg (0.3 0.3 1.0) (-6.0 -14.0 -6.0) (6.0 14.0 6.0)
- *
- * Heretic 2: Hive egg
- */
-void
-SP_obj_larvaegg(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_larvabrokenegg (0.3 0.3 1.0) (-6.0 -7.0 -5.0) (6.0 7.0 5.0)
- *
- * Heretic 2: Hive egg
- */
-void
-SP_obj_larvabrokenegg(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_cocoon (0.3 0.3 1.0) (-8.0 -8.0 -8.0) (8.0 8.0 8.0)
- *
- * Heretic 2: Hanging cocoon
- */
-void
-SP_obj_cocoon(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1311,6 +1360,7 @@ SP_obj_cocoon(edict_t *self)
 void
 SP_obj_cocoonopen(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	self->s.frame = 20;
 	SP_obj_material(self);
 }
@@ -1323,6 +1373,7 @@ SP_obj_cocoonopen(edict_t *self)
 void
 SP_obj_venusflytrap(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -1334,6 +1385,8 @@ SP_obj_venusflytrap(edict_t *self)
 void
 SP_obj_statue_techeckriktomb(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+	self->s.frame = 1;
 	SP_obj_material(self);
 }
 
@@ -1345,6 +1398,7 @@ SP_obj_statue_techeckriktomb(edict_t *self)
 void
 SP_obj_statue_techeckrikright(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.frame = 2;
 
 	if (self->spawnflags & 16)
@@ -1363,6 +1417,7 @@ SP_obj_statue_techeckrikright(edict_t *self)
 void
 SP_obj_statue_techeckrikleft(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.frame = 0;
 
 	if (self->spawnflags & 16)
@@ -1381,6 +1436,7 @@ SP_obj_statue_techeckrikleft(edict_t *self)
 void
 SP_obj_spellbook(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.frame = 20;
 	SP_obj_material(self);
 }
@@ -1393,17 +1449,7 @@ SP_obj_spellbook(edict_t *self)
 void
 SP_obj_skullpole(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_pot1 (0.3 0.3 1.0) (-3.0 -8.0 -8.0) (3.0 8.0 8.0)
- *
- * Heretic 2: Hanging cooking pot
- */
-void
-SP_obj_pot1(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1415,6 +1461,7 @@ SP_obj_pot1(edict_t *self)
 void
 SP_obj_torture_table(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	if (self->style < 2)
 	{
 		self->s.frame = self->style;
@@ -1428,17 +1475,6 @@ SP_obj_torture_table(edict_t *self)
 }
 
 /*
- * QUAKED obj_torture_wallring (0.3 0.3 1.0) (-2.0 -4.0 -6.0) (2.0 4.0 6.0)
- *
- * Heretic 2: Hanging ring
- */
-void
-SP_obj_torture_wallring(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_statue_tchecktrik_bust (0.3 0.3 1.0) (-8.0 -12.0 -15.0) (8.0 12.0 15.0)
  *
  * Heretic 2: A bust of a tchecktrik.  When used a necklace appears around it's neck.
@@ -1446,6 +1482,7 @@ SP_obj_torture_wallring(edict_t *self)
 void
 SP_obj_statue_tchecktrik_bust(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	if (!self->style)
 	{
 		self->s.frame = 1;
@@ -1467,8 +1504,8 @@ SP_obj_statue_tchecktrik_bust(edict_t *self)
 void
 SP_obj_statue_sithraguard(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.frame = 0;
-
 	SP_obj_material(self);
 }
 
@@ -1480,6 +1517,7 @@ SP_obj_statue_sithraguard(edict_t *self)
 void
 SP_obj_torture_ironmaiden(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	self->s.frame = 0;
 
 	SP_obj_material(self);
@@ -1493,6 +1531,7 @@ SP_obj_torture_ironmaiden(edict_t *self)
 void
 SP_obj_torture_rack(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1504,17 +1543,7 @@ SP_obj_torture_rack(edict_t *self)
 void
 SP_obj_torture_bed(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_statue_saraphbust (0.3 0.3 1.0) (-10.0 -20.0 -24.0) (10.0 20.0 24.0)
- *
- * Heretic 2: Seraph bust
- */
-void
-SP_obj_statue_saraphbust(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1530,17 +1559,6 @@ SP_obj_biotank(edict_t *self)
 }
 
 /*
- * QUAKED obj_tapper (0.3 0.3 1.0) (-2.0 -5.0 -2.0) (2.0 5.0 2.0)
- *
- * Heretic 2: Keg tapper
- */
-void
-SP_obj_tapper(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
  * QUAKED obj_wallringplaque (0.3 0.3 1.0) (-3.0 -20.0 -55.0) (3.0 20.0 55.0)
  *
  * Heretic 2: Wall ring plaque
@@ -1548,6 +1566,7 @@ SP_obj_tapper(edict_t *self)
 void
 SP_obj_wallringplaque(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1558,72 +1577,6 @@ SP_obj_wallringplaque(edict_t *self)
  */
 void
 SP_obj_hangingdude(edict_t *self)
-{
-	DynamicObjectSpawn(self);
-}
-
-/*
- * QUAKED obj_frypan (0.3 0.3 1.0) (-1.0 -3.0 -10.0) (1.0 3.0 10.0)
- *
- * Heretic 2: Hanging pan
- */
-void
-SP_obj_frypan(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_eggpan (0.3 0.3 1.0) (-4.0 -10.0 -1.0) (4.0 10.0 1.0)
- *
- * Heretic 2: Flat pan
- */
-void
-SP_obj_eggpan(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_nest (0.3 0.3 1.0) (-25.0 -25.0 -4.0) (25.0 25.0 4.0)
- *
- * Heretic 2: Nest
- */
-void
-SP_obj_nest(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_choppeddude (0.3 0.3 1.0) (-15.0 -40.0 -8.0) (15.0 40.0 8.0)
- *
- * Heretic 2: Lying chopped corpse
- */
-void
-SP_obj_choppeddude(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_eyeball_jar (0.3 0.3 1.0) (-13.0 -13.0 -18.0) (13.0 13.0 18.0)
- *
- * Heretic 2: Jar of joy
- */
-void
-SP_obj_eyeball_jar(edict_t *self)
-{
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_lab_tray (0.3 0.3 1.0) (-8.0 -8.0 -5.0) (8.0 8.0 5.0)
- *
- * Heretic 2: Tray with heart and tools
- */
-void
-SP_obj_lab_tray(edict_t *self)
 {
 	SP_obj_material(self);
 }
@@ -1636,6 +1589,7 @@ SP_obj_lab_tray(edict_t *self)
 void
 SP_obj_hanging_ogle(edict_t *self)
 {
+	self->spawnflags |= OBJ_STOPMOVE;
 	SP_obj_material(self);
 }
 
@@ -1647,17 +1601,7 @@ SP_obj_hanging_ogle(edict_t *self)
 void
 SP_obj_ring_plaque2(edict_t *self)
 {
-	SP_obj_material(self);
-}
-
-/*
- * QUAKED obj_statue_sariph (0.3 0.3 1.0) (-13.0 -16.0 -41.0) (13.0 16.0 41.0)
- *
- * Heretic 2: Seraph statue
- */
-void
-SP_obj_statue_sariph(edict_t *self)
-{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
 	SP_obj_material(self);
 }
 
@@ -1763,5 +1707,33 @@ SP_object_campfire(edict_t *self)
 			break;
 	}
 
+	gi.linkentity(self);
+}
+
+/*
+ * QUAKED obj_fishhead1 (0.3 0.3 1.0) (0 -76 -86) (136 76 86)
+ *
+ * Heretic2: Fish head fountain
+ */
+void
+SP_obj_fishhead1(edict_t *self)
+{
+	self->spawnflags |= OBJ_STOPMOVE | OBJ_NODAMAGE;
+	SP_obj_material(self);
+}
+
+/*
+ * QUAKED obj_fishhead2 (0.3 0.3 1.0) (0 -110 -118) (136 110 118)
+ *
+ * Heretic2: Fish head fountain 2
+ */
+void
+SP_obj_fishhead2(edict_t *self)
+{
+	self->spawnflags |= OBJ_STOPMOVE;
+	self->takedamage = DAMAGE_NO;
+	self->movetype = MOVETYPE_NONE;
+	self->solid = SOLID_BBOX;
+	self->clipmask = MASK_MONSTERSOLID;
 	gi.linkentity(self);
 }

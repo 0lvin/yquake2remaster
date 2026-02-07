@@ -3,7 +3,7 @@ run-name: Coverity_linux_aarch64
 on:
   push:
     branches:
-      - 'master'
+      - 'coverity'
 concurrency:
   # Cancel concurrent workflows for the same PR or commit hash.
   group: ${{github.workflow}}-${{github.event_name == 'pull_request' && github.head_ref || github.sha}}
@@ -27,6 +27,8 @@ jobs:
             libavformat-dev libswscale-dev libvulkan-dev build-essential
     - name: Check out repository code
       uses: actions/checkout@v6
+      with:
+        submodules: 'true'
     - name: Download coverity
       run: |
         if [ -z "${{ secrets.COVERITY_SCAN_TOKEN }}" ]; then
