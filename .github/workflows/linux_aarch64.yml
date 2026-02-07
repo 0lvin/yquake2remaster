@@ -68,24 +68,13 @@ jobs:
         name: quake2-linux_aarch64-${{github.sha}}
         path: publish/
         if-no-files-found: error
-    # --output-format=sarif --output-file=cppcheck_results.sarif needs cppcheck 2.16,
-    # ubuntu 24.04 uses 2.13
     - name: Run Cppcheck
       run: |
         sudo snap install cppcheck --edge
-        /snap/bin/cppcheck -j 4 --enable=all --output-format=sarif --output-file=cppcheck_results.sarif --inconclusive --library=posix src
+        /snap/bin/cppcheck -j 4 --enable=all --output-format=sarif \
+          --output-file=cppcheck_results.sarif --inconclusive --library=posix \
+          -DYQ2OSTYPE=\"Linux\" src
     - name: Upload SARIF to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: cppcheck_results.sarif
-
-    #- name: Run Flawfinder
-    #  id: flawfinder_scan
-    #  uses: david-a-wheeler/flawfinder@2.0.19
-    #  with:
-    #    arguments: '--sarif src'
-    #    output: flawfinder_results.sarif
-    #- name: Upload SARIF to GitHub Code Scanning
-      #uses: github/codeql-action/upload-sarif@v4
-      #with:
-        #sarif_file: flawfinder_results.sarif
