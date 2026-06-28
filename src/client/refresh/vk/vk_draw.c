@@ -22,6 +22,7 @@
 
 #include "header/local.h"
 #include "../files/stb_truetype.h"
+#include <limits.h>
 
 static int vk_rawTexture_height = 0;
 static int vk_rawTexture_width = 0;
@@ -29,24 +30,25 @@ static float vk_font_size = 8.0;
 static int vk_font_height = 128;
 static image_t *draw_chars = NULL;
 static image_t *draw_font = NULL;
-static image_t *draw_font_alt = NULL;
 static stbtt_bakedchar *draw_fontcodes = NULL;
 static qboolean draw_chars_has_alt;
 
 void R_LoadTTFFont(const char *ttffont, int vid_height, float *r_font_size,
 	int *r_font_height, stbtt_bakedchar **draw_fontcodes,
-	struct image_s **draw_font, struct image_s **draw_font_alt,
+	struct image_s **draw_font,
 	loadimage_t R_LoadPic);
 
 void
 Draw_InitLocal(void)
 {
 	R_LoadTTFFont(r_ttffont->string, vid.height, &vk_font_size, &vk_font_height,
-		&draw_fontcodes, &draw_font, &draw_font_alt, Vk_LoadPic);
+		&draw_fontcodes, &draw_font, Vk_LoadPic);
 
 	draw_chars = R_LoadConsoleChars((findimage_t)Vk_FindImage);
 	/* Heretic 2 uses more than 128 symbols in image */
-	draw_chars_has_alt = !(draw_chars && !strcmp(draw_chars->name, "pics/misc/conchars.m32"));
+	draw_chars_has_alt = (draw_chars && (
+		strcmp(draw_chars->name, "pics/misc/conchars.m8") &&
+		strcmp(draw_chars->name, "pics/misc/conchars.m32")));
 }
 
 void
@@ -92,9 +94,18 @@ RE_Draw_CharScaled(int x, int y, int num, float scale)
 
 	scaledSize = 8 * scale;
 
+	if (draw_chars->scrap)
+	{
+		Vk_Scrap_Upload();
+	}
+
 	QVk_DrawTexRect((float)x / vid.width, (float)y / vid.height,
 					scaledSize / vid.width, scaledSize / vid.height,
-					fcol, frow, size, size, &draw_chars->vk_texture);
+					draw_chars->sl + fcol * (draw_chars->sh - draw_chars->sl),
+					draw_chars->tl + frow * (draw_chars->th - draw_chars->tl),
+					size * (draw_chars->sh - draw_chars->sl),
+					size * (draw_chars->th - draw_chars->tl),
+					&draw_chars->vk_texture);
 }
 
 void
@@ -104,7 +115,7 @@ RE_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messag
 	{
 		unsigned value = R_NextUTF8Code(&message);
 
-		if (draw_fontcodes && draw_font && draw_font_alt)
+		if (draw_fontcodes && draw_font)
 		{
 			float font_scale;
 
@@ -118,6 +129,12 @@ RE_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messag
 				stbtt_GetBakedQuad(draw_fontcodes, vk_font_height, vk_font_height,
 					value - 32, &xf, &yf, &q, 1);
 
+				if (alt)
+				{
+					q.t0 += 0.5;
+					q.t1 += 0.5;
+				}
+
 				xdiff = (8 - xf / font_scale) / 2;
 				if (xdiff < 0)
 				{
@@ -129,7 +146,7 @@ RE_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messag
 								(q.x1 - q.x0) * scale / font_scale / vid.width,
 								(q.y1 - q.y0) * scale / font_scale / vid.height,
 								q.s0, q.t0, q.s1 - q.s0, q.t1 - q.t0,
-								alt ? &draw_font_alt->vk_texture : &draw_font->vk_texture);
+								&draw_font->vk_texture);
 				x += Q_max(8, xf / font_scale) * scale;
 			}
 			else
@@ -153,22 +170,12 @@ RE_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messag
 	}
 }
 
-/*
-=============
-RE_Draw_FindPic
-=============
-*/
 image_t *
 RE_Draw_FindPic(const char *name)
 {
 	return R_FindPic(name, (findimage_t)Vk_FindImage);
 }
 
-/*
-=============
-RE_Draw_GetPicSize
-=============
-*/
 void
 RE_Draw_GetPicSize(int *w, int *h, const char *name)
 {
@@ -185,11 +192,6 @@ RE_Draw_GetPicSize(int *w, int *h, const char *name)
 	*h = image->height;
 }
 
-/*
-=============
-RE_Draw_StretchPic
-=============
-*/
 void
 RE_Draw_StretchPic(int x, int y, int w, int h, const char *name)
 {
@@ -207,21 +209,22 @@ RE_Draw_StretchPic(int x, int y, int w, int h, const char *name)
 		return;
 	}
 
+	if (vk->scrap)
+	{
+		Vk_Scrap_Upload();
+	}
+
 	QVk_DrawTexRect((float)x / vid.width, (float)y / vid.height,
 					(float)w / vid.width, (float)h / vid.height,
-					0, 0, 1, 1, &vk->vk_texture);
+					vk->sl, vk->tl,
+					vk->sh - vk->sl, vk->th - vk->tl,
+					&vk->vk_texture);
 }
 
-
-/*
-=============
-RE_Draw_PicScaled
-=============
-*/
 void
 RE_Draw_PicScaled(int x, int y, const char *name, float scale, const char *alttext)
 {
-	image_t *vk;
+	const image_t *vk;
 
 	vk = R_FindPic(name, (findimage_t)Vk_FindImage);
 	if (!vk)
@@ -237,7 +240,48 @@ RE_Draw_PicScaled(int x, int y, const char *name, float scale, const char *altte
 		return;
 	}
 
+	if (vk->scrap)
+	{
+		Vk_Scrap_Upload();
+	}
+
 	RE_Draw_StretchPic(x, y, vk->width * scale, vk->height * scale, name);
+}
+
+void
+RE_Draw_PicScaledCol(int x, int y, const char *name, float factor, const vec3_t color, const char *alttext)
+{
+	const image_t *vk;
+
+	if (!vk_frameStarted)
+		return;
+
+	vk = R_FindPic(name, (findimage_t)Vk_FindImage);
+	if (!vk)
+	{
+		if (alttext && alttext[0])
+		{
+			/* Show alttext if provided */
+			RE_Draw_StringScaled(x, y, factor, false, alttext);
+			return;
+		}
+
+		Com_Printf("%s(): Can't find pic: %s\n", __func__, name);
+		return;
+	}
+
+	if (vk->scrap)
+	{
+		Vk_Scrap_Upload();
+	}
+
+	QVk_DrawTexRectTinted((float)x / vid.width, (float)y / vid.height,
+		(float)(vk->width * factor) / vid.width,
+		(float)(vk->height * factor) / vid.height,
+		vk->sl, vk->tl,
+		vk->sh - vk->sl, vk->th - vk->tl,
+		color[0], color[1], color[2], 1.0f,
+		&vk->vk_texture);
 }
 
 /*
@@ -262,6 +306,11 @@ RE_Draw_TileClear(int x, int y, int w, int h, const char *name)
 	{
 		Com_Printf("%s(): Can't find pic: %s\n", __func__, name);
 		return;
+	}
+
+	if (image->scrap)
+	{
+		Vk_Scrap_Upload();
 	}
 
 	/* draw before change viewport */
@@ -330,14 +379,6 @@ RE_Draw_Fill(int x, int y, int w, int h, int c)
 		RP_UI);
 }
 
-//=============================================================================
-
-/*
-================
-RE_Draw_FadeScreen
-
-================
-*/
 void
 RE_Draw_FadeScreen(void)
 {
@@ -352,21 +393,9 @@ RE_Draw_FadeScreen(void)
 		RP_UI);
 }
 
-
-//====================================================================
-
-
-/*
-=============
-RE_Draw_StretchRaw
-=============
-*/
 void
 RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *data, int bits)
 {
-
-	int i, j;
-	unsigned *dest;
 	byte *source;
 	byte *image_scaled = NULL;
 	unsigned *raw_image32;
@@ -378,6 +407,11 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 
 	if (bits == 32)
 	{
+		if (rows == 0 || cols > INT_MAX / rows / sizeof(unsigned))
+		{
+			return;
+		}
+
 		raw_image32 = malloc(cols * rows * sizeof(unsigned));
 		if (!raw_image32)
 		{
@@ -388,12 +422,24 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 	}
 	else
 	{
+		unsigned *dest;
+		size_t i;
+
 		if (r_retexturing->value)
 		{
 			// triple scaling
 			if (cols < (vid.width / 3) || rows < (vid.height / 3))
 			{
+				if (rows == 0 || cols > INT_MAX / rows / 9)
+				{
+					return;
+				}
+
 				image_scaled = malloc(cols * rows * 9);
+				if (!image_scaled)
+				{
+					return;
+				}
 
 				scale3x(data, image_scaled, cols, rows);
 
@@ -403,7 +449,16 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 			else
 			// double scaling
 			{
+				if (rows == 0 || cols > INT_MAX / rows / 4)
+				{
+					return;
+				}
+
 				image_scaled = malloc(cols * rows * 4);
+				if (!image_scaled)
+				{
+					return;
+				}
 
 				scale2x(data, image_scaled, cols, rows);
 
@@ -421,6 +476,10 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 			cols * rows * sizeof(unsigned))
 		if (!raw_image32)
 		{
+			if (image_scaled != data)
+			{
+				free(image_scaled);
+			}
 			/* unaware about YQ2_ATTR_NORETURN_FUNCPTR? */
 			return;
 		}
@@ -429,7 +488,10 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 		dest = raw_image32;
 		for (i = 0; i < rows; ++i)
 		{
-			int rowOffset = i * cols;
+			size_t j, rowOffset;
+
+			rowOffset = i * cols;
+
 			for (j = 0; j < cols; ++j)
 			{
 				byte palIdx = source[rowOffset + j];
@@ -449,13 +511,13 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 	if (vk_rawTexture.resource.image != VK_NULL_HANDLE &&
 	    (vk_rawTexture_width != cols || vk_rawTexture_height != rows))
 	{
-		QVk_ReleaseTexture(&vk_rawTexture);
+		QVk_ReleaseTexture(&vk_rawTexture, true);
 		QVVKTEXTURE_CLEAR(vk_rawTexture);
 	}
 
 	if (vk_rawTexture.resource.image != VK_NULL_HANDLE)
 	{
-		QVk_UpdateTextureData(&vk_rawTexture, (unsigned char*)raw_image32, 0, 0, cols, rows);
+		QVk_UpdateTextureData(&vk_rawTexture, (byte*)raw_image32, 0, 0, cols, rows);
 	}
 	else
 	{
@@ -463,7 +525,7 @@ RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *d
 		vk_rawTexture_height = rows;
 
 		QVVKTEXTURE_CLEAR(vk_rawTexture);
-		QVk_CreateTexture(&vk_rawTexture, (unsigned char*)raw_image32, cols, rows,
+		QVk_CreateTexture(&vk_rawTexture, (byte*)raw_image32, cols, rows,
 			(r_videos_unfiltered->value == 0) ? vk_current_sampler : S_NEAREST,
 			false);
 		QVk_DebugSetObjectName((uint64_t)vk_rawTexture.resource.image,

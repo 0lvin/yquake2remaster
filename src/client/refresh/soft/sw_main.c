@@ -67,8 +67,8 @@ typedef struct swstate_s
 {
 	int prev_mode; /* last valid SW mode */
 
-	unsigned char gammatable[256];
-	unsigned char currentpalette[1024];
+	byte gammatable[256];
+	byte currentpalette[1024];
 } swstate_t;
 
 static swstate_t sw_state;
@@ -119,12 +119,10 @@ cplane_t	screenedge[4];
 // refresh flags
 //
 int		r_framecount = 1;	// so frame counts initialized to 0 don't match
-int		r_visframecount;
 int		r_polycount;
 int		r_drawnpolycount;
 
 int		*pfrustum_indexes[4];
-int			r_viewcluster, r_oldviewcluster;
 
 image_t  	*r_notexture_mip;
 
@@ -321,15 +319,18 @@ R_InitTurb
 ================
 */
 static void
-R_InitTurb (int width)
+R_InitTurb(int width)
 {
 	int		i;
 
 	memset(blanktable, 0, (width+CYCLE) * sizeof(int));
 	for (i = 0; i < (width+CYCLE); i++)
 	{
-		sintable[i] = AMP + sin(i*3.14159*2/CYCLE)*AMP;
-		intsintable[i] = AMP2 + sin(i*3.14159*2/CYCLE)*AMP2; // AMP2, not 20
+		float i_sin;
+
+		i_sin = sin(i * M_PI * 2.0 / CYCLE);
+		sintable[i] = AMP + i_sin * AMP;
+		intsintable[i] = AMP2 + i_sin * AMP2; // AMP2, not 20
 	}
 }
 
@@ -337,7 +338,7 @@ void R_ImageList_f(void);
 static void R_ScreenShot_f(void);
 
 static void
-R_RegisterVariables (void)
+R_RegisterVariables(void)
 {
 	R_InitCvar();
 
@@ -377,7 +378,7 @@ R_RegisterVariables (void)
 }
 
 static void
-R_UnRegister (void)
+R_UnRegister(void)
 {
 	ri.Cmd_RemoveCommand( "screenshot" );
 	ri.Cmd_RemoveCommand( "modellist" );
@@ -440,7 +441,7 @@ RE_Shutdown
 ===============
 */
 static void
-RE_Shutdown (void)
+RE_Shutdown(void)
 {
 	// free z buffer
 	if (d_pzbuffer)
@@ -479,7 +480,7 @@ R_ReallocateMapBuffers
 ===============
 */
 static void
-R_ReallocateMapBuffers (void)
+R_ReallocateMapBuffers(void)
 {
 	if (!r_cnumsurfs || r_outofsurfaces)
 	{
@@ -495,11 +496,15 @@ R_ReallocateMapBuffers (void)
 		}
 
 		if ((r_farsee->value > 0) && (r_cnumsurfs < NUMSTACKSURFACES))
+		{
 			r_cnumsurfs = NUMSTACKSURFACES * 2;
+		}
 		else if (r_cnumsurfs < NUMSTACKSURFACES)
+		{
 			r_cnumsurfs = NUMSTACKSURFACES;
+		}
 
-		// edge_t->surf limited size to short
+		/* edge_t->surf limited size to short */
 		if (r_cnumsurfs > SURFINDEX_MAX)
 		{
 			r_cnumsurfs = SURFINDEX_MAX;
@@ -677,67 +682,6 @@ R_ReallocateMapBuffers (void)
 	}
 }
 
-
-/*
-===============
-R_MarkLeaves
-
-Mark the leaves and nodes that are in the PVS for the current
-cluster
-===============
-*/
-static void
-R_MarkLeaves (void)
-{
-	const byte	*vis;
-	mnode_t	*node;
-	int		i;
-	mleaf_t	*leaf;
-
-	if (r_oldviewcluster == r_viewcluster && !r_novis->value && r_viewcluster != -1)
-		return;
-
-	// development aid to let you run around and see exactly where
-	// the pvs ends
-	if (r_lockpvs->value)
-		return;
-
-	r_visframecount++;
-	r_oldviewcluster = r_viewcluster;
-
-	if (r_novis->value || r_viewcluster == -1 || !r_worldmodel->vis)
-	{
-		// mark everything
-		for (i=0 ; i<r_worldmodel->numleafs ; i++)
-			r_worldmodel->leafs[i].visframe = r_visframecount;
-		for (i=0 ; i<r_worldmodel->numnodes ; i++)
-			r_worldmodel->nodes[i].visframe = r_visframecount;
-		return;
-	}
-
-	vis = Mod_ClusterPVS (r_viewcluster, r_worldmodel);
-
-	for (i=0,leaf=r_worldmodel->leafs ; i<r_worldmodel->numleafs ; i++, leaf++)
-	{
-		int cluster;
-
-		cluster = leaf->cluster;
-		if (cluster == -1)
-			continue;
-		if (vis[cluster>>3] & (1<<(cluster&7)))
-		{
-			node = (mnode_t *)leaf;
-			do
-			{
-				if (node->visframe == r_visframecount)
-					break;
-				node->visframe = r_visframecount;
-				node = node->parent;
-			} while (node);
-		}
-	}
-}
-
 /*
 ** R_DrawNullModel
 **
@@ -754,7 +698,7 @@ R_DrawEntitiesOnList
 =============
 */
 static void
-R_DrawEntitiesOnList (void)
+R_DrawEntitiesOnList(void)
 {
 	qboolean translucent_entities = false;
 	int i;
@@ -791,7 +735,7 @@ R_DrawEntitiesOnList (void)
 				R_DrawNullModel();
 				continue;
 			}
-			VectorCopy (currententity->origin, r_entorigin);
+			VectorCopy(currententity->origin, r_entorigin);
 			VectorSubtract (r_origin, r_entorigin, modelorg);
 
 			switch (currentmodel->type)
@@ -845,7 +789,7 @@ R_DrawEntitiesOnList (void)
 				R_DrawNullModel();
 				continue;
 			}
-			VectorCopy (currententity->origin, r_entorigin);
+			VectorCopy(currententity->origin, r_entorigin);
 			VectorSubtract (r_origin, r_entorigin, modelorg);
 
 			switch (currentmodel->type)
@@ -870,20 +814,25 @@ R_DrawEntitiesOnList (void)
 	}
 }
 
+/*
+ * value returned by R_BmodelCheckBBox ()
+ * if bbox is trivially rejected
+ */
+#define BMODEL_FULLY_CLIPPED 0x10
 
 /*
 =============
 R_BmodelCheckBBox
 =============
 */
-static int
+static unsigned
 R_BmodelCheckBBox(const float *minmaxs)
 {
-	int i, clipflags;
+	unsigned i, clipflags;
 
 	clipflags = 0;
 
-	for (i=0 ; i<4 ; i++)
+	for (i = 0; i < 4 ;i++)
 	{
 		vec3_t acceptpt, rejectpt;
 		const int *pindex;
@@ -902,7 +851,9 @@ R_BmodelCheckBBox(const float *minmaxs)
 		d -= view_clipplanes[i].dist;
 
 		if (d <= 0)
+		{
 			return BMODEL_FULLY_CLIPPED;
+		}
 
 		acceptpt[0] = minmaxs[pindex[3+0]];
 		acceptpt[1] = minmaxs[pindex[3+1]];
@@ -912,7 +863,9 @@ R_BmodelCheckBBox(const float *minmaxs)
 		d -= view_clipplanes[i].dist;
 
 		if (d <= 0)
+		{
 			clipflags |= (1<<i);
+		}
 	}
 
 	return clipflags;
@@ -927,7 +880,7 @@ Find the first node that splits the given box
 ===================
 */
 static mnode_t *
-R_FindTopnode (vec3_t mins, vec3_t maxs)
+R_FindTopnode(vec3_t mins, vec3_t maxs)
 {
 	mnode_t *node;
 
@@ -939,13 +892,18 @@ R_FindTopnode (vec3_t mins, vec3_t maxs)
 		int sides;
 
 		if (node->visframe != r_visframecount)
+		{
 			return NULL;		// not visible at all
+		}
 
 		if (node->contents != CONTENTS_NODE)
 		{
 			if (node->contents != CONTENTS_SOLID)
+			{
 				return	node;	// we've reached a non-solid leaf, so it's
 						//  visible and not BSP clipped
+			}
+
 			return NULL;	// in solid, so not visible
 		}
 
@@ -953,13 +911,19 @@ R_FindTopnode (vec3_t mins, vec3_t maxs)
 		sides = BOX_ON_PLANE_SIDE(mins, maxs, splitplane);
 
 		if (sides == 3)
+		{
 			return node;	// this is the splitter
+		}
 
 		// not split yet; recurse down the contacted side
 		if (sides & 1)
+		{
 			node = node->children[0];
+		}
 		else
+		{
 			node = node->children[1];
+		}
 	}
 }
 
@@ -972,55 +936,73 @@ Returns an axially aligned box that contains the input box at the given rotation
 =============
 */
 static void
-RotatedBBox (const vec3_t mins, const vec3_t maxs, vec3_t angles, vec3_t tmins, vec3_t tmaxs)
+RotatedBBox(const vec3_t mins, const vec3_t maxs, vec3_t angles, vec3_t tmins, vec3_t tmaxs)
 {
-	vec3_t	tmp, v;
-	int		i, j;
-	vec3_t	forward, right, up;
+	vec3_t tmp, v;
+	size_t i;
+	vec3_t forward, right, up;
 
 	if (!angles[0] && !angles[1] && !angles[2])
 	{
-		VectorCopy (mins, tmins);
-		VectorCopy (maxs, tmaxs);
+		VectorCopy(mins, tmins);
+		VectorCopy(maxs, tmaxs);
 		return;
 	}
 
-	for (i=0 ; i<3 ; i++)
+	for (i = 0; i < 3; i++)
 	{
 		tmins[i] = (vec_t)INT_MAX; // Set maximum values for world range
 		tmaxs[i] = (vec_t)INT_MIN;  // Set minimal values for world range
 	}
 
-	AngleVectors (angles, forward, right, up);
+	AngleVectors(angles, forward, right, up);
 
-	for ( i = 0; i < 8; i++ )
+	for (i = 0; i < 8; i++)
 	{
+		size_t j;
+
 		if ( i & 1 )
+		{
 			tmp[0] = mins[0];
+		}
 		else
+		{
 			tmp[0] = maxs[0];
+		}
 
 		if ( i & 2 )
+		{
 			tmp[1] = mins[1];
+		}
 		else
+		{
 			tmp[1] = maxs[1];
+		}
 
 		if ( i & 4 )
+		{
 			tmp[2] = mins[2];
+		}
 		else
+		{
 			tmp[2] = maxs[2];
-
+		}
 
 		VectorScale (forward, tmp[0], v);
 		VectorMA (v, -tmp[1], right, v);
 		VectorMA (v, tmp[2], up, v);
 
-		for (j=0 ; j<3 ; j++)
+		for (j = 0; j < 3; j++)
 		{
 			if (v[j] < tmins[j])
+			{
 				tmins[j] = v[j];
+			}
+
 			if (v[j] > tmaxs[j])
+			{
 				tmaxs[j] = v[j];
+			}
 		}
 	}
 }
@@ -1031,31 +1013,35 @@ R_DrawBEntitiesOnList
 =============
 */
 static void
-R_DrawBEntitiesOnList (void)
+R_DrawBEntitiesOnList(void)
 {
-	int		i, clipflags;
-	vec3_t		oldorigin;
-	vec3_t		mins, maxs;
-	float		minmaxs[6];
-	mnode_t		*topnode;
+	size_t i, clipflags;
+	vec3_t oldorigin;
+	vec3_t mins, maxs;
+	float minmaxs[6];
+	mnode_t *topnode;
 
 	if (!r_drawentities->value)
+	{
 		return;
+	}
 
-	VectorCopy (modelorg, oldorigin);
+	VectorCopy(modelorg, oldorigin);
 
 	for (i = 0; i < r_newrefdef.num_entities; i++)
 	{
 		entity_t *currententity = &r_newrefdef.entities[i];
 		const model_t *currentmodel = currententity->model;
-		if ( currententity->flags & RF_BEAM )
+
+		/* clip brush only */
+		if ((currententity->flags & RF_BEAM) ||
+			!currentmodel ||
+			!currentmodel->nummodelsurfaces ||
+			(currentmodel->type != mod_brush))
+		{
 			continue;
-		if (!currentmodel)
-			continue;
-		if (currentmodel->nummodelsurfaces == 0)
-			continue;	// clip brush only
-		if (currentmodel->type != mod_brush)
-			continue;
+		}
+
 		// see if the bounding box lets us trivially reject, also sets
 		// trivial accept status
 		RotatedBBox (currentmodel->mins, currentmodel->maxs,
@@ -1065,13 +1051,17 @@ R_DrawBEntitiesOnList (void)
 
 		clipflags = R_BmodelCheckBBox (minmaxs);
 		if (clipflags == BMODEL_FULLY_CLIPPED)
+		{
 			continue;	// off the edge of the screen
+		}
 
 		topnode = R_FindTopnode (minmaxs, minmaxs+3);
 		if (!topnode)
+		{
 			continue;	// no part in a visible leaf
+		}
 
-		VectorCopy (currententity->origin, r_entorigin);
+		VectorCopy(currententity->origin, r_entorigin);
 		VectorSubtract (r_origin, r_entorigin, modelorg);
 
 		r_pcurrentvertbase = currentmodel->vertexes;
@@ -1098,11 +1088,11 @@ R_DrawBEntitiesOnList (void)
 
 		// put back world rotation and frustum clipping
 		// FIXME: R_RotateBmodel should just work off base_vxx
-		VectorCopy (base_vpn, vpn);
-		VectorCopy (base_vup, vup);
-		VectorCopy (base_vright, vright);
-		VectorCopy (oldorigin, modelorg);
-		R_TransformFrustum ();
+		VectorCopy(base_vpn, vpn);
+		VectorCopy(base_vup, vup);
+		VectorCopy(base_vright, vright);
+		VectorCopy(oldorigin, modelorg);
+		R_TransformFrustum();
 	}
 }
 
@@ -1114,13 +1104,15 @@ Render the map
 ================
 */
 static void
-R_EdgeDrawing (entity_t *currententity)
+R_EdgeDrawing(entity_t *currententity)
 {
 	if ( r_newrefdef.rdflags & RDF_NOWORLDMODEL )
+	{
 		return;
+	}
 
 	// Set function pointer pdrawfunc used later in this function
-	R_BeginEdgeFrame ();
+	R_BeginEdgeFrame();
 	edge_p = r_edges;
 	surface_p = &surfaces[2];	// background is surface 1,
 					//  surface 0 is a dummy
@@ -1132,7 +1124,7 @@ R_EdgeDrawing (entity_t *currententity)
 
 	// Build the Global Edget Table
 	// Also populate the surface stack and count # surfaces to render (surf_max is the max)
-	R_RenderWorld (currententity);
+	R_RenderWorld(currententity);
 
 	if (sw_dspeeds->value)
 	{
@@ -1150,12 +1142,12 @@ R_EdgeDrawing (entity_t *currententity)
 
 	// Use the Global Edge Table to maintin the Active Edge Table: Draw the world as scanlines
 	// Write the Z-Buffer (but no read)
-	R_ScanEdges (currententity, surface_p);
+	R_ScanEdges(currententity, surface_p);
 }
 
 //=======================================================================
 
-static void	R_GammaCorrectAndSetPalette(const unsigned char *palette);
+static void	R_GammaCorrectAndSetPalette(const byte *palette);
 
 /*
 =============
@@ -1164,7 +1156,7 @@ R_CalcPalette
 =============
 */
 static void
-R_CalcPalette (void)
+R_CalcPalette(void)
 {
 	static qboolean modified;
 	byte	palette[256][4] = {0}, *in, *out;
@@ -1213,7 +1205,7 @@ R_CalcPalette (void)
 		out[3] = 255;
 	}
 
-	R_GammaCorrectAndSetPalette( ( const unsigned char * ) palette[0] );
+	R_GammaCorrectAndSetPalette( ( const byte * ) palette[0] );
 }
 
 //=======================================================================
@@ -1229,9 +1221,8 @@ R_SetLightLevel(const entity_t *currententity)
 	}
 
 	/* save off light value for server to look at (BIG HACK!) */
-	R_LightPoint(r_worldmodel->grid, currententity,
-		r_worldmodel->surfaces, r_worldmodel->nodes, r_newrefdef.vieworg,
-		shadelight, r_modulate->value, lightspot);
+	R_LightPoint(r_worldmodel, currententity,
+		r_newrefdef.vieworg, shadelight, lightspot);
 
 	/* pick the greatest component, which should be the
 	 * same as the mono value returned by before color light apply */
@@ -1280,7 +1271,7 @@ RE_RenderFrame
 ================
 */
 static void
-RE_RenderFrame(refdef_t *fd)
+RE_RenderFrame(const refdef_t *fd)
 {
 	r_newrefdef = *fd;
 	entity_t	ent;
@@ -1294,8 +1285,8 @@ RE_RenderFrame(refdef_t *fd)
 	// Need to rerender whole frame
 	VID_WholeDamageBuffer();
 
-	VectorCopy (fd->vieworg, r_refdef.vieworg);
-	VectorCopy (fd->viewangles, r_refdef.viewangles);
+	VectorCopy(fd->vieworg, r_refdef.vieworg);
+	VectorCopy(fd->viewangles, r_refdef.viewangles);
 
 	// compare current position with old
 	if (vid_buffer_width <= 640 ||
@@ -1310,11 +1301,13 @@ RE_RenderFrame(refdef_t *fd)
 	}
 
 	// save position for next check
-	VectorCopy (fd->vieworg, lastvieworg);
-	VectorCopy (fd->viewangles, lastviewangles);
+	VectorCopy(fd->vieworg, lastvieworg);
+	VectorCopy(fd->viewangles, lastviewangles);
 
 	if (r_speeds->value || sw_dspeeds->value)
+	{
 		r_time1 = SDL_GetTicks();
+	}
 
 	R_SetupFrame ();
 
@@ -1323,7 +1316,7 @@ RE_RenderFrame(refdef_t *fd)
 
 	// Using the current view cluster (r_viewcluster), retrieve and decompress
 	// the PVS (Potentially Visible Set)
-	R_MarkLeaves();	// done here so we know if we're in water
+	R_MarkLeaves(r_worldmodel);	// done here so we know if we're in water
 
 	// For each dlight_t* passed via r_newrefdef.dlights, mark polygons affected by a light.
 	RI_PushDlights(r_worldmodel);
@@ -1335,7 +1328,7 @@ RE_RenderFrame(refdef_t *fd)
 
 	// Build the Global Edge Table and render it via the Active Edge Table
 	// Render the map
-	R_EdgeDrawing (&ent);
+	R_EdgeDrawing(&ent);
 
 	if (sw_dspeeds->value)
 	{
@@ -1467,7 +1460,7 @@ RE_BeginFrame(float camera_separation)
 		// we need redraw everything
 		VID_WholeDamageBuffer();
 		// and backbuffer should be zeroed
-		memset(swap_buffers + ((swap_current + 1)&1), 0,
+		memset(swap_buffers + ((swap_current + 1) & 1), 0,
 			vid_buffer_height * vid_buffer_width * sizeof(pixel_t));
 
 		vid_gamma->modified = false;
@@ -1541,7 +1534,7 @@ RE_SetMode(void)
 ** R_GammaCorrectAndSetPalette
 */
 static void
-R_GammaCorrectAndSetPalette( const unsigned char *palette )
+R_GammaCorrectAndSetPalette( const byte *palette )
 {
 	int i;
 
@@ -1566,7 +1559,7 @@ R_GammaCorrectAndSetPalette( const unsigned char *palette )
 ** RE_SetPalette
 */
 static void
-RE_SetPalette(const unsigned char *palette)
+RE_SetPalette(const byte *palette)
 {
 	// clear screen to black to avoid any palette flash
 	RE_CleanFrame();
@@ -1598,7 +1591,7 @@ Draw_BuildGammaTable
 ================
 */
 static void
-Draw_BuildGammaTable (void)
+Draw_BuildGammaTable(void)
 {
 	int i;
 	float	g;
@@ -1651,7 +1644,7 @@ R_DrawBeam(const entity_t *e)
 {
 #define NUM_BEAM_SEGS 6
 
-	int	i;
+	size_t i;
 
 	vec3_t perpvec;
 	vec3_t direction, normalized_direction;
@@ -1670,20 +1663,22 @@ R_DrawBeam(const entity_t *e)
 	normalized_direction[1] = direction[1] = oldorigin[1] - origin[1];
 	normalized_direction[2] = direction[2] = oldorigin[2] - origin[2];
 
-	if ( VectorNormalize( normalized_direction ) == 0 )
+	if (VectorNormalize(normalized_direction) == 0)
+	{
 		return;
+	}
 
-	PerpendicularVector( perpvec, normalized_direction );
+	PerpendicularVector(perpvec, normalized_direction);
 	VectorScale( perpvec, e->frame / 2, perpvec );
 
-	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
+	for (i = 0; i < NUM_BEAM_SEGS; i++)
 	{
 		RotatePointAroundVector( start_points[i], normalized_direction, perpvec, (360.0/NUM_BEAM_SEGS)*i );
 		VectorAdd( start_points[i], origin, start_points[i] );
 		VectorAdd( start_points[i], direction, end_points[i] );
 	}
 
-	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
+	for (i = 0; i < NUM_BEAM_SEGS; i++)
 	{
 		R_IMFlatShadedQuad( start_points[i],
 				    end_points[i],
@@ -1859,6 +1854,7 @@ GetRefAPI(refimport_t imp)
 	refexport.DrawGetPicSize = RE_Draw_GetPicSize;
 
 	refexport.DrawPicScaled = RE_Draw_PicScaled;
+	refexport.DrawPicScaledCol = RE_Draw_PicScaledCol;
 	refexport.DrawStretchPic = RE_Draw_StretchPic;
 	refexport.DrawCharScaled = RE_Draw_CharScaled;
 	refexport.DrawStringScaled = RE_Draw_StringScaled;
@@ -2203,10 +2199,12 @@ RE_BufferDifferenceStart(int vmin, int vmax)
 	front_buffer = (int*)(swap_frames[1] + vmin);
 	back_max = (int*)(swap_frames[0] + vmax);
 
-	while (back_buffer < back_max && *back_buffer == *front_buffer) {
+	while (back_buffer < back_max && *back_buffer == *front_buffer)
+	{
 		back_buffer ++;
 		front_buffer ++;
 	}
+
 	return (pixel_t*)back_buffer - swap_frames[0];
 }
 
@@ -2583,7 +2581,7 @@ R_ScreenShot_f(void)
 {
 	int x, y;
 	byte *buffer = malloc(vid_buffer_width * vid_buffer_height * 3);
-	const unsigned char *palette = sw_state.currentpalette;
+	const byte *palette = sw_state.currentpalette;
 
 	if (!buffer)
 	{

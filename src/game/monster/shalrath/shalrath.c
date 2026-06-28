@@ -29,13 +29,11 @@ static int sound_fire;
 static int sound_sight;
 
 // Stand
-static mframe_t shalrath_frames_stand [] =
-{
+static mframe_t shalrath_frames_stand [] = {
 	{ai_stand, 0, NULL},
 };
 
-mmove_t shalrath_move_stand =
-{
+mmove_t shalrath_move_stand = {
 	FRAME_attack1,
 	FRAME_attack1,
 	shalrath_frames_stand,
@@ -66,8 +64,8 @@ static mframe_t shalrath_frames_run [] =
 	{ai_run, 4, NULL},
 	{ai_run, 5, NULL}
 };
-mmove_t shalrath_move_run =
-{
+
+mmove_t shalrath_move_run = {
 	FRAME_walk1,
 	FRAME_walk12,
 	shalrath_frames_run,
@@ -87,7 +85,7 @@ shalrath_roar(edict_t *self)
 }
 
 void
-shalrath_pod_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+shalrath_pod_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (other == self->owner)
 		return;
@@ -108,22 +106,14 @@ shalrath_pod_home(edict_t *self)
 {
 	static qboolean think = false;
 	vec3_t			end;
-	vec3_t			dir;
 
 	// decino: Only home every 0.2 frames
 	if (think)
 	{
-		if (self->enemy && self->enemy->health < 1 && self->owner->health > 0)
-		{
-			// decino: Not a big fan of this, just wait until it hits something
-			/*if (!self->owner->enemy || (self->owner->enemy == self->owner))
-			{
-				G_FreeEdict(self);
-				return;
-			}*/
-		}
 		if (self->owner->enemy)
 		{
+			vec3_t dir;
+
 			self->enemy = self->owner->enemy;
 			VectorCopy(self->enemy->s.origin, end);
 			end[2] += self->enemy->viewheight;
@@ -192,7 +182,7 @@ FireShalrathPod(edict_t *self)
 	vec3_t offset = {16, 0, 16};
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 	VectorCopy(self->enemy->s.origin, vec);
 	vec[2] += self->enemy->viewheight;
 
@@ -219,8 +209,8 @@ static mframe_t shalrath_frames_attack [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t shalrath_move_attack =
-{
+
+mmove_t shalrath_move_attack = {
 	FRAME_attack1,
 	FRAME_attack11,
 	shalrath_frames_attack,
@@ -243,8 +233,8 @@ static mframe_t shalrath_frames_pain [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t shalrath_move_pain =
-{
+
+mmove_t shalrath_move_pain = {
 	FRAME_pain1,
 	FRAME_pain5,
 	shalrath_frames_pain,
@@ -266,11 +256,12 @@ shalrath_pain(edict_t *self, edict_t *other /* unused */,
 	gi.sound(self, CHAN_VOICE, sound_pain, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 shalrath_dead(edict_t *self)
 {
 	VectorSet(self->mins, -32, -32, -24);
 	VectorSet(self->maxs, 32, 32, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -286,8 +277,8 @@ static mframe_t shalrath_frames_death [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t shalrath_move_death =
-{
+
+mmove_t shalrath_move_death = {
 	FRAME_death1,
 	FRAME_death7,
 	shalrath_frames_death,
@@ -295,12 +286,12 @@ mmove_t shalrath_move_death =
 };
 
 void
-shalrath_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+shalrath_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

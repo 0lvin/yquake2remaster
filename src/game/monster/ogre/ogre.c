@@ -51,8 +51,7 @@ static mframe_t ogre_frames_stand [] =
 
 	{ai_stand, 0, NULL},
 };
-mmove_t ogre_move_stand =
-{
+mmove_t ogre_move_stand = {
 	FRAME_stand1,
 	FRAME_stand9,
 	ogre_frames_stand,
@@ -78,8 +77,8 @@ static mframe_t ogre_frames_run [] =
 	{ai_run, 13, NULL},
 	{ai_run, 24, NULL}
 };
-mmove_t ogre_move_run =
-{
+
+mmove_t ogre_move_run = {
 	FRAME_run1,
 	FRAME_run8,
 	ogre_frames_run,
@@ -113,8 +112,8 @@ static mframe_t ogre_frames_smash [] =
 	{ai_charge, 12, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t ogre_move_smash =
-{
+
+mmove_t ogre_move_smash = {
 	FRAME_smash1,
 	FRAME_smash14,
 	ogre_frames_smash,
@@ -142,8 +141,8 @@ static mframe_t ogre_frames_swing [] =
 	{ai_charge, 9, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t ogre_move_swing =
-{
+
+mmove_t ogre_move_swing = {
 	FRAME_swing1,
 	FRAME_swing14,
 	ogre_frames_swing,
@@ -170,7 +169,7 @@ FireOgreGrenade(edict_t *self)
 	vec3_t offset = {0, 0, 16};
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 	VectorCopy(forward, aim);
 
 	monster_fire_grenade(self, start, aim, 40, 600, MZ2_GUNNER_GRENADE_1);
@@ -187,8 +186,8 @@ static mframe_t ogre_frames_attack [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t ogre_move_attack =
-{
+
+mmove_t ogre_move_attack = {
 	FRAME_shoot1,
 	FRAME_shoot6,
 	ogre_frames_attack,
@@ -211,8 +210,8 @@ static mframe_t ogre_frames_pain1 [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_pain1 =
-{
+
+mmove_t ogre_move_pain1 = {
 	FRAME_pain1,
 	FRAME_pain5,
 	ogre_frames_pain1,
@@ -226,8 +225,8 @@ static mframe_t ogre_frames_pain2 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_pain2 =
-{
+
+mmove_t ogre_move_pain2 = {
 	FRAME_painb1,
 	FRAME_painb3,
 	ogre_frames_pain2,
@@ -235,8 +234,7 @@ mmove_t ogre_move_pain2 =
 };
 
 // Pain (3)
-static mframe_t ogre_frames_pain3 [] =
-{
+static mframe_t ogre_frames_pain3 [] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -245,8 +243,8 @@ static mframe_t ogre_frames_pain3 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_pain3 =
-{
+
+mmove_t ogre_move_pain3 = {
 	FRAME_painc1,
 	FRAME_painc6,
 	ogre_frames_pain3,
@@ -276,8 +274,8 @@ static mframe_t ogre_frames_pain4 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_pain4 =
-{
+
+mmove_t ogre_move_pain4 = {
 	FRAME_paind1,
 	FRAME_paind16,
 	ogre_frames_pain4,
@@ -285,8 +283,7 @@ mmove_t ogre_move_pain4 =
 };
 
 // Pain (5)
-static mframe_t ogre_frames_pain5 [] =
-{
+static mframe_t ogre_frames_pain5 [] = {
 	{ai_move, 0, NULL},
 	{ai_move, 10, NULL},
 	{ai_move, 9, NULL},
@@ -306,8 +303,8 @@ static mframe_t ogre_frames_pain5 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_pain5 =
-{
+
+mmove_t ogre_move_pain5 = {
 	FRAME_paine1,
 	FRAME_paine15,
 	ogre_frames_pain5,
@@ -356,17 +353,17 @@ ogre_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 ogre_dead(edict_t *self)
 {
 	VectorSet(self->mins, -32, -32, -24);
 	VectorSet(self->maxs, 32, 32, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
 // Death (1)
-static mframe_t ogre_frames_death1 [] =
-{
+static mframe_t ogre_frames_death1 [] = {
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL},
@@ -385,8 +382,8 @@ static mframe_t ogre_frames_death1 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_death1 =
-{
+
+mmove_t ogre_move_death1 = {
 	FRAME_death1,
 	FRAME_death14,
 	ogre_frames_death1,
@@ -409,8 +406,8 @@ static mframe_t ogre_frames_death2 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t ogre_move_death2 =
-{
+
+mmove_t ogre_move_death2 = {
 	FRAME_bdeath1,
 	FRAME_bdeath10,
 	ogre_frames_death2,
@@ -419,12 +416,12 @@ mmove_t ogre_move_death2 =
 
 // Death
 void
-ogre_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+ogre_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

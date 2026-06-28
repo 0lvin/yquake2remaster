@@ -67,6 +67,11 @@ SP_target_temp_entity(edict_t *ent)
 		return;
 	}
 
+	if (level.is_n64 && ent->style == 27)
+	{
+		ent->style = TE_TELEPORT_EFFECT;
+	}
+
 	ent->use = Use_Target_Tent;
 }
 
@@ -94,8 +99,6 @@ SP_target_temp_entity(edict_t *ent)
 void
 Use_Target_Speaker(edict_t *ent, edict_t *other /* unused */, edict_t *activator /* unused */)
 {
-	int chan;
-
 	if (!ent)
 	{
 		return;
@@ -115,6 +118,8 @@ Use_Target_Speaker(edict_t *ent, edict_t *other /* unused */, edict_t *activator
 	}
 	else
 	{
+		int chan;
+
 		/* normal sound */
 		if (ent->spawnflags & 4)
 		{
@@ -521,6 +526,23 @@ use_target_changelevel(edict_t *self, edict_t *other, edict_t *activator)
 		game.serverflags &= ~(SFL_CROSS_TRIGGER_MASK);
 	}
 
+	/* if map has a landmark, store position instead of using spawn next map */
+	if (activator && activator->client && !deathmatch->value)
+	{
+		activator->client->landmark_name = NULL;
+		self->target_ent = NULL;
+
+		if (self->target && self->target[0])
+		{
+			self->target_ent = G_PickTarget(self->target);
+
+			if (self->target_ent && activator && activator->client)
+			{
+				activator->client->landmark_name = G_CopyString(self->target_ent->targetname, TAG_GAME);
+			}
+		}
+	}
+
 	BeginIntermission(self);
 }
 
@@ -607,6 +629,12 @@ SP_target_splash(edict_t *self)
 		self->count = 32;
 	}
 
+	/* N64 "sparks" are blue, not yellow. */
+	if (level.is_n64 && self->sounds == 1)
+	{
+		self->sounds = 7;
+	}
+
 	self->svflags = SVF_NOCLIENT;
 }
 
@@ -656,7 +684,6 @@ use_target_spawner(edict_t *self, edict_t *other /* unused */, edict_t *activato
 void
 SP_target_spawner(edict_t *self)
 {
-	vec3_t	forward;
 	vec3_t	fact2spawnpoint1 = {-1504, 512, 72};
 
 	if (!self)
@@ -672,6 +699,8 @@ SP_target_spawner(edict_t *self)
 	if (!Q_stricmp(level.mapname, "fact2")
 		&& VectorCompare(self->s.origin, fact2spawnpoint1) )
 	{
+		vec3_t	forward;
+
 		VectorSet(forward, 0, 0, 1);
 		VectorMA (self->s.origin, -8, forward, self->s.origin);
 	}
@@ -814,6 +843,19 @@ SP_target_crosslevel_target(edict_t *self)
 
 /* ========================================================== */
 
+#define SPAWNFLAG_LASER_BLUE 0x0008
+#define SPAWNFLAG_LASER_FAT 0x0040
+#define SPAWNFLAG_LASER_GREEN 0x0004
+#define SPAWNFLAG_LASER_LIGHTNING 0x10000
+#define SPAWNFLAG_LASER_ON 0x0001
+#define SPAWNFLAG_LASER_ORANGE 0x0020
+#define SPAWNFLAG_LASER_RED 0x0002
+#define SPAWNFLAG_LASER_STOPWINDOW 0x0080
+#define SPAWNFLAG_LASER_YELLOW 0x0010
+#define SPAWNFLAG_LASER_ZAP 0x80000000
+#define SPAWNFLAG_LASER_ZAP 0x80000000
+#define SPAWNFLAG_TRAIN_START_ON 1
+
 /*
  * QUAKED target_laser (0 .5 .8) (-8 -8 -8) (8 8 8) START_ON RED GREEN BLUE YELLOW ORANGE FAT WINDOWSTOP
  * When triggered, fires a laser.  You can either set a target
@@ -829,7 +871,6 @@ target_laser_think(edict_t *self)
 	vec3_t end;
 	trace_t tr;
 	vec3_t point;
-	vec3_t last_movedir;
 	int count;
 
 	if (!self)
@@ -837,7 +878,7 @@ target_laser_think(edict_t *self)
 		return;
 	}
 
-	if (self->spawnflags & 0x80000000)
+	if (self->spawnflags & SPAWNFLAG_LASER_ZAP)
 	{
 		count = 8;
 	}
@@ -848,6 +889,8 @@ target_laser_think(edict_t *self)
 
 	if (self->enemy)
 	{
+		vec3_t last_movedir;
+
 		VectorCopy(self->movedir, last_movedir);
 		VectorMA(self->enemy->absmin, 0.5, self->enemy->size, point);
 		VectorSubtract(point, self->s.origin, self->movedir);
@@ -900,9 +943,9 @@ target_laser_think(edict_t *self)
 		if (!(tr.ent->svflags & SVF_MONSTER) && (!tr.ent->client) &&
 			!(tr.ent->svflags & SVF_DAMAGEABLE))
 		{
-			if (self->spawnflags & 0x80000000)
+			if (self->spawnflags & SPAWNFLAG_LASER_ZAP)
 			{
-				self->spawnflags &= ~0x80000000;
+				self->spawnflags &= ~SPAWNFLAG_LASER_ZAP;
 				gi.WriteByte(svc_temp_entity);
 				gi.WriteByte(TE_LASER_SPARKS);
 				gi.WriteByte(count);
@@ -924,7 +967,7 @@ target_laser_think(edict_t *self)
 	self->nextthink = level.time + FRAMETIME;
 }
 
-void
+static void
 target_laser_on(edict_t *self)
 {
 	if (!self)
@@ -937,12 +980,12 @@ target_laser_on(edict_t *self)
 		self->activator = self;
 	}
 
-	self->spawnflags |= 0x80000001;
+	self->spawnflags |= SPAWNFLAG_LASER_ZAP | SPAWNFLAG_LASER_ON;
 	self->svflags &= ~SVF_NOCLIENT;
 	target_laser_think(self);
 }
 
-void
+static void
 target_laser_off(edict_t *self)
 {
 	if (!self)
@@ -950,7 +993,7 @@ target_laser_off(edict_t *self)
 		return;
 	}
 
-	self->spawnflags &= ~1;
+	self->spawnflags &= ~SPAWNFLAG_LASER_ON;
 	self->svflags |= SVF_NOCLIENT;
 	self->nextthink = 0;
 }
@@ -965,7 +1008,7 @@ target_laser_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
 
 	self->activator = activator;
 
-	if (self->spawnflags & 1)
+	if (self->spawnflags & SPAWNFLAG_LASER_ON)
 	{
 		target_laser_off(self);
 	}
@@ -988,10 +1031,32 @@ target_laser_start(edict_t *self)
 	self->movetype = MOVETYPE_NONE;
 	self->solid = SOLID_NOT;
 	self->s.renderfx |= RF_BEAM | RF_TRANSLUCENT;
-	self->s.modelindex = 1; /* must be non-zero */
+	self->s.modelindex = MODELINDEX_WORLD; /* must be non-zero */
+
+	/* [Sam-KEX] On Q2N64, spawnflag of 128 turns it into a lightning bolt */
+	if (level.is_n64)
+	{
+		/* Paril: fix for N64 */
+		if (self->spawnflags & SPAWNFLAG_LASER_STOPWINDOW)
+		{
+			self->spawnflags &= ~SPAWNFLAG_LASER_STOPWINDOW;
+			self->spawnflags |= SPAWNFLAG_LASER_LIGHTNING;
+		}
+	}
+
+	if (self->spawnflags & SPAWNFLAG_LASER_LIGHTNING)
+	{
+		self->s.renderfx |= RF_BEAM | RF_GLOW; /* tell renderer it is lightning */
+
+		if (!self->s.skinnum)
+		{
+			self->s.skinnum = 0xf3f3f1f1; /* default lightning color */
+		}
+	}
 
 	/* set the beam diameter */
-	if (self->spawnflags & 64)
+	/* [Paril-KEX] lab has this set prob before lightning was implemented */
+	if (!level.is_n64 && (self->spawnflags & SPAWNFLAG_LASER_FAT))
 	{
 		self->s.frame = 16;
 	}
@@ -1001,25 +1066,28 @@ target_laser_start(edict_t *self)
 	}
 
 	/* set the color */
-	if (self->spawnflags & 2)
+	if (!self->s.skinnum)
 	{
-		self->s.skinnum = 0xf2f2f0f0;
-	}
-	else if (self->spawnflags & 4)
-	{
-		self->s.skinnum = 0xd0d1d2d3;
-	}
-	else if (self->spawnflags & 8)
-	{
-		self->s.skinnum = 0xf3f3f1f1;
-	}
-	else if (self->spawnflags & 16)
-	{
-		self->s.skinnum = 0xdcdddedf;
-	}
-	else if (self->spawnflags & 32)
-	{
-		self->s.skinnum = 0xe0e1e2e3;
+		if (self->spawnflags & SPAWNFLAG_LASER_RED)
+		{
+			self->s.skinnum = 0xf2f2f0f0;
+		}
+		else if (self->spawnflags & SPAWNFLAG_LASER_GREEN)
+		{
+			self->s.skinnum = 0xd0d1d2d3;
+		}
+		else if (self->spawnflags & SPAWNFLAG_LASER_BLUE)
+		{
+			self->s.skinnum = 0xf3f3f1f1;
+		}
+		else if (self->spawnflags & SPAWNFLAG_LASER_YELLOW)
+		{
+			self->s.skinnum = 0xdcdddedf;
+		}
+		else if (self->spawnflags & SPAWNFLAG_LASER_ORANGE)
+		{
+			self->s.skinnum = 0xe0e1e2e3;
+		}
 	}
 
 	if (!self->enemy)
@@ -1034,8 +1102,20 @@ target_laser_start(edict_t *self)
 						self->classname, vtos(self->s.origin),
 						self->target);
 			}
+			else
+			{
+				self->enemy = ent;
 
-			self->enemy = ent;
+				/* N64 fix
+				 * FIXME: which map was this for again? oops
+				 */
+				if (level.is_n64 &&
+				    !strcmp(self->enemy->classname, "func_train") &&
+				    !(self->enemy->spawnflags & SPAWNFLAG_TRAIN_START_ON))
+				{
+					self->enemy->use(self->enemy, self, self);
+				}
+			}
 		}
 		else
 		{
@@ -1055,7 +1135,7 @@ target_laser_start(edict_t *self)
 	VectorSet(self->maxs, 8, 8, 8);
 	gi.linkentity(self);
 
-	if (self->spawnflags & 1)
+	if (self->spawnflags & SPAWNFLAG_LASER_ON)
 	{
 		target_laser_on(self);
 	}
@@ -1081,7 +1161,7 @@ SP_target_laser(edict_t *self)
 /* QUAKED target_mal_laser (1 0 0) (-4 -4 -4) (4 4 4) START_ON RED GREEN BLUE YELLOW ORANGE FAT
  * Mal's laser
  */
-void
+static void
 target_mal_laser_on(edict_t *self)
 {
 	if (!self)
@@ -1099,7 +1179,7 @@ target_mal_laser_on(edict_t *self)
 	self->nextthink = level.time + self->wait + self->delay;
 }
 
-void
+static void
 target_mal_laser_off(edict_t *self)
 {
 	if (!self)
@@ -1369,6 +1449,11 @@ SP_target_lightramp(edict_t *self)
  * "speed"		severity of the quake (default:200)
  * "count"		duration of the quake (default:5)
  */
+
+#define SPAWNFLAGS_EARTHQUAKE_SILENT  1
+#define SPAWNFLAGS_EARTHQUAKE_TOGGLE 2
+#define SPAWNFLAGS_EARTHQUAKE_ONE_SHOT 8
+
 void
 target_earthquake_think(edict_t *self)
 {
@@ -1380,7 +1465,7 @@ target_earthquake_think(edict_t *self)
 		return;
 	}
 
-	if (!(self->spawnflags & 1))
+	if (!(self->spawnflags & SPAWNFLAGS_EARTHQUAKE_SILENT))
 	{
 		if (self->last_move_time < level.time)
 		{
@@ -1418,6 +1503,11 @@ target_earthquake_think(edict_t *self)
 		e->velocity[2] = self->speed * (100.0 / e->mass);
 	}
 
+	if (self->spawnflags & SPAWNFLAGS_EARTHQUAKE_ONE_SHOT)
+	{
+		return;
+	}
+
 	if (level.time < self->timestamp)
 	{
 		self->nextthink = level.time + FRAMETIME;
@@ -1452,6 +1542,12 @@ SP_target_earthquake(edict_t *self)
 				vtos(self->s.origin));
 	}
 
+	if (level.is_n64)
+	{
+		self->spawnflags |= SPAWNFLAGS_EARTHQUAKE_TOGGLE;
+		self->speed = 5;
+	}
+
 	if (!self->count)
 	{
 		self->count = 5;
@@ -1466,7 +1562,7 @@ SP_target_earthquake(edict_t *self)
 	self->think = target_earthquake_think;
 	self->use = target_earthquake_use;
 
-	if (!(self->spawnflags & 1))
+	if (!(self->spawnflags & SPAWNFLAGS_EARTHQUAKE_SILENT))
 	{
 		self->noise_index = gi.soundindex("world/quake.wav");
 	}
@@ -1478,7 +1574,7 @@ SP_target_earthquake(edict_t *self)
  * ReRelease: Creates a camera path as seen in the N64 version.
  */
 static void
-camera_lookat_pathtarget(edict_t* self, vec3_t origin, vec3_t* dest)
+camera_lookat_pathtarget(const edict_t* self, vec3_t origin, vec3_t* dest)
 {
 	if (self->pathtarget)
 	{
@@ -1961,6 +2057,11 @@ SP_target_light(edict_t *self)
 		self->speed = 0.1f / self->speed;
 	}
 
+	if (level.is_n64)
+	{
+		self->style += 10;
+	}
+
 	self->use = target_light_use;
 
 	gi.linkentity(self);
@@ -1998,7 +2099,7 @@ SP_target_music(edict_t* self)
  * Auto save on command.
  */
 void
-use_target_autosave(edict_t *ent, edict_t *other, edict_t *activator)
+use_target_autosave(edict_t *self, edict_t *other, edict_t *activator)
 {
 	float save_time = gi.cvar("g_athena_auto_save_min_time", "60", CVAR_NOSET)->value;
 
@@ -2123,4 +2224,97 @@ SP_target_sky(edict_t* self)
 		self->count |= 2;
 		self->style = st.skyautorotate;
 	}
+}
+
+/*
+ * QUAKED target_crossunit_trigger (.5 .5 .5) (-8 -8 -8) (8 8 8) trigger*
+ *
+ * Once this trigger is touched/used, any trigger_crossunit_target with the same
+ * trigger number is automatically used when a level is started within the same
+ * unit.  It is OK to check multiple triggers.  Message, delay, target, and
+ * killtarget also work.
+ */
+void
+trigger_crossunit_trigger_use(edict_t *self, edict_t *other, edict_t *activator)
+{
+	game.cross_unit_flags |= self->spawnflags;
+	G_FreeEdict(self);
+}
+
+void
+SP_target_crossunit_trigger(edict_t *self)
+{
+	if (deathmatch->value)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	self->svflags = SVF_NOCLIENT;
+	self->use = trigger_crossunit_trigger_use;
+}
+
+/*
+ * QUAKED target_crossunit_target (.5 .5 .5) (-8 -8 -8) (8 8 8) trigger*
+ *
+ * Triggered by a trigger_crossunit elsewhere within a unit. If multiple triggers
+ * are checked, all must be true.  Delay, target and killtarget also work.
+ * "delay" delay before using targets if the trigger has been activated (default 1)
+ */
+void
+target_crossunit_target_think(edict_t *self)
+{
+	if (self->spawnflags == (
+		game.cross_unit_flags & SFL_CROSS_TRIGGER_MASK & self->spawnflags))
+	{
+		G_UseTargets(self, self);
+		G_FreeEdict(self);
+	}
+}
+
+void
+SP_target_crossunit_target(edict_t *self)
+{
+	if (deathmatch->value)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	if (!self->delay)
+	{
+		self->delay = 1;
+	}
+
+	self->svflags = SVF_NOCLIENT;
+
+	self->think = target_crossunit_target_think;
+	self->nextthink = level.time + self->delay;
+}
+
+void
+use_target_story(edict_t *self, edict_t *other, edict_t *activator)
+{
+	if (self->message && *self->message)
+	{
+		level.story_active = true;
+	}
+	else
+	{
+		level.story_active = false;
+	}
+
+	gi.configstring(CS_STORY, self->message ? self->message : "");
+}
+
+void
+SP_target_story(edict_t *self)
+{
+	if (deathmatch->value)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	self->use = use_target_story;
 }

@@ -102,7 +102,7 @@ Cbuf_AddText(const char *text)
  * Adds a \n to the text
  */
 void
-Cbuf_InsertText(char *text)
+Cbuf_InsertText(const char *text)
 {
 	char *temp;
 	int templen;
@@ -170,9 +170,7 @@ void
 Cbuf_Execute(void)
 {
 	int i;
-	char *text;
 	char line[1024];
-	int quotes;
 
 	if(cmd_wait > 0)
 	{
@@ -189,6 +187,9 @@ Cbuf_Execute(void)
 
 	while (cmd_text.cursize)
 	{
+		int quotes;
+		char *text;
+
 		/* find a \n or ; line break */
 		text = (char *)cmd_text.data;
 
@@ -262,10 +263,11 @@ void
 Cbuf_AddEarlyCommands(qboolean clear)
 {
 	int i;
-	char *s;
 
 	for (i = 0; i < COM_Argc(); i++)
 	{
+		const char *s;
+
 		s = COM_Argv(i);
 
 		if (strcmp(s, "+set") != 0)
@@ -299,7 +301,7 @@ Cbuf_AddLateCommands(void)
 {
 	int i, j;
 	size_t s;
-	char *text, c;
+	char *text;
 	int argc;
 	qboolean has_args = false;
 
@@ -335,6 +337,8 @@ Cbuf_AddLateCommands(void)
 	{
 		if (text[i] == '+')
 		{
+			char c;
+
 			i++;
 
 			for (j = i; (text[j] != '+') && !(text[j] == '-' && text[j-1] == ' ') && (text[j] != 0); j++)
@@ -439,7 +443,7 @@ Cmd_Alias_f(void)
 	cmdalias_t *a;
 	char cmd[1024];
 	int i, c;
-	char *s;
+	const char *s;
 
 	if (Cmd_Argc() == 1)
 	{
@@ -621,8 +625,7 @@ Cmd_MacroExpandString(char *text)
 void
 Cmd_TokenizeString(char *text, qboolean macroExpand)
 {
-	int i;
-	const char *com_token;
+	size_t i;
 
 	/* clear the args from the last string */
 	for (i = 0; i < cmd_argc; i++)
@@ -646,6 +649,8 @@ Cmd_TokenizeString(char *text, qboolean macroExpand)
 
 	while (1)
 	{
+		const char *com_token;
+
 		/* skip whitespace up to a /n */
 		while (*text && *text <= ' ' && *text != '\n')
 		{
@@ -655,7 +660,6 @@ Cmd_TokenizeString(char *text, qboolean macroExpand)
 		if (*text == '\n')
 		{
 			/* a newline seperates commands in the buffer */
-			text++;
 			break;
 		}
 
@@ -771,7 +775,7 @@ Cmd_RemoveCommand(const char *cmd_name)
 qboolean
 Cmd_Exists(const char *cmd_name)
 {
-	cmd_function_t *cmd;
+	const cmd_function_t *cmd;
 
 	for (cmd = cmd_functions; cmd; cmd = cmd->next)
 	{
@@ -787,13 +791,12 @@ Cmd_Exists(const char *cmd_name)
 const char *
 Cmd_CompleteCommand(const char *partial)
 {
-	cmd_function_t *cmd;
+	const cmd_function_t *cmd;
 	size_t len;
-	int i, o, p;
-	cmdalias_t *a;
-	cvar_t *cvar;
+	int i;
+	const cmdalias_t *a;
+	const cvar_t *cvar;
 	const char **pmatch;
-	qboolean diff = false;
 
 	len = strlen(partial);
 
@@ -888,6 +891,9 @@ Cmd_CompleteCommand(const char *partial)
 		}
 		else
 		{
+			qboolean diff = false;
+			size_t o, p;
+
 			/* Sort it */
 			qsort(pmatch, i, sizeof(pmatch[0]), Q_sort_strcomp);
 
@@ -944,10 +950,9 @@ Cmd_CompleteMapCommand(const char *partial)
 	if ((mapNames = FS_ListFiles2("maps/*.bsp", &nMaps, 0, 0)) != NULL)
 	{
 		size_t len;
-		int i, j, k, nbMatches;
+		int i, nbMatches;
 		char *mapName, *lastsep;
 		const char **pmatch;
-		qboolean partialFillContinue = true;
 
 		len = strlen(partial);
 		nbMatches = 0;
@@ -975,17 +980,20 @@ Cmd_CompleteMapCommand(const char *partial)
 
 			mapName = strtok(mapName, ".");
 
-			/* check for exact match */
-			if (!Q_strcasecmp(partial, mapName))
+			if (mapName)
 			{
-				Q_strlcpy(retval, partial, sizeof(retval));
-			}
+				/* check for exact match */
+				if (!Q_strcasecmp(partial, mapName))
+				{
+					Q_strlcpy(retval, partial, sizeof(retval));
+				}
 
-			/* check for partial match */
-			else if (!Q_strncasecmp(partial, mapName, len))
-			{
-				pmatch[nbMatches] = mapName;
-				nbMatches++;
+				/* check for partial match */
+				else if (!Q_strncasecmp(partial, mapName, len))
+				{
+					pmatch[nbMatches] = mapName;
+					nbMatches++;
+				}
 			}
 		}
 
@@ -995,10 +1003,14 @@ Cmd_CompleteMapCommand(const char *partial)
 		}
 		else if (nbMatches > 1)
 		{
+			qboolean partialFillContinue = true;
+			size_t j;
+
 			Com_Printf("\n=================\n\n");
 
 			/* Sort it */
 			qsort(pmatch, nbMatches, sizeof(pmatch[0]), Q_sort_strcomp);
+			size_t pmatchlen = strlen(pmatch[0]);
 
 			for (j = 0; j < nbMatches; j++)
 			{
@@ -1006,8 +1018,10 @@ Cmd_CompleteMapCommand(const char *partial)
 			}
 
 			//partial complete
-			for (j = 0; j < strlen(pmatch[0]); j++)
+			for (j = 0; j < pmatchlen; j++)
 			{
+				size_t k;
+
 				for (k = 1; k < nbMatches; k++)
 				{
 					if (j >= strlen(pmatch[k]) || tolower((unsigned char)pmatch[0][j]) != tolower((unsigned char)pmatch[k][j]))
@@ -1038,9 +1052,9 @@ Cmd_CompleteMapCommand(const char *partial)
 qboolean
 Cmd_IsComplete(const char *command)
 {
-	cmd_function_t *cmd;
-	cmdalias_t *a;
-	cvar_t *cvar;
+	const cmd_function_t *cmd;
+	const cmdalias_t *a;
+	const cvar_t *cvar;
 
 	/* check for exact match */
 	for (cmd = cmd_functions; cmd; cmd = cmd->next)
@@ -1080,7 +1094,7 @@ void
 Cmd_ExecuteString(char *text)
 {
 	cmd_function_t *cmd;
-	cmdalias_t *a;
+	const cmdalias_t *a;
 
 	Cmd_TokenizeString(text, true);
 

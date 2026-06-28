@@ -28,6 +28,7 @@
 
 {"newweapon", CLOFS(newweapon), F_ITEM},
 {"owned_sphere", CLOFS(owned_sphere), F_EDICT},
+{"landmark_name", CLOFS(landmark_name), F_GRAWSTRING},
 {"pers.lastweapon", CLOFS(pers.lastweapon), F_ITEM},
 {"pers.weapon", CLOFS(pers.weapon), F_ITEM},
 {"resp.coop_respawn.lastweapon", CLOFS(resp.coop_respawn.lastweapon), F_ITEM, 0, 3},
@@ -45,4 +46,3 @@
 {"pers.wanted_heightfog_end_color", CLOFS(pers.wanted_heightfog.end), F_VECTOR},
 {"pers.wanted_heightfog_end_dist", CLOFS(pers.wanted_heightfog.end[3]), F_FLOAT},
 {"pers.fog_transition_time", CLOFS(pers.fog_transition_time), F_FLOAT},
-{NULL, 0, F_INT, 0}

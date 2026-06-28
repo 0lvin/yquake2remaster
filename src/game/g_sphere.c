@@ -18,14 +18,6 @@
 #define VENGEANCE_LIFESPAN 30
 #define MINIMUM_FLY_TIME 15
 
-void LookAtKiller(edict_t *self, edict_t *inflictor, edict_t *attacker);
-
-void defender_think(edict_t *self);
-void hunter_think(edict_t *self);
-void vengeance_think(edict_t *self);
-void vengeance_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf);
-void hunter_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf);
-
 void
 sphere_think_explode(edict_t *self)
 {
@@ -45,7 +37,7 @@ sphere_think_explode(edict_t *self)
 
 void
 sphere_explode(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -57,7 +49,7 @@ sphere_explode(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker
 
 void
 sphere_if_idle_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -70,7 +62,7 @@ sphere_if_idle_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *atta
 	}
 }
 
-void
+static void
 sphere_fly(edict_t *self)
 {
 	vec3_t dest;
@@ -104,12 +96,11 @@ sphere_fly(edict_t *self)
 	VectorScale(dir, 5, self->velocity);
 }
 
-void
+static void
 sphere_chase(edict_t *self, int stupidChase)
 {
 	vec3_t dest;
 	vec3_t dir;
-	float dist;
 
 	if (!self)
 	{
@@ -160,6 +151,8 @@ sphere_chase(edict_t *self, int stupidChase)
 	}
 	else
 	{
+		float dist;
+
 		VectorSubtract(self->monsterinfo.saved_goal, self->s.origin, dir);
 		dist = VectorNormalize(dir);
 
@@ -196,42 +189,10 @@ sphere_chase(edict_t *self, int stupidChase)
 	}
 }
 
-void
-sphere_fire(edict_t *self, edict_t *enemy)
+static void
+sphere_touch(edict_t *self, edict_t *other, const cplane_t *plane,
+		const csurface_t *surf, int mod)
 {
-	vec3_t dest;
-	vec3_t dir;
-
-	if (!self)
-	{
-		return;
-	}
-
-	if ((level.time >= self->wait) || !enemy)
-	{
-		sphere_think_explode(self);
-		return;
-	}
-
-	VectorCopy(enemy->s.origin, dest);
-	self->s.effects |= EF_ROCKET;
-
-	VectorSubtract(dest, self->s.origin, dir);
-	VectorNormalize(dir);
-	vectoangles2(dir, self->s.angles);
-	VectorScale(dir, 1000, self->velocity);
-
-	self->touch = vengeance_touch;
-	self->think = sphere_think_explode;
-	self->nextthink = self->wait;
-}
-
-void
-sphere_touch(edict_t *self, edict_t *other, cplane_t *plane,
-		csurface_t *surf, int mod)
-{
-	vec3_t normal;
-
 	if (!self || !other)
 	{
 		return;
@@ -270,6 +231,8 @@ sphere_touch(edict_t *self, edict_t *other, cplane_t *plane,
 
 	if (other->takedamage)
 	{
+		vec3_t normal;
+
 		get_normal_vector(plane, normal);
 
 		T_Damage(other, self, self->owner, self->velocity, self->s.origin,
@@ -284,8 +247,8 @@ sphere_touch(edict_t *self, edict_t *other, cplane_t *plane,
 }
 
 void
-vengeance_touch(edict_t *self, edict_t *other, cplane_t *plane,
-		csurface_t *surf)
+vengeance_touch(edict_t *self, edict_t *other, const cplane_t *plane,
+		const csurface_t *surf)
 {
 	if (!self || !other)
 	{
@@ -303,7 +266,7 @@ vengeance_touch(edict_t *self, edict_t *other, cplane_t *plane,
 }
 
 void
-hunter_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+hunter_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	edict_t *owner;
 
@@ -341,7 +304,7 @@ hunter_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
 	}
 }
 
-void
+static void
 defender_shoot(edict_t *self, edict_t *enemy)
 {
 	vec3_t dir;
@@ -382,7 +345,7 @@ defender_shoot(edict_t *self, edict_t *enemy)
 	self->monsterinfo.attack_finished = level.time + 0.4;
 }
 
-void
+static void
 body_gib(edict_t *self)
 {
 	int n;
@@ -406,8 +369,6 @@ void
 hunter_pain(edict_t *self, edict_t *other, float kick, int damage)
 {
 	edict_t *owner;
-	float dist;
-	vec3_t dir;
 
 	if (!self || !other)
 	{
@@ -456,6 +417,9 @@ hunter_pain(edict_t *self, edict_t *other, float kick, int damage)
 	if (!((int)dmflags->value & DF_FORCE_RESPAWN) &&
 		(huntercam && (huntercam->value)))
 	{
+		vec3_t dir;
+		float dist;
+
 		VectorSubtract(other->s.origin, self->s.origin, dir);
 		dist = VectorLength(dir);
 
@@ -513,7 +477,7 @@ defender_pain(edict_t *self, edict_t *other, float kick, int damage)
 void
 vengeance_pain(edict_t *self, edict_t *other, float kick, int damage)
 {
-	if (!self || !other)
+	if (!self || !self->owner || !other)
 	{
 		return;
 	}
@@ -608,7 +572,7 @@ void
 hunter_think(edict_t *self)
 {
 	edict_t *owner;
-	vec3_t dir, ang;
+	vec3_t ang;
 
 	if (!self)
 	{
@@ -636,6 +600,8 @@ hunter_think(edict_t *self)
 	}
 	else if (self->enemy) /* fired by doppleganger */
 	{
+		vec3_t dir;
+
 		VectorSubtract(self->enemy->s.origin, self->s.origin, dir);
 		vectoangles2(dir, ang);
 		self->ideal_yaw = ang[YAW];
@@ -796,7 +762,7 @@ Sphere_Spawn(edict_t *owner, int spawnflags)
 	return sphere;
 }
 
-void
+static void
 Own_Sphere(edict_t *self, edict_t *sphere)
 {
 	if (!sphere || !self)

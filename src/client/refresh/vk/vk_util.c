@@ -37,8 +37,12 @@ GCC, Clang:
 */
 static inline uint32_t count_bits_set(uint32_t v)
 {
-#ifdef __builtin_popcount
+#if defined(__GNUC__)
 	return __builtin_popcount(v);
+/*
+#elif defined(_MSC_VER) // TODO: should we ?
+	return __popcnt(v);
+*/
 #else
 	uint32_t c = v - ((v >> 1) & 0x55555555);
 	c = ((c >> 2) & 0x33333333) + (c & 0x33333333);
@@ -469,7 +473,8 @@ memory_create_by_property(VkMemoryRequirements* mem_reqs,
 		VkMemoryPropertyFlags mem_preferences,
 		VkMemoryPropertyFlags mem_skip,
 		VkDeviceMemory *memory,
-		VkDeviceSize *offset)
+		VkDeviceSize *offset,
+		VkMemoryPropertyFlags *flags)
 {
 	VkMemoryPropertyFlags host_visible;
 	uint32_t memory_index;
@@ -509,6 +514,11 @@ memory_create_by_property(VkMemoryRequirements* mem_reqs,
 
 	host_visible = mem_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 
+	if (flags)
+	{
+		*flags = vk_device.mem_properties.memoryTypes[memory_index].propertyFlags;
+	}
+
 	return memory_create(mem_reqs->size, memory_index,
 		// suballocate allowed
 		host_visible != VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -541,7 +551,7 @@ buffer_create(BufferResource_t *buf,
 	vkGetBufferMemoryRequirements(vk_device.logical, buf->buffer, &mem_reqs);
 
 	result = memory_create_by_property(&mem_reqs, mem_properties, mem_preferences,
-		mem_skip, &buf->memory, &buf->offset);
+		mem_skip, &buf->memory, &buf->offset, &buf->flags);
 	if(result != VK_SUCCESS) {
 		Com_Printf("%s:%d: VkResult verification: %s\n",
 			__func__, __LINE__, QVk_GetError(result));
@@ -593,7 +603,7 @@ image_create(ImageResource_t *img,
 	img->size = mem_reqs.size;
 
 	result = memory_create_by_property(&mem_reqs, mem_properties, mem_preferences,
-		mem_skip, &img->memory, &img->offset);
+		mem_skip, &img->memory, &img->offset, NULL);
 	if(result != VK_SUCCESS) {
 		Com_Printf("%s:%d: VkResult verification: %s\n",
 			__func__, __LINE__, QVk_GetError(result));
@@ -673,6 +683,12 @@ buffer_flush(const BufferResource_t *buf)
 {
 	VkResult result = VK_SUCCESS;
 
+	if (buf->flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+	{
+		/* does not require flush */
+		return result;
+	}
+
 	VkMappedMemoryRange ranges[1] = {{
 		.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
 		.memory = buf->memory,
@@ -687,6 +703,12 @@ VkResult
 buffer_invalidate(const BufferResource_t *buf)
 {
 	VkResult result = VK_SUCCESS;
+
+	if (buf->flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+	{
+		/* does not require invalidate */
+		return result;
+	}
 
 	VkMappedMemoryRange ranges[1] = {{
 		.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,

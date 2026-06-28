@@ -46,7 +46,6 @@ image_t		*r_squaretexture;	// rectangle for particles
 
 cplane_t	frustum[4];
 
-int			r_visframecount;	// bumped when going to a new PVS
 int			r_framecount;		// used for dlight push checking
 
 int			c_brush_polys, c_alias_polys;
@@ -73,9 +72,7 @@ static float r_vulkan_correction[16] = { 1.f,  0.f, 0.f, 0.f,
 //
 // screen size info
 //
-int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
-cvar_t	*vk_znear;
 cvar_t	*vk_overbrightbits;
 cvar_t	*vk_picmip;
 cvar_t	*vk_finish;
@@ -160,9 +157,28 @@ R_DrawSpriteModel(entity_t *currententity, const model_t *currentmodel)
 						  spriteQuad[2][0], spriteQuad[2][1], spriteQuad[2][2], 1.f, 0.f,
 						  spriteQuad[3][0], spriteQuad[3][1], spriteQuad[3][2], 1.f, 1.f };
 
-	vkCmdPushConstants(vk_activeCmdbuffer, vk_drawSpritePipeline.layout,
-		VK_SHADER_STAGE_VERTEX_BIT, sizeof(r_viewproj_matrix), sizeof(float), &alpha);
-	QVk_BindPipeline(&vk_drawSpritePipeline);
+	/* Handle RF_FLARE: additive blend with entity color */
+	if (currententity->flags & RF_FLARE)
+	{
+		YQ2_ALIGNAS_TYPE(unsigned) byte color[4];
+		float spriteColor[4];
+
+		*(unsigned *)color = currententity->color;
+		spriteColor[0] = color[0] / 255.0f;
+		spriteColor[1] = color[1] / 255.0f;
+		spriteColor[2] = color[2] / 255.0f;
+		spriteColor[3] = alpha;
+
+		vkCmdPushConstants(vk_activeCmdbuffer, vk_drawSpriteFlaresPipeline.layout,
+			VK_SHADER_STAGE_VERTEX_BIT, sizeof(r_viewproj_matrix), sizeof(float) * 4, spriteColor);
+		QVk_BindPipeline(&vk_drawSpriteFlaresPipeline);
+	}
+	else
+	{
+		vkCmdPushConstants(vk_activeCmdbuffer, vk_drawSpritePipeline.layout,
+			VK_SHADER_STAGE_VERTEX_BIT, sizeof(r_viewproj_matrix), sizeof(float), &alpha);
+		QVk_BindPipeline(&vk_drawSpritePipeline);
+	}
 
 	VkBuffer vbo;
 	VkDeviceSize vboOffset;
@@ -204,9 +220,8 @@ R_DrawNullModel(entity_t *currententity)
 	}
 	else
 	{
-		R_LightPoint(r_worldmodel->grid, currententity,
-			r_worldmodel->surfaces, r_worldmodel->nodes, currententity->origin,
-			shadelight, r_modulate->value, lightspot);
+		R_LightPoint(r_worldmodel, currententity,
+			currententity->origin, shadelight, lightspot);
 	}
 
 	float model[16];
@@ -257,7 +272,7 @@ R_DrawNullModel(entity_t *currententity)
 	memcpy(vertData, verts, sizeof(verts));
 	memcpy(uboData,  model, sizeof(model));
 
-	Mesh_VertsRealloc(24);
+	Mesh_IndexesRealloc(24);
 	R_GenFanIndexes(vertIdxData, 0, 4);
 	R_GenFanIndexes(vertIdxData + 4 * 3, 6, 10);
 	buffer = UpdateIndexBuffer(vertIdxData, 24 * sizeof(uint16_t), &dstOffset);
@@ -499,7 +514,7 @@ R_DrawParticles(void)
 	if (vk_custom_particles->value == 1)
 	{
 		int i;
-		unsigned char color[4];
+		byte color[4];
 		const particle_t *p;
 
 		if (!r_newrefdef.num_particles)
@@ -529,7 +544,14 @@ R_DrawParticles(void)
 		particleUbo.att_b = vk_particle_att_b->value;
 		particleUbo.att_c = vk_particle_att_c->value;
 
-		static ppoint visibleParticles[MAX_PARTICLES];
+		QVk_BindPipeline(&vk_drawPointParticlesPipeline);
+
+		VkBuffer vbo;
+		VkDeviceSize vboOffset;
+		uint32_t uboOffset;
+		VkDescriptorSet uboDescriptorSet;
+		ppoint *vertData = (ppoint *)QVk_GetVertexBuffer(sizeof(ppoint) * r_newrefdef.num_particles, &vbo, &vboOffset);
+		uint8_t *uboData  = QVk_GetUniformBuffer(sizeof(particleUbo), &uboOffset, &uboDescriptorSet);
 
 		for (i = 0, p = r_newrefdef.particles; i < r_newrefdef.num_particles; i++, p++)
 		{
@@ -539,24 +561,15 @@ R_DrawParticles(void)
 			float g = color[1] / 255.f;
 			float b = color[2] / 255.f;
 
-			visibleParticles[i].x = p->origin[0];
-			visibleParticles[i].y = p->origin[1];
-			visibleParticles[i].z = p->origin[2];
-			visibleParticles[i].r = r;
-			visibleParticles[i].g = g;
-			visibleParticles[i].b = b;
-			visibleParticles[i].a = p->alpha;
+			vertData[i].x = p->origin[0];
+			vertData[i].y = p->origin[1];
+			vertData[i].z = p->origin[2];
+			vertData[i].r = r;
+			vertData[i].g = g;
+			vertData[i].b = b;
+			vertData[i].a = p->alpha;
 		}
 
-		QVk_BindPipeline(&vk_drawPointParticlesPipeline);
-
-		VkBuffer vbo;
-		VkDeviceSize vboOffset;
-		uint32_t uboOffset;
-		VkDescriptorSet uboDescriptorSet;
-		uint8_t *vertData = QVk_GetVertexBuffer(sizeof(ppoint) * r_newrefdef.num_particles, &vbo, &vboOffset);
-		uint8_t *uboData  = QVk_GetUniformBuffer(sizeof(particleUbo), &uboOffset, &uboDescriptorSet);
-		memcpy(vertData, &visibleParticles, sizeof(ppoint) * r_newrefdef.num_particles);
 		memcpy(uboData,  &particleUbo, sizeof(particleUbo));
 		vkCmdBindDescriptorSets(vk_activeCmdbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk_drawPointParticlesPipeline.layout, 0, 1, &uboDescriptorSet, 1, &uboOffset);
 		vkCmdBindVertexBuffers(vk_activeCmdbuffer, 0, 1, &vbo, &vboOffset);
@@ -590,8 +603,6 @@ R_PolyBlend(void)
 static void
 R_SetupFrame(void)
 {
-	mleaf_t *leaf;
-
 	r_framecount++;
 
 	/* build the transformation matrix for the given view angles */
@@ -599,52 +610,7 @@ R_SetupFrame(void)
 
 	AngleVectors(r_newrefdef.viewangles, vpn, vright, vup);
 
-	/* current viewcluster */
-	if (!(r_newrefdef.rdflags & RDF_NOWORLDMODEL))
-	{
-		if (!r_worldmodel)
-		{
-			Com_Error(ERR_DROP, "%s: bad world model", __func__);
-			return;
-		}
-
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
-		leaf = Mod_PointInLeaf(r_origin, r_worldmodel->nodes);
-		r_viewcluster = r_viewcluster2 = leaf->cluster;
-
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
-
-			VectorCopy(r_origin, temp);
-			temp[2] -= 16;
-			leaf = Mod_PointInLeaf(temp, r_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2))
-			{
-				r_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
-
-			VectorCopy(r_origin, temp);
-			temp[2] += 16;
-			leaf = Mod_PointInLeaf(temp, r_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2))
-			{
-				r_viewcluster2 = leaf->cluster;
-			}
-		}
-	}
+	R_SetClusters(r_worldmodel, r_origin);
 
 	R_CombineBlendWithFog(v_blend, false);
 
@@ -796,14 +762,14 @@ R_SetupVulkan
 =============
 */
 static void
-R_SetupVulkan (void)
+R_SetupVulkan(void)
 {
 	float	r_proj_aspect;
 	float	r_proj_fovx;
 	float	r_proj_fovy;
 	int		x, x2, y2, y, w, h;
-	float dist = (r_farsee->value == 0) ? 4096.0f : (r_worldmodel->radius * 2);
-	const float zNear = Q_max(vk_znear->value, 0.1f);
+	float dist = R_GetFarValue(r_worldmodel);
+	const float zNear = R_GetNearValue();
 
 	/* Render old elements before change viewport */
 	QVk_Draw2DCallsRender();
@@ -877,7 +843,7 @@ r_newrefdef must be set before the first call
 ================
 */
 static void
-RE_RenderView(refdef_t *fd)
+RE_RenderView(const refdef_t *fd)
 {
 	if (r_norefresh->value)
 	{
@@ -927,7 +893,7 @@ RE_RenderView(refdef_t *fd)
 
 	R_SetupVulkan();
 
-	R_MarkLeaves(); /* done here so we know if we're in water */
+	R_MarkLeaves(r_worldmodel); /* done here so we know if we're in water */
 
 	R_DrawWorld();
 
@@ -1054,9 +1020,8 @@ R_SetLightLevel(entity_t *currententity)
 	}
 
 	/* save off light value for server to look at */
-	R_LightPoint(r_worldmodel->grid, currententity,
-		r_worldmodel->surfaces, r_worldmodel->nodes, r_newrefdef.vieworg,
-		shadelight, r_modulate->value, lightspot);
+	R_LightPoint(r_worldmodel, currententity,
+		r_newrefdef.vieworg, shadelight, lightspot);
 
 	/* pick the greatest component, which should be the
 	 * same as the mono value returned by software */
@@ -1085,7 +1050,7 @@ R_SetLightLevel(entity_t *currententity)
 }
 
 static void
-RE_RenderFrame(refdef_t *fd)
+RE_RenderFrame(const refdef_t *fd)
 {
 	if (!vk_frameStarted)
 	{
@@ -1105,7 +1070,6 @@ R_Register(void)
 	R_InitTemporaryLMBuffer();
 	R_InitCvar();
 
-	vk_znear = ri.Cvar_Get("vk_znear", "4", CVAR_ARCHIVE);
 	vk_overbrightbits = ri.Cvar_Get("vk_overbrightbits", "1.0", CVAR_ARCHIVE);
 	vk_picmip = ri.Cvar_Get("vk_picmip", "0", 0);
 	vk_finish = ri.Cvar_Get("vk_finish", "0", CVAR_ARCHIVE);
@@ -1155,7 +1119,7 @@ Vkimp_SetMode(int *pwidth, int *pheight, int mode, int fullscreen)
 	/* We trying to get resolution from desktop */
 	if (mode == -2)
 	{
-		if(!ri.GLimp_GetDesktopMode(pwidth, pheight))
+		if (!ri.GLimp_GetDesktopMode(pwidth, pheight))
 		{
 			Com_Printf(" can't detect mode\n" );
 			return rserr_invalid_mode;
@@ -1229,7 +1193,8 @@ R_SetMode(void)
 RE_Init
 ===============
 */
-static qboolean RE_Init( void )
+static qboolean
+RE_Init(void)
 {
 	Com_Printf("Refresh: " REF_VERSION "\n");
 	Com_Printf("Platform: " YQ2OSTYPE "\n");
@@ -1282,6 +1247,7 @@ RE_Shutdown(void)
 
 	QVk_WaitAndShutdownAll();
 
+	LM_FreeLightmapBuffers();
 	R_FreeTemporaryLMBuffer();
 }
 
@@ -1344,7 +1310,10 @@ RE_BeginFrame(float camera_separation)
 	}
 
 	if (QVk_BeginFrame(&vk_viewport, &vk_scissor) == VK_SUCCESS)
+	{
 		QVk_BeginRenderpass(RP_WORLD);
+		vkCmdSetDepthBias(vk_activeCmdbuffer, 0.0f, 0.0f, 0.0f);
+	}
 }
 
 /*
@@ -1364,7 +1333,7 @@ RE_EndFrame(void)
 unsigned r_rawpalette[256];
 
 static void
-RE_SetPalette(const unsigned char *palette)
+RE_SetPalette(const byte *palette)
 {
 	int i;
 
@@ -1442,39 +1411,36 @@ R_DrawBeam(entity_t *currententity )
 
 	float color[4] = { r, g, b, currententity->alpha };
 
-	struct {
-		float v[3];
-	} beamvertex[NUM_BEAM_SEGS*4];
-
-	for (i = 0; i < NUM_BEAM_SEGS; i++)
-	{
-		int idx = i * 4;
-		beamvertex[idx].v[0] = start_points[i][0];
-		beamvertex[idx].v[1] = start_points[i][1];
-		beamvertex[idx].v[2] = start_points[i][2];
-
-		beamvertex[idx + 1].v[0] = end_points[i][0];
-		beamvertex[idx + 1].v[1] = end_points[i][1];
-		beamvertex[idx + 1].v[2] = end_points[i][2];
-
-		beamvertex[idx + 2].v[0] = start_points[(i + 1) % NUM_BEAM_SEGS][0];
-		beamvertex[idx + 2].v[1] = start_points[(i + 1) % NUM_BEAM_SEGS][1];
-		beamvertex[idx + 2].v[2] = start_points[(i + 1) % NUM_BEAM_SEGS][2];
-
-		beamvertex[idx + 3].v[0] = end_points[(i + 1) % NUM_BEAM_SEGS][0];
-		beamvertex[idx + 3].v[1] = end_points[(i + 1) % NUM_BEAM_SEGS][1];
-		beamvertex[idx + 3].v[2] = end_points[(i + 1) % NUM_BEAM_SEGS][2];
-	}
-
 	QVk_BindPipeline(&vk_drawBeamPipeline);
-
 	VkBuffer vbo;
 	VkDeviceSize vboOffset;
 	uint32_t uboOffset;
 	VkDescriptorSet uboDescriptorSet;
-	uint8_t *vertData = QVk_GetVertexBuffer(sizeof(beamvertex), &vbo, &vboOffset);
+	float (*beamvertex)[3] = (float (*)[3])QVk_GetVertexBuffer(
+			sizeof(float[3]) * NUM_BEAM_SEGS * 4, &vbo, &vboOffset);
 	uint8_t *uboData  = QVk_GetUniformBuffer(sizeof(color), &uboOffset, &uboDescriptorSet);
-	memcpy(vertData, beamvertex, sizeof(beamvertex));
+
+
+	for (i = 0; i < NUM_BEAM_SEGS; i++)
+	{
+		int idx = i * 4;
+		beamvertex[idx][0] = start_points[i][0];
+		beamvertex[idx][1] = start_points[i][1];
+		beamvertex[idx][2] = start_points[i][2];
+
+		beamvertex[idx + 1][0] = end_points[i][0];
+		beamvertex[idx + 1][1] = end_points[i][1];
+		beamvertex[idx + 1][2] = end_points[i][2];
+
+		beamvertex[idx + 2][0] = start_points[(i + 1) % NUM_BEAM_SEGS][0];
+		beamvertex[idx + 2][1] = start_points[(i + 1) % NUM_BEAM_SEGS][1];
+		beamvertex[idx + 2][2] = start_points[(i + 1) % NUM_BEAM_SEGS][2];
+
+		beamvertex[idx + 3][0] = end_points[(i + 1) % NUM_BEAM_SEGS][0];
+		beamvertex[idx + 3][1] = end_points[(i + 1) % NUM_BEAM_SEGS][1];
+		beamvertex[idx + 3][2] = end_points[(i + 1) % NUM_BEAM_SEGS][2];
+	}
+
 	memcpy(uboData,  color, sizeof(color));
 
 	vkCmdBindDescriptorSets(vk_activeCmdbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk_drawBeamPipeline.layout, 0, 1, &uboDescriptorSet, 1, &uboOffset);
@@ -1678,6 +1644,8 @@ GetRefAPI(refimport_t imp)
 	refexport.DrawFadeScreen= RE_Draw_FadeScreen;
 
 	refexport.DrawStretchRaw = RE_Draw_StretchRaw;
+
+	refexport.DrawPicScaledCol = RE_Draw_PicScaledCol;
 
 	refexport.Init = RE_Init;
 	refexport.IsVSyncActive = RE_IsVsyncActive;

@@ -88,11 +88,12 @@ qboolean AI_VisibleOrigins (vec3_t spot1, vec3_t spot2)
 //==========================================
 // AI_FindDistance
 //==========================================
-float AI_Distance( vec3_t o1, vec3_t o2 )
+float
+AI_Distance(const vec3_t o1, const vec3_t o2)
 {
-	vec3_t	distVec;
+	vec3_t distVec;
 
-	VectorSubtract( o2, o1, distVec );
+	VectorSubtract(o2, o1, distVec);
 	return VectorLength(distVec);
 }
 
@@ -129,7 +130,7 @@ int AI_findNodeInRadius (int from, vec3_t org, float rad, qboolean ignoreHeight)
 			eorg[2] = 0;
 		}
 
-		if (VectorLength(eorg) > rad)
+		if (VectorLengthSquared(eorg) > rad * rad)
 		{
 			continue;
 		}
@@ -181,7 +182,7 @@ AI_AddLink( int n1, int n2, int linkType)
 		return false;
 
 	//add the link
-	if (pLinks[n1].numLinks > NODES_MAX_PLINKS)
+	if (pLinks[n1].numLinks >= NODES_MAX_PLINKS)
 	{
 //		Com_Printf("MaxPlinks Reached! node:%i numPlinks:%i\n", n1, pLinks[n1].numLinks);
 		return false;
@@ -475,7 +476,6 @@ droptofloor:
 static int
 AI_RunGravityBox(int n1, int n2)
 {
-	int			move;
 	int			movemask = 0;
 	float		movescale = 8;
 	trace_t		trace;
@@ -485,12 +485,14 @@ AI_RunGravityBox(int n1, int n2)
 	//qboolean	crouched = false;
 	int			eternalcount = 0;
 
-	if (n1 == n2 )
+	if (n1 == n2)
+	{
 		return LINK_INVALID;
+	}
 
 	//set up box
-	VectorSet( boxmins, -15, -15, -24 );
-	VectorSet( boxmaxs, 15, 15, 32 );
+	VectorSet(boxmins, -15, -15, -24);
+	VectorSet(boxmaxs, 15, 15, 32);
 
 	//try some shortcuts before
 
@@ -498,7 +500,10 @@ AI_RunGravityBox(int n1, int n2)
 	if (gi.pointcontents(nodes[n1].origin) & MASK_WATER &&
 		gi.pointcontents(nodes[n2].origin) & MASK_WATER &&
 		AI_VisibleOrigins(nodes[n1].origin, nodes[n2].origin))
+	{
 		return LINK_WATER;
+	}
+
 	//waterjump link
 	if (gi.pointcontents(nodes[n1].origin) & MASK_WATER &&
 		!(gi.pointcontents(nodes[n2].origin) & MASK_WATER) &&
@@ -519,7 +524,9 @@ AI_RunGravityBox(int n1, int n2)
 		boxmaxs[2] = 14;
 		trace = gi.trace( o1, boxmins, boxmaxs, o1, LINKS_PASSENT, MASK_NODESOLID );
 		if (trace.startsolid)
+		{
 			return LINK_INVALID;
+		}
 
 		//crouched = true;
 		movemask |= LINK_CROUCH;
@@ -528,7 +535,9 @@ AI_RunGravityBox(int n1, int n2)
 	//start moving the box to o2
 	while (eternalcount < 20000000)
 	{
-		move = AI_GravityBoxStep( o1, movescale, nodes[n2].origin, v1, boxmins, boxmaxs);
+		int move;
+
+		move = AI_GravityBoxStep(o1, movescale, nodes[n2].origin, v1, boxmins, boxmaxs);
 		if (move & LINK_INVALID && !(movemask & LINK_CROUCH)/*!crouched*/)
 		{
 			//retry crouched
@@ -618,7 +627,6 @@ AI_GravityBoxToLink(int n1, int n2)
 static int
 AI_FindFallOrigin(int n1, int n2, vec3_t fallorigin)
 {
-	int			move;
 	float		movescale = 8;
 	trace_t		trace;
 	vec3_t		boxmins, boxmaxs;
@@ -639,11 +647,15 @@ AI_FindFallOrigin(int n1, int n2, vec3_t fallorigin)
 	VectorCopy( nodes[n1].origin, o1 );
 	trace = gi.trace( o1, boxmins, boxmaxs, o1, LINKS_PASSENT, MASK_NODESOLID );
 	if (trace.startsolid)
+	{
 		return LINK_INVALID;
+	}
 
 	//moving the box to o2 until falls. Keep last origin before falling
 	while (1)
 	{
+		int move;
+
 		move = AI_GravityBoxStep( o1, movescale, nodes[n2].origin, v1, boxmins, boxmaxs);
 
 		if (move & LINK_INVALID)
@@ -778,20 +790,6 @@ AI_LadderLink_FindLowerNode(int node)
 static int
 AI_IsLadderLink(int n1, int n2)
 {
-	float xzdist;
-	vec3_t eorg;
-
-	VectorSubtract(nodes[n2].origin, nodes[n1].origin, eorg);
-
-	eorg[2] = 0; //ignore height
-
-	xzdist = VectorLength(eorg);
-
-	if (xzdist < 0)
-	{
-		xzdist = -xzdist;
-	}
-
 	//if both are ladder nodes
 	if (nodes[n1].flags & NODEFLAGS_LADDER && nodes[n2].flags & NODEFLAGS_LADDER)
 	{
@@ -824,15 +822,21 @@ AI_IsLadderLink(int n1, int n2)
 		candidate = AI_LadderLink_FindLowerNode( n2 );
 		if (candidate == -1)
 		{
-			int link;
 			if (nodes[n2].flags & NODEFLAGS_WATER)
 			{
-				link = AI_RunGravityBox( n1, n2 );
+				int link;
+
+				link = AI_RunGravityBox(n1, n2);
 				if (link & LINK_INVALID)
+				{
 					return LINK_INVALID;
+				}
+
 				return LINK_WATER;
-			} else {
-				return AI_GravityBoxToLink( n1, n2 );
+			}
+			else
+			{
+				return AI_GravityBoxToLink(n1, n2);
 			}
 		}
 
@@ -948,7 +952,6 @@ AI_IsJumpLink(int n1, int n2)
 	if (link & LINK_CLIMB && link & LINK_FALL)
 	{
 		vec3_t fo1, fo2;
-		int		link;
 		float	dist;
 		float	heightdiff;
 
@@ -1003,18 +1006,21 @@ AI_IsJumpLink(int n1, int n2)
 int
 AI_LinkCloseNodes_JumpPass( int start )
 {
-	int			n1, n2;
+	int			n1;
 	int			count = 0;
 	float		pLinkRadius = NODE_DENSITY*2;
 	qboolean	ignoreHeight = true;
-	int			linkType;
 
 	if (nav.num_nodes < 1)
+	{
 		return 0;
+	}
 
 	//do it for everynode in the list
 	for (n1 = start; n1 < nav.num_nodes; n1++)
 	{
+		int n2;
+
 		n2 = 0;
 		n2 = AI_findNodeInRadius ( 0, nodes[n1].origin, pLinkRadius, ignoreHeight);
 
@@ -1022,10 +1028,13 @@ AI_LinkCloseNodes_JumpPass( int start )
 		{
 			if (n1 != n2 && !AI_PlinkExists(n1, n2))
 			{
+				int linkType;
+
 				linkType = AI_IsJumpLink( n1, n2 );
 				if (linkType == LINK_JUMP && pLinks[n1].numLinks < NODES_MAX_PLINKS)
 				{
 					int cost;
+
 					//make sure there isn't a good 'standard' path for it
 					cost = AI_FindCost( n1, n2, (LINK_MOVE|LINK_STAIRS|LINK_FALL|LINK_WATER|LINK_WATERJUMP|LINK_CROUCH) );
 					if (cost == -1 || cost > 4)
@@ -1049,7 +1058,7 @@ AI_LinkCloseNodes_JumpPass( int start )
 //==========================================
 int AI_LinkCloseNodes( void )
 {
-	int			n1, n2;
+	int			n1;
 	int			count = 0;
 	float		pLinkRadius = NODE_DENSITY*1.5;
 	qboolean	ignoreHeight = true;
@@ -1057,6 +1066,8 @@ int AI_LinkCloseNodes( void )
 	//do it for everynode in the list
 	for (n1 = 0; n1 < nav.num_nodes; n1++)
 	{
+		int n2;
+
 		n2 = 0;
 		n2 = AI_findNodeInRadius ( 0, nodes[n1].origin, pLinkRadius, ignoreHeight);
 

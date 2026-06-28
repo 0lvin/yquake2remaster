@@ -44,12 +44,12 @@ static int sound_melee2;
 static int sound_melee3;
 
 void brain_run(edict_t *self);
-void brain_dead(edict_t *self);
+static void brain_dead(edict_t *self);
 
 static int  sound_step;
 static int  sound_step2;
 
-void
+static void
 brain_footstep(edict_t *self)
 {
 	if (!g_monsterfootsteps->value)
@@ -146,8 +146,7 @@ static mframe_t brain_frames_idle[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t brain_move_idle =
-{
+mmove_t brain_move_idle = {
 	FRAME_stand31,
 	FRAME_stand60,
 	brain_frames_idle,
@@ -157,13 +156,25 @@ mmove_t brain_move_idle =
 void
 brain_idle(edict_t *self)
 {
+	int n;
+
 	if (!self)
 	{
 		return;
 	}
 
-	gi.sound(self, CHAN_AUTO, sound_idle3, 1, ATTN_IDLE, 0);
-	self->monsterinfo.currentmove = &brain_move_idle;
+	n = randk() & 3;
+
+	if (n <= 1)
+	{
+		self->monsterinfo.currentmove = &brain_move_idle;
+		gi.sound(self, CHAN_AUTO, sound_idle3, 1, ATTN_IDLE, 0);
+	}
+	else
+	{
+		gi.sound(self, CHAN_VOICE,
+			(n == 2) ? sound_idle1 : sound_idle2, 1, ATTN_IDLE, 0);
+	}
 }
 
 /* WALK */
@@ -182,8 +193,7 @@ static mframe_t brain_frames_walk1[] = {
 	{ai_walk, 2, NULL}
 };
 
-mmove_t brain_move_walk1 =
-{
+mmove_t brain_move_walk1 = {
 	FRAME_walk101,
 	FRAME_walk111,
 	brain_frames_walk1,
@@ -213,8 +223,7 @@ static mframe_t brain_frames_defense[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t brain_move_defense =
-{
+mmove_t brain_move_defense = {
 	FRAME_defens01,
 	FRAME_defens08,
 	brain_frames_defense,
@@ -230,8 +239,7 @@ static mframe_t brain_frames_pain3[] = {
 	{ai_move, -4, NULL}
 };
 
-mmove_t brain_move_pain3 =
-{
+mmove_t brain_move_pain3 = {
 	FRAME_pain301,
 	FRAME_pain306,
 	brain_frames_pain3,
@@ -249,8 +257,7 @@ static mframe_t brain_frames_pain2[] = {
 	{ai_move, -2, NULL}
 };
 
-mmove_t brain_move_pain2 =
-{
+mmove_t brain_move_pain2 = {
 	FRAME_pain201,
 	FRAME_pain208,
 	brain_frames_pain2,
@@ -281,8 +288,7 @@ static mframe_t brain_frames_pain1[] = {
 	{ai_move, -1, NULL}
 };
 
-mmove_t brain_move_pain1 =
-{
+mmove_t brain_move_pain1 = {
 	FRAME_pain101,
 	FRAME_pain121,
 	brain_frames_pain1,
@@ -291,7 +297,7 @@ mmove_t brain_move_pain1 =
 
 /* DUCK */
 
-void
+static void
 brain_duck_down(edict_t *self)
 {
 	if (!self)
@@ -310,7 +316,7 @@ brain_duck_down(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 brain_duck_hold(edict_t *self)
 {
 	if (!self)
@@ -328,7 +334,7 @@ brain_duck_hold(edict_t *self)
 	}
 }
 
-void
+static void
 brain_duck_up(edict_t *self)
 {
 	if (!self)
@@ -353,8 +359,7 @@ static mframe_t brain_frames_duck[] = {
 	{ai_move, -6, brain_footstep}
 };
 
-mmove_t brain_move_duck =
-{
+mmove_t brain_move_duck = {
 	FRAME_duck01,
 	FRAME_duck08,
 	brain_frames_duck,
@@ -363,7 +368,7 @@ mmove_t brain_move_duck =
 
 void
 brain_dodge(edict_t *self, edict_t *attacker, float eta,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -393,8 +398,7 @@ static mframe_t brain_frames_death2[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t brain_move_death2 =
-{
+mmove_t brain_move_death2 = {
 	FRAME_death201,
 	FRAME_death205,
 	brain_frames_death2,
@@ -422,8 +426,7 @@ static mframe_t brain_frames_death1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t brain_move_death1 =
-{
+mmove_t brain_move_death1 = {
 	FRAME_death101,
 	FRAME_death118,
 	brain_frames_death1,
@@ -432,7 +435,7 @@ mmove_t brain_move_death1 =
 
 /* MELEE */
 
-void
+static void
 brain_swing_right(edict_t *self)
 {
 	if (!self)
@@ -443,7 +446,7 @@ brain_swing_right(edict_t *self)
 	gi.sound(self, CHAN_BODY, sound_melee1, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 brain_hit_right(edict_t *self)
 {
 	vec3_t aim;
@@ -461,7 +464,7 @@ brain_hit_right(edict_t *self)
 	}
 }
 
-void
+static void
 brain_swing_left(edict_t *self)
 {
 	if (!self)
@@ -472,7 +475,7 @@ brain_swing_left(edict_t *self)
 	gi.sound(self, CHAN_BODY, sound_melee2, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 brain_hit_left(edict_t *self)
 {
 	vec3_t aim;
@@ -511,15 +514,14 @@ static mframe_t brain_frames_attack1[] = {
 	{ai_charge, -11, brain_footstep}
 };
 
-mmove_t brain_move_attack1 =
-{
+mmove_t brain_move_attack1 = {
 	FRAME_attak101,
 	FRAME_attak118,
 	brain_frames_attack1,
 	brain_run
 };
 
-void
+static void
 brain_chest_open(edict_t *self)
 {
 	if (!self)
@@ -532,7 +534,7 @@ brain_chest_open(edict_t *self)
 	gi.sound(self, CHAN_BODY, sound_chest_open, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 brain_tentacle_attack(edict_t *self)
 {
 	vec3_t aim;
@@ -552,7 +554,7 @@ brain_tentacle_attack(edict_t *self)
 	gi.sound(self, CHAN_WEAPON, sound_tentacles_retract, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 brain_chest_closed(edict_t *self)
 {
 	if (!self)
@@ -589,8 +591,7 @@ static mframe_t brain_frames_attack2[] = {
 	{ai_charge, -6, NULL}
 };
 
-mmove_t brain_move_attack2 =
-{
+mmove_t brain_move_attack2 = {
 	FRAME_attak201,
 	FRAME_attak217,
 	brain_frames_attack2,
@@ -644,7 +645,7 @@ brain_tounge_attack_ok(vec3_t start, vec3_t end)
 	return true;
 }
 
-void
+static void
 brain_tounge_attack(edict_t *self)
 {
 	vec3_t offset, start, f, r, end, dir;
@@ -658,7 +659,7 @@ brain_tounge_attack(edict_t *self)
 
 	AngleVectors(self->s.angles, f, r, NULL);
 	VectorSet(offset, 24, 0, 16);
-	G_ProjectSource(self->s.origin, offset, f, r, start);
+	M_ProjectFlashSource(self, offset, f, r, start);
 
 	VectorCopy(self->enemy->s.origin, end);
 
@@ -747,7 +748,7 @@ struct l_eyeball
 	{-4.332820, 9.444570, 33.526340}
 };
 
-void
+static void
 brain_laserbeam(edict_t *self)
 {
 	vec3_t forward, right, up;
@@ -805,7 +806,7 @@ brain_laserbeam(edict_t *self)
 	monster_dabeam(ent);
 }
 
-void
+static void
 brain_laserbeam_reattack(edict_t *self)
 {
 	if (!self)
@@ -876,8 +877,6 @@ mmove_t brain_move_attack4 = {
 void
 brain_attack(edict_t *self)
 {
-	int r;
-
 	if (!self)
 	{
 		return;
@@ -885,7 +884,9 @@ brain_attack(edict_t *self)
 
 	if (random() < 0.8)
 	{
-		r = range(self, self->enemy);
+		int r;
+
+		r = ai_range(self, self->enemy);
 
 		if (r == RANGE_NEAR)
 		{
@@ -921,8 +922,7 @@ static mframe_t brain_frames_run[] = {
 	{ai_run, 2, NULL}
 };
 
-mmove_t brain_move_run =
-{
+mmove_t brain_move_run = {
 	FRAME_walk101,
 	FRAME_walk111,
 	brain_frames_run,
@@ -1002,7 +1002,7 @@ brain_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 brain_dead(edict_t *self)
 {
 	if (!self)
@@ -1012,15 +1012,14 @@ brain_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
 void
 brain_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage, vec3_t point /* unused */)
+		int damage, const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -1032,6 +1031,8 @@ brain_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* u
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"),
 				1, ATTN_NORM, 0);
 

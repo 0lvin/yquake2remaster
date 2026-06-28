@@ -172,6 +172,7 @@ typedef struct
 	VkPipelineColorBlendAttachmentState blendOpts;
 	VkBool32 depthTestEnable;
 	VkBool32 depthWriteEnable;
+	VkBool32 depthBiasEnable;
 } qvkpipeline_t;
 
 // Vulkan shader
@@ -198,7 +199,8 @@ typedef struct
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT \
 	}, \
 	.depthTestEnable = VK_TRUE, \
-	.depthWriteEnable = VK_TRUE \
+	.depthWriteEnable = VK_TRUE, \
+	.depthBiasEnable = VK_FALSE \
 }
 
 // renderpass type
@@ -210,10 +212,10 @@ typedef enum
 	RP_COUNT = 3
 } qvkrenderpasstype_t;
 
-// Vulkan constants: command and dynamic buffer count
+/* command and dynamic buffer count */
 #define NUM_CMDBUFFERS 2
 #define NUM_DYNBUFFERS 2
-// Vulkan constants: number of image semaphores (introduced with VulkanSDK 1.3.275)
+/* number of image semaphores */
 #define NUM_IMG_SEMAPHORES (NUM_CMDBUFFERS * 2)
 #define PUSH_CONSTANT_VERTEX_SIZE 17
 #define PUSH_CONSTANT_FRAGMENT_SIZE 11
@@ -244,12 +246,14 @@ extern VkDescriptorSetLayout vk_samplerDescSetLayout;
 extern qvkpipeline_t vk_drawTexQuadPipeline[RP_COUNT];
 extern qvkpipeline_t vk_drawColorQuadPipeline[RP_COUNT];
 extern qvkpipeline_t vk_drawModelPipelineFan[RP_COUNT];
+extern qvkpipeline_t vk_drawTexQuadTintedPipeline[RP_COUNT];
 extern qvkpipeline_t vk_drawNoDepthModelPipelineFan;
 extern qvkpipeline_t vk_drawLefthandModelPipelineFan;
 extern qvkpipeline_t vk_drawNullModelPipeline;
 extern qvkpipeline_t vk_drawParticlesPipeline;
 extern qvkpipeline_t vk_drawPointParticlesPipeline;
 extern qvkpipeline_t vk_drawSpritePipeline;
+extern qvkpipeline_t vk_drawSpriteFlaresPipeline;
 extern qvkpipeline_t vk_drawPolyPipeline;
 extern qvkpipeline_t vk_drawPolyLmapPipeline;
 extern qvkpipeline_t vk_drawPolyWarpPipeline;
@@ -272,6 +276,8 @@ extern qboolean vk_frameStarted;
 extern qboolean vk_recreateSwapchainNeeded;
 // is QVk initialized?
 extern qboolean vk_initialized;
+// index of the currently acquired swapchain image.
+extern uint32_t vk_imageIndex;
 
 // function pointers
 extern PFN_vkCreateDebugUtilsMessengerEXT qvkCreateDebugUtilsMessengerEXT;
@@ -305,9 +311,9 @@ VkResult	QVk_CreateImageView(const VkImage *image, VkImageAspectFlags aspectFlag
 VkResult	QVk_CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, qvktexture_t *texture);
 void		QVk_CreateDepthBuffer(VkSampleCountFlagBits sampleCount, qvktexture_t *depthBuffer);
 void		QVk_CreateColorBuffer(VkSampleCountFlagBits sampleCount, qvktexture_t *colorBuffer, int extraFlags);
-void		QVk_CreateTexture(qvktexture_t *texture, const unsigned char *data, uint32_t width, uint32_t height, qvksampler_t samplerType, qboolean clampToEdge);
-void		QVk_ReleaseTexture(qvktexture_t *texture);
-void		QVk_UpdateTextureData(qvktexture_t *texture, const unsigned char *data, uint32_t offset_x, uint32_t offset_y, uint32_t width, uint32_t height);
+void		QVk_CreateTexture(qvktexture_t *texture, const byte *data, uint32_t width, uint32_t height, qvksampler_t samplerType, qboolean clampToEdge);
+void		QVk_ReleaseTexture(qvktexture_t *texture, qboolean tosync);
+void		QVk_UpdateTextureData(qvktexture_t *texture, const byte *data, uint32_t offset_x, uint32_t offset_y, uint32_t width, uint32_t height);
 VkSampler	QVk_UpdateTextureSampler(qvktexture_t *texture, qvksampler_t samplerType, qboolean clampToEdge);
 void		QVk_ReadPixels(uint8_t *dstBuffer, const VkOffset2D *offset, const VkExtent2D *extent);
 VkResult	QVk_BeginCommand(const VkCommandBuffer *commandBuffer);
@@ -336,6 +342,10 @@ void		QVk_DrawColorRect(float x, float y, float w, float h,
 				float r, float g, float b, float a, qvkrenderpasstype_t rpType);
 void		QVk_DrawTexRect(float x, float y, float w, float h,
 				float u, float v, float us, float vs, const qvktexture_t *texture);
+void		QVk_DrawTexRectTinted(float x, float y, float w, float h,
+				float u, float v, float us, float vs,
+				float r, float g, float b, float a,
+				const qvktexture_t *texture);
 void		QVk_BindPipeline(qvkpipeline_t *pipeline);
 void		QVk_SubmitStagingBuffers(void);
 qboolean	QVk_CheckExtent(void);

@@ -31,8 +31,6 @@
 int debristhisframe;
 int gibsthisframe;
 
-extern void M_WorldEffects(edict_t *ent);
-
 /*
  * QUAKED func_group (0 0 0) ?
  * Used to group brushes together just for editor convenience.
@@ -147,10 +145,9 @@ gib_think(edict_t *self)
 }
 
 void
-gib_touch(edict_t *self, edict_t *other /* unused */, cplane_t *plane, csurface_t *surf /* unused */)
+gib_touch(edict_t *self, edict_t *other /* unused */, const cplane_t *plane,
+		const csurface_t *surf /* unused */)
 {
-	vec3_t normal_angles, right;
-
 	if (!self)
 	{
 		return;
@@ -165,6 +162,8 @@ gib_touch(edict_t *self, edict_t *other /* unused */, cplane_t *plane, csurface_
 
 	if (plane)
 	{
+		vec3_t normal_angles, right;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex(
 						"misc/fhit3.wav"), 1, ATTN_NORM, 0);
 
@@ -183,7 +182,7 @@ gib_touch(edict_t *self, edict_t *other /* unused */, cplane_t *plane, csurface_
 
 void
 gib_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -245,6 +244,7 @@ ThrowGib(edict_t *self, const char *gibname, int damage, gibtype_t type)
 	gib->s.origin[0] = origin[0] + crandom() * size[0];
 	gib->s.origin[1] = origin[1] + crandom() * size[1];
 	gib->s.origin[2] = origin[2] + crandom() * size[2];
+	VectorCopy(self->rrs.scale, gib->rrs.scale);
 
 	gi.setmodel(gib, gibname);
 	gib->solid = SOLID_BBOX;
@@ -541,7 +541,7 @@ ThrowClientHead(edict_t *self, int damage)
 
 void
 debris_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -638,7 +638,7 @@ BecomeExplosion1(edict_t *self)
 	G_FreeEdict(self);
 }
 
-void
+static void
 BecomeExplosion2(edict_t *self)
 {
 	if (!self)
@@ -664,8 +664,8 @@ BecomeExplosion2(edict_t *self)
  *  this path_corner targeted touches it
  */
 void
-path_corner_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+path_corner_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	vec3_t v;
 	edict_t *next;
@@ -704,7 +704,7 @@ path_corner_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
 		next = NULL;
 	}
 
-	if ((next) && (next->spawnflags & 1))
+	if ((next) && (next->spawnflags & SPAWNFLAG_MONSTER_AMBUSH))
 	{
 		VectorCopy(next->s.origin, v);
 		v[2] += next->mins[2];
@@ -769,11 +769,10 @@ SP_path_corner(edict_t *self)
  * hold is selected, it will stay here.
  */
 void
-point_combat_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+point_combat_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	edict_t *activator;
-	vec3_t v;
 
 	if (!self || !other)
 	{
@@ -792,6 +791,8 @@ point_combat_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
 
 		if (other->goalentity)
 		{
+			vec3_t v;
+
 			VectorSubtract(other->goalentity->s.origin, other->s.origin, v);
 			other->ideal_yaw = vectoyaw(v);
 		}
@@ -1123,7 +1124,7 @@ setup_shadow_lights(void)
 
 		if (self->itemtarget)
 		{
-			edict_t *target = G_Find(NULL, FOFS(targetname), self->itemtarget);
+			const edict_t *target = G_Find(NULL, FOFS(targetname), self->itemtarget);
 			if (target)
 			{
 				shadowlightinfo[i].shadowlight.lightstyle = target->style;
@@ -1387,8 +1388,8 @@ SP_func_animation(edict_t *self)
  */
 
 void
-func_object_touch(edict_t *self, edict_t *other, cplane_t *plane,
-		csurface_t *surf /* unused */)
+func_object_touch(edict_t *self, edict_t *other, const cplane_t *plane,
+		const csurface_t *surf /* unused */)
 {
 	/* only squash thing we fall on top of */
 
@@ -1398,7 +1399,7 @@ func_object_touch(edict_t *self, edict_t *other, cplane_t *plane,
 	}
 
 	/* only squash thing we fall on top of */
-	if (plane && plane->normal[2] < 1.0)
+	if (plane->normal[2] < 1.0)
 	{
 		return;
 	}
@@ -1513,7 +1514,7 @@ SP_func_object(edict_t *self)
  */
 void
 func_explosive_explode(edict_t *self, edict_t *inflictor, edict_t *attacker,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	vec3_t origin;
 	vec3_t chunkorigin;
@@ -1745,7 +1746,7 @@ SP_func_explosive(edict_t *self)
  */
 
 void
-barrel_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */, csurface_t *surf /*unused */)
+barrel_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */, const csurface_t *surf /*unused */)
 {
 	float ratio;
 	vec3_t v;
@@ -1856,7 +1857,7 @@ barrel_explode(edict_t *self)
 
 void
 barrel_delay(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -2202,10 +2203,8 @@ commander_body_drop(edict_t *self)
 
 void
 commander_body_die(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker /* unused */, int damage, vec3_t point /* unused */)
+		edict_t *attacker /* unused */, int damage, const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -2214,6 +2213,8 @@ commander_body_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_BODY, gi.soundindex("tank/pain.wav"), 1, ATTN_NORM, 0);
 
 		ThrowGib(self, NULL, damage, GIB_ORGANIC);
@@ -2316,7 +2317,7 @@ SP_misc_banner(edict_t *ent)
  */
 void
 misc_deadsoldier_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage, vec3_t point /* unused */)
+		int damage, const vec3_t point /* unused */)
 {
 	int n;
 
@@ -2531,8 +2532,8 @@ SP_misc_bigviper(edict_t *ent)
  * "dmg"	how much boom should the bomb make?
  */
 void
-misc_viper_bomb_touch(edict_t *self, edict_t *other /* unused */, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+misc_viper_bomb_touch(edict_t *self, edict_t *other /* unused */, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self)
 	{
@@ -3027,7 +3028,7 @@ static void
 _target_string_apply(edict_t *tm, const char *str)
 {
 	edict_t *e;
-	size_t l, n;
+	size_t l;
 
 	l = str ? strlen(str) : 0;
 
@@ -3035,6 +3036,8 @@ _target_string_apply(edict_t *tm, const char *str)
 	{
 		if (e->count > 0)
 		{
+			size_t n;
+
 			n = e->count - 1;
 			e->s.frame = _target_character_getframe((n < l) ? str[n] : ' ');
 		}
@@ -3328,9 +3331,12 @@ SP_func_clock(edict_t *self)
 
 /* ================================================================================= */
 
+#define SPAWNFLAG_TELEPORTER_NO_SOUND 1
+#define SPAWNFLAG_TELEPORTER_NO_TELEPORT_EFFECT 2
+
 void
-teleporter_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+teleporter_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	edict_t *dest;
 	int i;
@@ -3368,8 +3374,16 @@ teleporter_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
 	other->client->ps.pmove.pm_flags |= PMF_TIME_TELEPORT;
 
 	/* draw the teleport splash at source and on the player */
-	self->owner->s.event = EV_PLAYER_TELEPORT;
-	other->s.event = EV_PLAYER_TELEPORT;
+	if (!(self->spawnflags & SPAWNFLAG_TELEPORTER_NO_TELEPORT_EFFECT))
+	{
+		self->owner->s.event = EV_PLAYER_TELEPORT;
+		other->s.event = EV_PLAYER_TELEPORT;
+	}
+	else
+	{
+		self->owner->s.event = EV_OTHER_TELEPORT;
+		other->s.event = EV_OTHER_TELEPORT;
+	}
 
 	/* set angles */
 	for (i = 0; i < 3; i++)
@@ -3388,6 +3402,8 @@ teleporter_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
 	gi.linkentity(other);
 }
 
+#define SPAWNFLAG_TEMEPORTER_N64_EFFECT 4
+
 /*
  * QUAKED misc_teleporter (1 0 0) (-32 -32 -24) (32 32 -16)
  *
@@ -3403,22 +3419,35 @@ SP_misc_teleporter(edict_t *ent)
 
 	edict_t *trig;
 
+	gi.setmodel(ent, "models/objects/dmspot/tris.md2");
+	ent->s.skinnum = 1;
+	if (level.is_n64 || ent->spawnflags & SPAWNFLAG_TEMEPORTER_N64_EFFECT)
+	{
+		ent->rrs.effects = EF_TELEPORTER2;
+	}
+	else
+	{
+		ent->s.effects = EF_TELEPORTER;
+	}
+
+	if (!(ent->spawnflags & SPAWNFLAG_TELEPORTER_NO_SOUND))
+	{
+		ent->s.sound = gi.soundindex("world/amb10.wav");
+	}
+
+	ent->solid = SOLID_BBOX;
+
+	VectorSet(ent->mins, -32, -32, -24);
+	VectorSet(ent->maxs, 32, 32, -16);
+	gi.linkentity(ent);
+
+	/* N64 has some of these for visual effects */
 	if (!ent->target)
 	{
 		gi.dprintf("teleporter without a target.\n");
 		G_FreeEdict(ent);
 		return;
 	}
-
-	gi.setmodel(ent, "models/objects/dmspot/tris.md2");
-	ent->s.skinnum = 1;
-	ent->s.effects = EF_TELEPORTER;
-	ent->s.sound = gi.soundindex("world/amb10.wav");
-	ent->solid = SOLID_BBOX;
-
-	VectorSet(ent->mins, -32, -32, -24);
-	VectorSet(ent->maxs, 32, 32, -16);
-	gi.linkentity(ent);
 
 	trig = G_Spawn();
 	trig->touch = teleporter_touch;
@@ -3439,7 +3468,8 @@ SP_misc_teleporter(edict_t *ent)
 void
 SP_misc_teleporter_dest(edict_t *ent)
 {
-	if (!ent)
+	/* Paril-KEX N64 doesn't display these */
+	if (!ent || level.is_n64)
 	{
 		return;
 	}
@@ -3576,10 +3606,10 @@ SP_misc_nuke_core(edict_t *ent)
 #define SPAWNFLAG_FLARE_LOCK_ANGLE 8
 
 void
-misc_flare_use(edict_t *ent, edict_t *other, edict_t *activator)
+misc_flare_use(edict_t *self, edict_t *other, edict_t *activator)
 {
-	ent->svflags ^= SVF_NOCLIENT;
-	gi.linkentity(ent);
+	self->svflags ^= SVF_NOCLIENT;
+	gi.linkentity(self);
 }
 
 void
@@ -3627,8 +3657,8 @@ SP_misc_flare(edict_t* ent)
 	VectorSet(ent->mins, -32, -32, -32);
 	VectorSet(ent->maxs, 32, 32, 32);
 
-	ent->s.modelindex2 = st.fade_start_dist;
-	ent->s.modelindex3 = st.fade_end_dist;
+	ent->s.modelindex2 = Q_max(st.fade_start_dist, 0);
+	ent->s.modelindex3 = Q_max(st.fade_end_dist, 0);
 	ent->s.skinnum = st.rgba;
 	if (!ent->s.skinnum)
 	{
@@ -3641,6 +3671,543 @@ SP_misc_flare(edict_t* ent)
 	}
 
 	gi.linkentity(ent);
+}
+
+void
+misc_hologram_think(edict_t *ent)
+{
+	ent->s.angles[1] += 100 * FRAMETIME;
+	ent->nextthink = level.time + FRAMETIME;
+	ent->rrs.alpha = 0.2f + 0.4f * random(); /* 0.2..0.6 */
+}
+
+void misc_hologram_infinity_think(edict_t *self);
+
+void
+misc_hologram_infinity_destroy(edict_t *self)
+{
+	self->s.modelindex = 0;
+	self->spawnflags |= 1;
+	self->think = misc_hologram_infinity_think;
+}
+
+void
+misc_hologram_infinity_gib(edict_t *self)
+{
+	int i;
+
+	/* Gib explosion, throw 8 hologram gibs */
+	for (i = 0; i < 8; i++)
+	{
+		const char *model;
+		float rnd;
+
+		rnd = frandk();
+
+		if (rnd < 0.25f)
+		{
+			model = "models/objects/gibs/blood/tris.md2";
+		}
+		else if (rnd < 0.5f)
+		{
+			model = "models/objects/gibs/meat1/tris.md2";
+		}
+		else if (rnd < 0.75f)
+		{
+			model = "models/objects/gibs/meat2/tris.md2";
+		}
+		else
+		{
+			model = "models/objects/gibs/meat3/tris.md2";
+		}
+
+		ThrowGib(self, model, 8, GIB_ORGANIC);
+	}
+
+	M_SetAnimGroupFrame(self, "headless", false);
+	self->think = misc_hologram_infinity_destroy;
+	self->nextthink = level.time + 2.0f;
+}
+
+void
+misc_hologram_infinity_think(edict_t *self)
+{
+	/* Animate flicker */
+	if (self->s.modelindex != 0)
+	{
+		int ofs_frames = 0, num_frames = 1;
+
+		M_SetAnimGroupFrameValues(self, "headless", &ofs_frames, &num_frames, 0);
+
+		self->s.frame++;
+		if (self->s.frame >= ofs_frames)
+		{
+			self->s.frame = 0;
+		}
+	}
+
+	/* hologram flicker */
+	self->rrs.alpha = 0.2f + 0.4f * random(); /* 0.2..0.6 */
+	self->nextthink = level.time + FRAMETIME;
+}
+
+/*
+ * Player interaction with hologram.
+ */
+void
+misc_hologram_infinity_use(edict_t *self, edict_t *other /* unused */,
+		edict_t *activator /* unused */)
+{
+	self->s.modelindex = gi.modelindex("models/objects/holo/tris.md2");
+
+	if (self->spawnflags & 1)
+	{
+		self->spawnflags &= ~1;
+		self->think = misc_hologram_infinity_think;
+	}
+	else
+	{
+		/* trigger gib explosion next think */
+		self->think = misc_hologram_infinity_gib;
+	}
+}
+
+/*
+ * QUAKED misc_hologram (1.0 1.0 0.0) (-16 -16 0) (16 16 32)
+ *
+ * Ship hologram seen in the N64 version or infinity hologram.
+ */
+void
+SP_misc_hologram(edict_t *ent)
+{
+	const dmdxframegroup_t * frames;
+	int num, modelindex;
+
+	ent->solid = SOLID_NOT;
+	ent->rrs.effects = EF_HOLOGRAM;
+
+	/* Check infinity hologram model */
+	modelindex = gi.modelindex("models/objects/holo/tris.md2");
+	frames = gi.GetModelInfo(modelindex, &num, NULL, NULL);
+
+	if (frames && (num > 0))
+	{
+		ent->s.modelindex = 0;
+		ent->use = misc_hologram_infinity_use;
+		ent->think = misc_hologram_infinity_think;
+	}
+	else
+	{
+		ent->think = misc_hologram_think;
+		VectorSet(ent->rrs.scale, 0.75f, 0.75f, 0.75f);
+	}
+
+	ent->nextthink = level.time + FRAMETIME;
+	ent->rrs.alpha = 0.2f + 0.4f * random(); /* 0.2..0.6 */
+
+	gi.linkentity(ent);
+}
+
+void
+misc_lightning_think(edict_t *self)
+{
+	/* Randomly decide whether to play thunder sound or just reschedule */
+	if (frandk() < 0.38f)
+	{
+		/* Schedule another quick think without sound */
+		self->nextthink = level.time + frandk();
+	}
+	else
+	{
+		float attenuation = 0.0f;
+		float volume = 1.0f;
+		char *soundname;
+		int soundindex;
+
+		/* Play thunder sound effect */
+		if (frandk() >= 0.5f)
+		{
+			soundname = "world/amb2.wav";
+		}
+		else
+		{
+			soundname = "world/amb1.wav";
+		}
+
+		soundindex = gi.soundindex(soundname);
+		gi.positioned_sound(self->s.origin, self, CHAN_AUTO, soundindex, 1.0, ATTN_NORM, 0);
+		gi.sound(self, CHAN_AUTO, soundindex, volume, attenuation, 0);
+
+		/* Schedule next thunder event */
+		self->nextthink = level.time + 38.0f + frandk() * 28.0f;
+	}
+}
+
+/*
+ * QUAKED misc_lightning (.5 .5 .5) (0 0 0) (0 0 0)
+ *
+ * Infinity: Lightning sound spawner.
+ */
+void
+SP_misc_lightning(edict_t *self)
+{
+	self->movetype = MOVETYPE_NONE;
+	self->solid = SOLID_NOT;
+	self->touch = NULL;
+
+	VectorClear(self->mins);
+	VectorClear(self->maxs);
+
+	self->s.modelindex = 0;
+	self->classname = "misc_lightning";
+
+	self->think = misc_lightning_think;
+	self->nextthink = level.time + 8.0f + frandk() * 8.0f;
+
+	gi.linkentity(self);
+}
+
+void
+misc_text_caption_use(edict_t *self, edict_t *other, edict_t *activator)
+{
+	char filepath[MAX_QPATH];
+	void *raw = NULL;
+	int len;
+
+	if (!self || !self->message || !activator || !activator->client)
+	{
+		return;
+	}
+
+	if (!strncmp(self->message, "infinity/", 9) ||
+		!strncmp(self->message, "infinity\\", 9))
+	{
+		/* infinity demo has infinity prefix */
+		Q_strlcpy(filepath, self->message + 9, sizeof(filepath));
+	}
+	else
+	{
+		Q_strlcpy(filepath, self->message, sizeof(filepath));
+	}
+
+	Q_replacebackslash(filepath);
+
+	len = gi.LoadFile(filepath, &raw);
+	if (len > 0 && raw)
+	{
+		char *buf;
+
+		buf = malloc(len + 1);
+		if (buf)
+		{
+			memcpy(buf, raw, len);
+			buf[len] = 0;
+			gi.centerprintf(activator, "%s", buf);
+			free(buf);
+		}
+
+		gi.FreeFile(raw);
+		return;
+	}
+}
+
+/*
+ * QUAKED misc_text_caption (0.5 0.5 0.5) (0 0 0) (0 0 0)
+ *
+ * Infinity: show text from file.
+ */
+void
+SP_misc_text_caption(edict_t *self)
+{
+	if (deathmatch->value || !self || !self->message)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	self->s.modelindex = 0;
+	self->solid = SOLID_NOT;
+	self->use = misc_text_caption_use;
+	gi.linkentity(self);
+}
+
+void
+misc_rain_touch(edict_t *self, edict_t *other, const cplane_t *plane,
+		const csurface_t *surf)
+{
+	G_FreeEdict(self);
+}
+
+/*
+ * Spawns a single raindrop entity with randomized position and downward velocity.
+ */
+static void
+ThrowRainDropGib(edict_t *self)
+{
+	edict_t *ent;
+	vec3_t point;
+
+	VectorCopy(self->s.origin, point);
+
+	/* If inside solid, remove source */
+	if (gi.pointcontents(point) & MASK_SOLID)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	ent = G_Spawn();
+	ent->owner = self;
+	ent->movetype = MOVETYPE_TOSS;
+	ent->solid = SOLID_NOT;
+	ent->touch = misc_rain_touch;
+
+	VectorCopy(self->s.origin, ent->s.origin);
+
+	/* Randomize X/Y slightly */
+	ent->s.origin[0] -= frandk() * 256 - 128;
+	ent->s.origin[1] -= frandk() * 256 - 128;
+	ent->s.origin[2] -= 2.0f;
+
+	/* Give downward velocity */
+	ent->velocity[2] -= frandk() * 64 + 128;
+
+	ent->s.modelindex = gi.modelindex("models/objects/rain/tris.md2");
+
+	ent->think = G_FreeEdict;
+	ent->classname = "rain";
+	ent->nextthink = level.time + 2.0f;
+
+	gi.linkentity(ent);
+}
+
+/*
+ * Periodic update for rain source: plays ambient sound and spawns raindrops.
+ */
+void
+misc_rain_think(edict_t *self)
+{
+	/* Occasionally play ambient rain sound */
+	if ((randk() & 1) == 0)
+	{
+		char name[MAX_OSPATH];
+		int soundindex;
+
+		/* Pick one of several ambient rain sounds */
+		snprintf(name, sizeof(name), "world/amb%i.wav", (randk() % 4) + 1);
+		soundindex = gi.soundindex(name);
+
+		gi.positioned_sound(self->s.origin, self, CHAN_AUTO, soundindex, 1.0, ATTN_NORM, 0);
+	}
+
+	/* Spawn a raindrop gib */
+	ThrowRainDropGib(self);
+
+	self->think = misc_rain_think;
+	self->nextthink = level.time + FRAMETIME;
+}
+
+/*
+ * QUAKED misc_rain (.5 .5 .5) (0 0 0) (0 0 0)
+ *
+ * Infinity: misc_rain entities.
+ */
+void
+SP_misc_rain(edict_t *self)
+{
+	/* Disable in deathmatch/coop */
+	if (deathmatch->value || coop->value)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	/* Check if origin is inside solid contents */
+	if (gi.pointcontents(self->s.origin) & MASK_SOLID)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	self->movetype = MOVETYPE_NONE;
+	self->solid = SOLID_NOT;
+	self->touch = NULL;
+
+	self->s.modelindex = 0;
+
+	self->think = misc_rain_think;
+	self->nextthink = level.time + FRAMETIME;
+
+	gi.linkentity(self);
+}
+
+/* Drip sound effect thinker */
+void
+misc_drip_touch(edict_t *self, edict_t *other, const cplane_t *plane,
+		const csurface_t *surf)
+{
+	if (!self->s.skinnum)
+	{
+		float timeofs;
+
+		timeofs = frandk();
+
+		if (frandk() < 0.28f)
+		{
+			gi.sound(self, CHAN_AUTO, gi.soundindex("world/h2odrip.wav"), 1, ATTN_NORM, timeofs);
+		}
+		else
+		{
+			gi.sound(self, CHAN_AUTO, gi.soundindex("world/h2odpsph.wav"), 1, ATTN_NORM, timeofs);
+		}
+	}
+
+	G_FreeEdict(self);
+}
+
+/* Spawn a drip effect entity */
+static void
+misc_drip_effect(edict_t *self)
+{
+	edict_t *ent;
+
+	if (gi.pointcontents(self->s.origin) & MASK_WATER)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	ent = G_Spawn();
+	ent->owner = self;
+	ent->movetype = MOVETYPE_TOSS;
+	ent->solid = SOLID_NOT;
+	ent->touch = misc_drip_touch;
+
+	VectorCopy(self->s.origin, ent->s.origin);
+
+	/* Randomize position slightly */
+	ent->s.origin[0] -= frandk() * 16 - 8;
+	ent->s.origin[1] -= frandk() * 16 - 8;
+
+	ent->s.modelindex = gi.modelindex("models/objects/drip/tris.md2");
+
+	self->s.skinnum = randk() % 3;
+
+	ent->s.origin[2] -= 5.0f;
+	ent->think = G_FreeEdict;
+	ent->classname = "drip";
+	ent->nextthink = level.time + 2.0f;
+
+	gi.linkentity(ent);
+}
+
+/* Thinker for drip source */
+void
+misc_drip_think(edict_t *self)
+{
+	if (gi.pointcontents(self->s.origin) & MASK_WATER)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	misc_drip_effect(self);
+	self->nextthink = level.time + 1.0f + (frandk() * 2.0f);
+}
+
+/*
+ * QUAKED misc_drip (.5 .5 .5) (0 0 0) (0 0 0)
+ *
+ * Infinity: misc_drip entities.
+ */
+void
+SP_misc_drip(edict_t *self)
+{
+	self->movetype = MOVETYPE_NONE;
+	self->solid = SOLID_NOT;
+	self->touch = NULL;
+
+	self->think = misc_drip_think;
+	self->nextthink = level.time + 1.0f + (frandk() * 2.0f);
+
+	gi.linkentity(self);
+}
+
+/*
+ * QUAKED misc_lavaball (0 .5 .8) (-8 -8 -8) (8 8 8) NO_EXPLODE
+ *
+ * Lava Balls. Shamelessly copied from Quake 1, like N64 guys
+ * probably did too.
+ */
+#define SPAWNFLAG_LAVABALL_NO_EXPLODE 1
+
+void
+fire_fly_touch(edict_t *self, edict_t *other /* unused */, const cplane_t *plane,
+		const csurface_t *surf /* unused */)
+{
+	if (self->spawnflags & SPAWNFLAG_LAVABALL_NO_EXPLODE)
+	{
+		G_FreeEdict(self);
+		return;
+	}
+
+	if (other->takedamage)
+	{
+		T_Damage(other, self, self, vec3_origin, self->s.origin, vec3_origin,
+			20, 0, DAMAGE_NO, MOD_EXPLOSIVE);
+	}
+
+	if (gi.pointcontents(self->s.origin) & CONTENTS_LAVA)
+	{
+		G_FreeEdict(self);
+	}
+	else
+	{
+		BecomeExplosion1(self);
+	}
+}
+
+void
+fire_fly_think(edict_t *self)
+{
+	edict_t *fireball = G_Spawn();
+	fireball->s.effects = EF_ROCKET | EF_GIB; /* ReRelease EF_FIREBALL */
+	fireball->s.renderfx = RF_MINLIGHT;
+	fireball->solid = SOLID_BBOX;
+	fireball->movetype = MOVETYPE_TOSS;
+	fireball->clipmask = MASK_SHOT;
+	fireball->velocity[0] = crandom() * 50;
+	fireball->velocity[1] = crandom() * 50;
+	VectorSet(fireball->avelocity, crandom() * 360, crandom() * 360, crandom() * 360);
+	fireball->velocity[2] = (self->speed * 1.75f) + (random() * 200);
+	fireball->classname = "fireball";
+	gi.setmodel(fireball, "models/objects/gibs/sm_meat/tris.md2");
+	VectorCopy(self->s.origin, fireball->s.origin);
+	fireball->nextthink = level.time + 5;
+	fireball->think = G_FreeEdict;
+	fireball->touch = fire_fly_touch;
+	fireball->spawnflags = self->spawnflags;
+	gi.linkentity(fireball);
+	self->nextthink = level.time + 5.0 * random(); /* 5 seconds */
+}
+
+void
+SP_misc_lavaball(edict_t *self)
+{
+	self->classname = "fireball";
+	self->nextthink = level.time + 5.0 * random(); /* 5 seconds */
+	self->think = fire_fly_think;
+	if (!self->speed)
+	{
+		self->speed = 185;
+	}
+}
+
+void
+SP_info_landmark(edict_t* self)
+{
+	VectorCopy(self->s.origin, self->absmin);
+	VectorCopy(self->s.origin, self->absmax);
 }
 
 void
@@ -3735,7 +4302,7 @@ misc_player_mannequin_think(edict_t * self)
 	self->nextthink = level.time + FRAMETIME;
 }
 
-void
+static void
 SetupMannequinModel(edict_t * self, int modelType, const char *weapon, const char *skin)
 {
 	const char *model_name = NULL;
@@ -3781,7 +4348,7 @@ SetupMannequinModel(edict_t * self, int modelType, const char *weapon, const cha
 		char line[MAX_QPATH] = {0};
 
 		snprintf(line, sizeof(line), "players/%s/tris.md2", model_name);
-		self->model = ED_NewString(line, true);
+		self->model = ED_NewString(line, true, TAG_LEVEL);
 
 		if (weapon)
 		{
@@ -3822,8 +4389,6 @@ SetupMannequinModel(edict_t * self, int modelType, const char *weapon, const cha
 void
 SP_misc_player_mannequin(edict_t * self)
 {
-	int i;
-
 	self->movetype = MOVETYPE_NONE;
 	self->solid = SOLID_BBOX;
 	if (!st.effects)
@@ -3858,11 +4423,7 @@ SP_misc_player_mannequin(edict_t * self)
 			st.radius, st.radius, st.radius);
 	}
 
-	for (i = 0;i < 3; i++)
-	{
-		self->mins[i] *= self->rrs.scale[i];
-		self->maxs[i] *= self->rrs.scale[i];
-	}
+	monster_sync_scale_mins_maxs(self);
 
 	self->think = misc_player_mannequin_think;
 	self->nextthink = level.time + FRAMETIME;
@@ -3890,8 +4451,8 @@ void SP_misc_model(edict_t *ent)
  * Anachronox: Save menu open.
  */
 void
-touch_npc_timeminder(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+touch_npc_timeminder(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	gi.AddCommandString("menu_savegame\n");
 }

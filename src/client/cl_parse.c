@@ -53,7 +53,20 @@ static const char *svc_strings[] = {
 	"svc_packetentities",
 	"svc_deltapacketentities",
 	"svc_frame",
+
+	"svc_splitclient",
+	"svc_configblast",
+	"svc_spawnbaselineblast",
+	"svc_level_restart",
+	"svc_damage",
+	"svc_locprint",
 	"svc_fog",
+	"svc_waitingforplayers",
+	"svc_bot_chat",
+	"svc_poi",
+	"svc_help_path",
+	"svc_muzzleflash3",
+	"svc_achievement",
 };
 
 void
@@ -251,6 +264,43 @@ CL_ParseDelta(const entity_xstate_t *from, entity_xstate_t *to, int number, int 
 		}
 	}
 
+	/* Validate message end error in receive models indexes */
+	if (bits & U_MODEL)
+	{
+		if (to->modelindex < 0)
+		{
+			Com_Error(ERR_DROP, "%s: unexpected message end, bad modelindex",
+				__func__);
+		}
+	}
+
+	if (bits & U_MODEL2)
+	{
+		if (to->modelindex2 < 0)
+		{
+			Com_Error(ERR_DROP, "%s: unexpected message end, bad modelindex2",
+				__func__);
+		}
+	}
+
+	if (bits & U_MODEL3)
+	{
+		if (to->modelindex3 < 0)
+		{
+			Com_Error(ERR_DROP, "%s: unexpected message end, bad modelindex3",
+				__func__);
+		}
+	}
+
+	if (bits & U_MODEL4)
+	{
+		if (to->modelindex4 < 0)
+		{
+			Com_Error(ERR_DROP, "%s: unexpected message end, bad modelindex4",
+				__func__);
+		}
+	}
+
 	if (bits & U_FRAME8)
 	{
 		to->frame = MSG_ReadByte(&net_message);
@@ -275,6 +325,8 @@ CL_ParseDelta(const entity_xstate_t *from, entity_xstate_t *to, int number, int 
 			{
 				to->scale[i] = MSG_ReadFloat(&net_message);
 			}
+
+			to->rr_alpha = MSG_ReadFloat(&net_message);
 		}
 	}
 	else if (bits & U_SKIN8)
@@ -354,17 +406,17 @@ CL_ParseDelta(const entity_xstate_t *from, entity_xstate_t *to, int number, int 
 
 	if (bits & U_ANGLE1)
 	{
-		to->angles[0] = MSG_ReadAngle(&net_message);
+		to->angles[0] = MSG_ReadAngle(&net_message, cls.serverProtocol);
 	}
 
 	if (bits & U_ANGLE2)
 	{
-		to->angles[1] = MSG_ReadAngle(&net_message);
+		to->angles[1] = MSG_ReadAngle(&net_message, cls.serverProtocol);
 	}
 
 	if (bits & U_ANGLE3)
 	{
-		to->angles[2] = MSG_ReadAngle(&net_message);
+		to->angles[2] = MSG_ReadAngle(&net_message, cls.serverProtocol);
 	}
 
 	if (bits & U_OLDORIGIN)
@@ -389,6 +441,39 @@ CL_ParseDelta(const entity_xstate_t *from, entity_xstate_t *to, int number, int 
 	if (bits & U_SOLID)
 	{
 		to->solid = MSG_ReadShort(&net_message);
+	}
+
+	/* Revalidate model indexes limits */
+	if (bits & U_MODEL)
+	{
+		if (to->modelindex >= MAX_MODELS)
+		{
+			Com_Error(ERR_DROP, "%s: bad modelindex %d", __func__, to->modelindex);
+		}
+	}
+
+	if ((bits & U_MODEL2) && !(to->renderfx & RF_FLARE))
+	{
+		if (to->modelindex2 >= MAX_MODELS)
+		{
+			Com_Error(ERR_DROP, "%s: bad modelindex2 %d", __func__, to->modelindex2);
+		}
+	}
+
+	if ((bits & U_MODEL3) && !(to->renderfx & RF_FLARE))
+	{
+		if (to->modelindex3 >= MAX_MODELS)
+		{
+			Com_Error(ERR_DROP, "%s: bad modelindex3 %d", __func__, to->modelindex3);
+		}
+	}
+
+	if (bits & U_MODEL4)
+	{
+		if (to->modelindex4 >= MAX_MODELS)
+		{
+			Com_Error(ERR_DROP, "%s: bad modelindex4 %d", __func__, to->modelindex4);
+		}
 	}
 }
 
@@ -439,6 +524,8 @@ CL_DeltaEntity(frame_t *frame, int newnum, const entity_xstate_t *old, int bits)
 		   lerping doesn't hurt anything */
 		ent->prev = *state;
 
+		ent->serverframe_created = cl.frame.serverframe;
+
 		if (state->event == EV_OTHER_TELEPORT)
 		{
 			VectorCopy(state->origin, ent->prev.origin);
@@ -466,12 +553,11 @@ CL_DeltaEntity(frame_t *frame, int newnum, const entity_xstate_t *old, int bits)
  * data stream.
  */
 static void
-CL_ParsePacketEntities(frame_t *oldframe, frame_t *newframe)
+CL_ParsePacketEntities(const frame_t *oldframe, frame_t *newframe)
 {
-	unsigned int newnum;
 	unsigned bits;
 	centity_t *ent;
-	entity_xstate_t *oldstate = NULL;
+	const entity_xstate_t *oldstate = NULL;
 	int oldindex, oldnum;
 
 	newframe->parse_entities = cl.parse_entities;
@@ -502,6 +588,8 @@ CL_ParsePacketEntities(frame_t *oldframe, frame_t *newframe)
 
 	while (1)
 	{
+		unsigned int newnum;
+
 		newnum = CL_ParseEntityBits(&bits);
 
 		if (newnum > MAX_CL_ENTNUM)
@@ -764,6 +852,10 @@ CL_ParsePlayerstate(frame_t *oldframe, frame_t *newframe, int protocol)
 		else
 		{
 			state->gunindex = MSG_ReadShort(&net_message);
+			if (state->gunindex < 0 || state->gunindex >= MAX_MODELS)
+			{
+				Com_Error(ERR_DROP, "%s: bad gunindex %d", __func__, state->gunindex);
+			}
 		}
 	}
 
@@ -847,7 +939,7 @@ CL_ParsePlayerstate(frame_t *oldframe, frame_t *newframe, int protocol)
 }
 
 static void
-CL_FireEntityEvents(frame_t *frame)
+CL_FireEntityEvents(const frame_t *frame)
 {
 	int pnum;
 
@@ -867,6 +959,11 @@ CL_FireEntityEvents(frame_t *frame)
 		if (s1->effects & EF_TELEPORTER)
 		{
 			CL_TeleporterParticles(s1);
+		}
+
+		if (s1->rr_effects & EF_TELEPORTER2)
+		{
+			CL_TeleporterParticles2(s1);
 		}
 	}
 }
@@ -1135,7 +1232,6 @@ CL_ParseServerData(void)
 		(!*str && (fs_gamedirvar->string && !*fs_gamedirvar->string)))
 	{
 		Cvar_Set("game", str);
-		Cvar_Set("gametype", str);
 	}
 
 	/* parse player entity number */
@@ -1177,10 +1273,8 @@ CL_ParseBaseline(void)
 void
 CL_LoadClientinfo(clientinfo_t *ci, char *s)
 {
-	int i;
 	char *t;
 	char model_name[MAX_QPATH];
-	char skin_name[MAX_QPATH];
 	char model_filename[MAX_QPATH];
 	char skin_filename[MAX_QPATH];
 	char weapon_filename[MAX_QPATH];
@@ -1212,6 +1306,9 @@ CL_LoadClientinfo(clientinfo_t *ci, char *s)
 	}
 	else
 	{
+		char skin_name[MAX_QPATH];
+		int i;
+
 		/* isolate the model name */
 		Q_strlcpy(model_name, s, sizeof(model_name));
 		t = strstr(model_name, "/");
@@ -1395,6 +1492,14 @@ CL_LoadShadowLight(int idx, const char *s)
 	p = buf;
 	shadow = cl.shadowdefs + idx;
 	shadow->number = atoi(COM_Parse(&p));
+
+	if (shadow->number < 0 || shadow->number > MAX_EDICTS)
+	{
+		Com_DPrintf("%s: wrong shadow %d number %d\n",
+			__func__, idx, shadow->number);
+		return;
+	}
+
 	is_cone = !!atoi(COM_Parse(&p));
 	shadow->light.radius = atof(COM_Parse(&p));
 	shadow->light.resolution = atoi(COM_Parse(&p));
@@ -1626,6 +1731,14 @@ CL_ParseStartSoundPacket(void)
 		/* entity reletive */
 		channel = MSG_ReadShort(&net_message);
 		ent = channel >> 3;
+
+		if (ent < 0)
+		{
+			Com_Printf("%s: incorrect channel %d\n",
+					__func__, channel);
+			return;
+		}
+
 		channel &= 7;
 	}
 	else
@@ -1666,7 +1779,6 @@ CL_ParseStartSoundPacket(void)
 void
 CL_ParseServerMessage(void)
 {
-	int cmd;
 	char *s;
 	int i;
 
@@ -1684,6 +1796,8 @@ CL_ParseServerMessage(void)
 	/* parse the message */
 	while (1)
 	{
+		int cmd;
+
 		if (net_message.readcount > net_message.cursize)
 		{
 			Com_Error(ERR_DROP, "%s: Bad server message", __func__);
@@ -1704,8 +1818,8 @@ CL_ParseServerMessage(void)
 		switch (cmd)
 		{
 			default:
-				Com_Error(ERR_DROP, "%s: Illegible server message\n",
-					__func__);
+				Com_Error(ERR_DROP, "%s: Illegible server message 0x%02x\n",
+					__func__, cmd);
 				return;
 
 			case svc_nop:

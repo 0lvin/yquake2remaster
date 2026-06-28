@@ -61,18 +61,20 @@ void AI_Init(void)
 // AI_NewMap
 // Inits Map local parameters
 //==========================================
-void AI_NewMap(void)
+void
+AI_NewMap(void)
 {
-	//Load nodes
+	/* Load nodes */
 	AI_InitNavigationData();
-	AI_InitAIWeapons ();
+	AI_InitAIWeapons();
 }
 
 //==========================================
 // G_FreeAI
 // removes the AI handle from memory
 //==========================================
-void G_FreeAI( edict_t *ent )
+void
+G_FreeAI(edict_t *ent)
 {
 	if (!ent->ai)
 	{
@@ -298,11 +300,13 @@ static void
 AI_PickShortRangeGoal(edict_t *self)
 {
 	edict_t *target;
-	float	weight,best_weight=0.0;
+	float best_weight=0.0;
 	edict_t *best = NULL;
 
 	if (!self->client)
+	{
 		return;
+	}
 
 	// look for a target (should make more efficent later)
 	target = findradius(NULL, self->s.origin, AI_GOAL_SR_RADIUS);
@@ -320,9 +324,6 @@ AI_PickShortRangeGoal(edict_t *self)
 			//if player who shoot is a potential enemy
 			if (self->ai->status.playersWeights[target->owner->s.number-1])
 			{
-//				if (AIDevel.debugChased && bot_showcombat->value)
-//					gi.cprintf(AIDevel.chaseguy, PRINT_HIGH, "%s: ROCKET ALERT!\n", self->ai->pers.netname);
-
 				self->enemy = target->owner;	// set who fired the rocket as enemy
 				return;
 			}
@@ -332,6 +333,8 @@ AI_PickShortRangeGoal(edict_t *self)
 		{
 			if (infront(self, target))
 			{
+				float weight;
+
 				weight = AI_ItemWeight(self, target);
 
 				if (weight > best_weight)
@@ -372,7 +375,7 @@ AI_CategorizePosition(edict_t *ent)
 		ent->mins, ent->maxs, ent);
 
 	M_CatagorizePosition(ent);
-	if (ent->waterlevel > 2 || (ent->waterlevel && !stepping))
+	if (ent->waterlevel > WATER_WAIST || (ent->waterlevel && !stepping))
 	{
 		ent->is_swim = true;
 		ent->is_step = false;

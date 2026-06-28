@@ -86,8 +86,8 @@ void BOT_Respawn(edict_t *ent);
 
 // ai_main.c
 //----------------------------------------------------------
-void AI_Think (edict_t *ent);
-void AI_PickLongRangeGoal(edict_t *ent);
+void AI_Think (edict_t *self);
+void AI_PickLongRangeGoal(edict_t *self);
 void AI_Frame (edict_t *self, usercmd_t *ucmd);
 void AI_SetUpMoveWander( edict_t *ent );
 void AI_ResetNavigation(edict_t *ent);
@@ -96,8 +96,8 @@ void AI_CategorizePosition (edict_t *ent);
 
 // ai_items.c
 //----------------------------------------------------------
-float AI_ItemWeight(edict_t *ent, edict_t *item);
-qboolean AI_ItemIsReachable(edict_t *self,vec3_t goal);
+float AI_ItemWeight(edict_t *self, const edict_t *it);
+qboolean AI_ItemIsReachable(edict_t *self, vec3_t goal);
 
 // ai_movement.c
 //----------------------------------------------------------
@@ -117,15 +117,16 @@ qboolean AI_FollowPath(edict_t *self);
 
 // ai_nodes.c
 //----------------------------------------------------------
-qboolean AI_DropNodeOriginToFloor( vec3_t origin, edict_t *passent );
+qboolean AI_DropNodeOriginToFloor(vec3_t origin, edict_t *passent);
+void AI_CleanNodesAndLinks(void);
 void AI_InitNavigationData(void);
 int AI_FlagsForNode( vec3_t origin, edict_t *passent );
-float AI_Distance( vec3_t o1, vec3_t o2 );
+float AI_Distance(const vec3_t o1, const vec3_t o2);
 
 // ai_tools.c
 //----------------------------------------------------------
-void AIDebug_SetChased(edict_t *ent);
-void AITools_DrawPath(edict_t *self, int node_from, int node_to);
+void AIDebug_SetChased(const edict_t *ent);
+void AITools_DrawPath(const edict_t *self, int node_from, int node_to);
 void AITools_DrawLine(vec3_t origin, vec3_t dest);
 qboolean AI_LoadPLKFile( char *mapname );
 
@@ -144,13 +145,12 @@ int AI_LinkCloseNodes_JumpPass(int start);
 
 //bot_status.c
 //----------------------------------------------------------
-qboolean AI_CanPick_Ammo(edict_t *ent, gitem_t *item);
-qboolean AI_CanUseArmor(gitem_t *item, edict_t *other);
+qboolean AI_CanPick_Ammo(edict_t *ent, const gitem_t *item);
+qboolean AI_CanUseArmor(const gitem_t *item, edict_t *other);
 
 //bot_classes
 //----------------------------------------------------------
 void BOT_DMclass_InitPersistant(edict_t *self);
-qboolean BOT_ChangeWeapon(edict_t *ent, gitem_t *item);
 
 //ai_weapons.c
 //----------------------------------------------------------

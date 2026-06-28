@@ -49,16 +49,15 @@ int AI_FindCost(int from, int to, int movetypes)
 // AI_FindClosestReachableNode
 // Find the closest node to the player within a certain range
 //==========================================
-int AI_FindClosestReachableNode( vec3_t origin, edict_t *passent, int range, int flagsmask )
+int
+AI_FindClosestReachableNode( vec3_t origin, edict_t *passent, int range, int flagsmask )
 {
-	int			i;
-	float		closest = 99999;
-	float		dist;
-	int			node=-1;
-	vec3_t		v;
-	trace_t		tr;
-	float		rng;
-	vec3_t		maxs,mins;
+	size_t i;
+	float closest = 99999;
+	int node = -1;
+	vec3_t v;
+	float rng;
+	vec3_t maxs,mins;
 
 	VectorSet( mins, -15, -15, -15 );
 	VectorSet( maxs, 15, 15, 15 );
@@ -72,16 +71,20 @@ int AI_FindClosestReachableNode( vec3_t origin, edict_t *passent, int range, int
 
 	rng = (float)(range * range); // square range for distance comparison (eliminate sqrt)
 
-	for(i=0;i<nav.num_nodes;i++)
+	for(i = 0; i < nav.num_nodes; i++)
 	{
 		if (flagsmask == NODE_ALL || nodes[i].flags & flagsmask)
 		{
-			VectorSubtract( nodes[i].origin, origin, v );
+			float dist;
+
+			VectorSubtract(nodes[i].origin, origin, v);
 
 			dist = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 
 			if (dist < closest && dist < rng)
 			{
+				trace_t tr;
+
 				// make sure it is visible
 				tr = gi.trace( origin, mins, maxs, nodes[i].origin, passent, MASK_AISOLID);
 				if (tr.fraction == 1.0)
@@ -171,14 +174,14 @@ AI_FollowPath(edict_t *self)
 		}
 	}
 
-	// Are we there yet?
-	VectorSubtract( self->s.origin, nodes[self->ai->next_node].origin, v );
-	dist = VectorLength(v);
-
 	if (self->ai->current_node == -1 || self->ai->next_node == -1)
 	{
 		return false;
 	}
+
+	/* Are we there yet? */
+	VectorSubtract( self->s.origin, nodes[self->ai->next_node].origin, v );
+	dist = VectorLength(v);
 
 	/* special lower plat reached check */
 	if (dist < 64 &&

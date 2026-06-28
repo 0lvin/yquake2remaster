@@ -122,7 +122,7 @@ static const char *bot_skin_table[] = {
 // Set the name of the bot and update the userinfo
 ///////////////////////////////////////////////////////////////////////
 static void
-BOT_SetName(edict_t *bot, char *name, char *skin, char *team)
+BOT_SetName(edict_t *bot, const char *name, const char *skin, char *team)
 {
 	char userinfo[MAX_INFO_STRING];
 	char bot_skin[MAX_INFO_STRING];
@@ -145,7 +145,7 @@ BOT_SetName(edict_t *bot, char *name, char *skin, char *team)
 		int rnd;
 
 		/* randomly choose skin */
-		rnd = rand() % (sizeof(bot_skin_table) / sizeof(*bot_skin_table));
+		rnd = randk() % (sizeof(bot_skin_table) / sizeof(*bot_skin_table));
 		Q_strlcpy(bot_skin, bot_skin_table[rnd], sizeof(bot_skin));
 	}
 	else
@@ -174,14 +174,17 @@ BOT_NextCTFTeam()
 	int	i;
 	int	onteam1 = 0;
 	int	onteam2 = 0;
-	edict_t		*self;
 
 	// Only use in CTF games
 	if (!ctf->value)
+	{
 		return 0;
+	}
 
 	for (i = 0; i < game.maxclients + 1; i++)
 	{
+		const edict_t *self;
+
 		self = g_edicts +i + 1;
 		if (self->inuse && self->client)
 		{
@@ -193,9 +196,9 @@ BOT_NextCTFTeam()
 	}
 
 	if (onteam1 > onteam2)
+	{
 		return (2);
-	else if (onteam2 >= onteam1)
-		return (1);
+	}
 
 	return (1);
 }
@@ -205,7 +208,7 @@ BOT_NextCTFTeam()
 // Assign a team for the bot
 //==========================================
 static qboolean
-BOT_JoinCTFTeam(edict_t *ent, char *team_name)
+BOT_JoinCTFTeam(edict_t *ent, const char *team_name)
 {
 	char	*s;
 	int		team;
@@ -249,7 +252,7 @@ BOT_JoinCTFTeam(edict_t *ent, char *team_name)
 // put the bot into the game.
 //==========================================
 static void
-BOT_DMClass_JoinGame(edict_t *ent, char *team_name)
+BOT_DMClass_JoinGame(edict_t *ent, const char *team_name)
 {
 	if (!BOT_JoinCTFTeam(ent, team_name))
 	{
@@ -291,19 +294,19 @@ BOT_StartAsSpectator(edict_t *ent)
 // BOT_JoinGame
 // 3 for teams and such
 //==========================================
-static void
+void
 BOT_JoinBlue(edict_t *ent)
 {
 	BOT_DMClass_JoinGame(ent, "blue");
 }
 
-static void
+void
 BOT_JoinRed(edict_t *ent)
 {
 	BOT_DMClass_JoinGame(ent, "red");
 }
 
-static void
+void
 BOT_JoinGame(edict_t *ent)
 {
 	BOT_DMClass_JoinGame(ent, NULL);
@@ -312,14 +315,15 @@ BOT_JoinGame(edict_t *ent)
 ///////////////////////////////////////////////////////////////////////
 // Spawn the bot
 ///////////////////////////////////////////////////////////////////////
-void BOT_SpawnBot (char *team, char *name, char *skin, char *userinfo)
+void
+BOT_SpawnBot (char *team, const char *name, const char *skin, char *userinfo)
 {
 	edict_t *bot;
 
 	if (!nav.loaded)
 	{
-		Com_Printf("Can't spawn bots without a valid navigation file\n");
-		return;
+		AITools_SaveNodes();
+		Com_Printf("Used minimal navigation file, run 'sv savenodes' for update\n");
 	}
 
 	bot = BOT_FindFreeClient();
@@ -388,7 +392,8 @@ void BOT_SpawnBot (char *team, char *name, char *skin, char *userinfo)
 ///////////////////////////////////////////////////////////////////////
 // Remove a bot by name or all bots
 ///////////////////////////////////////////////////////////////////////
-void BOT_RemoveBot(char *name)
+void
+BOT_RemoveBot(const char *name)
 {
 	int i;
 	edict_t *bot;

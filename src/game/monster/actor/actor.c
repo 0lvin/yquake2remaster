@@ -98,7 +98,7 @@ actor_stand(edict_t *self)
 	// randomize on startup
 	if (level.time < 1.0)
 	{
-		self->s.frame = self->monsterinfo.currentmove->firstframe + (rand() % (self->monsterinfo.currentmove->lastframe - self->monsterinfo.currentmove->firstframe + 1));
+		self->s.frame = self->monsterinfo.currentmove->firstframe + (randk() % (self->monsterinfo.currentmove->lastframe - self->monsterinfo.currentmove->firstframe + 1));
 	}
 }
 
@@ -146,7 +146,13 @@ static mframe_t actor_frames_run [] =
 	{ai_run, -2, NULL},
 	{ai_run, -1, NULL}
 };
-mmove_t actor_move_run = {FRAME_run02, FRAME_run07, actor_frames_run, NULL};
+
+mmove_t actor_move_run = {
+	FRAME_run02,
+	FRAME_run07,
+	actor_frames_run,
+	NULL
+};
 
 void
 actor_run(edict_t *self)
@@ -298,11 +304,11 @@ actor_pain(edict_t *self, edict_t *other, float kick, int damage)
 		else
 			self->monsterinfo.currentmove = &actor_move_taunt;
 		name = actor_names[(self - g_edicts)%MAX_ACTOR_NAMES];
-		gi.cprintf (other, PRINT_CHAT, "%s: %s!\n", name, messages[rand()%3]);
+		gi.cprintf (other, PRINT_CHAT, "%s: %s!\n", name, messages[randk() % 3]);
 		return;
 	}
 
-	n = rand() % 3;
+	n = randk() % 3;
 	if (n == 0)
 		self->monsterinfo.currentmove = &actor_move_pain1;
 	else if (n == 1)
@@ -311,8 +317,7 @@ actor_pain(edict_t *self, edict_t *other, float kick, int damage)
 		self->monsterinfo.currentmove = &actor_move_pain3;
 }
 
-
-void
+static void
 actorMachineGun(edict_t *self)
 {
 	vec3_t	start, target;
@@ -342,8 +347,7 @@ actorMachineGun(edict_t *self)
 	monster_fire_bullet (self, start, forward, 3, 4, DEFAULT_BULLET_HSPREAD, DEFAULT_BULLET_VSPREAD, MZ2_ACTOR_MACHINEGUN_1);
 }
 
-
-void
+static void
 actor_dead(edict_t *self)
 {
 	VectorSet(self->mins, -16, -16, -24);
@@ -392,7 +396,7 @@ mmove_t actor_move_death2 = {
 };
 
 void
-actor_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+actor_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
 	int		n;
 
@@ -423,7 +427,7 @@ actor_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3
 	self->deadflag = DEAD_DEAD;
 	self->takedamage = DAMAGE_YES;
 
-	n = rand() % 2;
+	n = randk() % 2;
 	if (n == 0)
 	{
 		self->monsterinfo.currentmove = &actor_move_death1;
@@ -434,7 +438,7 @@ actor_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3
 	}
 }
 
-void
+static void
 actor_fire(edict_t *self)
 {
 	actorMachineGun (self);
@@ -466,7 +470,7 @@ actor_attack(edict_t *self)
 	int		n;
 
 	self->monsterinfo.currentmove = &actor_move_attack;
-	n = (rand() & 15) + 3 + 7;
+	n = (randk() & 15) + 3 + 7;
 	self->monsterinfo.pausetime = level.time + n * FRAMETIME;
 }
 
@@ -481,7 +485,7 @@ actor_use(edict_t *self, edict_t *other, edict_t *activator)
 	{
 		gi.dprintf ("%s has bad target %s at %s\n", self->classname, self->target, vtos(self->s.origin));
 		self->target = NULL;
-		self->monsterinfo.pausetime = 100000000;
+		self->monsterinfo.pausetime = HOLD_FOREVER;
 		self->monsterinfo.stand (self);
 		return;
 	}
@@ -572,28 +576,29 @@ for JUMP only:
 */
 
 void
-target_actor_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+target_actor_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	vec3_t	v;
-
-	if (other->movetarget != self)
+	if (other->movetarget != self || other->enemy)
+	{
 		return;
-
-	if (other->enemy)
-		return;
+	}
 
 	other->goalentity = other->movetarget = NULL;
 
 	if (self->message)
 	{
-		int		n;
-		edict_t	*ent;
+		int n;
 
 		for (n = 1; n <= game.maxclients; n++)
 		{
+			edict_t *ent;
+
 			ent = &g_edicts[n];
 			if (!ent->inuse)
+			{
 				continue;
+			}
+
 			gi.cprintf (ent, PRINT_CHAT, "%s: %s\n", actor_names[(other - g_edicts)%MAX_ACTOR_NAMES], self->message);
 		}
 	}
@@ -656,8 +661,10 @@ target_actor_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *s
 	}
 	else if (other->movetarget == other->goalentity)
 	{
+		vec3_t v;
+
 		VectorSubtract (other->movetarget->s.origin, other->s.origin, v);
-		other->ideal_yaw = vectoyaw (v);
+		other->ideal_yaw = vectoyaw(v);
 	}
 }
 

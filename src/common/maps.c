@@ -232,7 +232,8 @@ Mod_Load2QBSP_IBSP_CopyLong(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	int *in, *out;
+	const int *in;
+	int *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
 	in = (int *)(inbuf + lumps[inlumppos].fileofs);
@@ -252,7 +253,8 @@ Mod_Load2QBSP_IBSP_PLANES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dplane_t *in, *out;
+	const dplane_t *in;
+	dplane_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -281,7 +283,7 @@ Mod_Load2QBSP_IBSP46_PLANES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dq3plane_t *in;
+	const dq3plane_t *in;
 	dplane_t *out;
 	int i, count;
 
@@ -311,7 +313,8 @@ Mod_Load2QBSP_IBSP_VERTEXES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dvertex_t *in, *out;
+	const dvertex_t *in;
+	dvertex_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -338,7 +341,7 @@ Mod_Load2QBSP_IBSP_NODES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	dqnode_t *out;
-	dnode_t *in;
+	const dnode_t *in;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -376,7 +379,7 @@ Mod_Load2QBSP_IBSP29_NODES(byte *outbuf, dheader_t *outheader,
 {
 	size_t i, count;
 	dqnode_t *out;
-	dq1node_t *in;
+	const dq1node_t *in;
 
 	count = lumps[inlumppos].filelen / rule_size;
 	in = (dq1node_t *)(inbuf + lumps[inlumppos].fileofs);
@@ -411,7 +414,8 @@ Mod_Load2QBSP_QBSP_NODES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dqnode_t *in, *out;
+	const dqnode_t *in;
+	dqnode_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -447,7 +451,7 @@ Mod_Load2QBSP_IBSP46_NODES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dq3node_t *in;
+	const dq3node_t *in;
 	dqnode_t *out;
 	size_t i, count;
 
@@ -536,7 +540,7 @@ Mod_Load2QBSP_IBSP_TEXINFO(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	texinfo_t *in;
+	const texinfo_t *in;
 	xtexinfo_t *out;
 	size_t i, count;
 
@@ -578,7 +582,7 @@ Mod_Load2QBSP_IBSP_XTEXINFO(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	xtexinfo_t *in;
+	const xtexinfo_t *in;
 	xtexinfo_t *out;
 	size_t i, count;
 
@@ -620,9 +624,9 @@ Mod_Load2QBSP_IBSP29_TEXINFO(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dq1mipheader_t *miptextures;
+	const dq1mipheader_t *miptextures;
 	size_t i, count, tex_count, tex_offs;
-	dq1texinfo_t *in;
+	const dq1texinfo_t *in;
 	xtexinfo_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -652,7 +656,7 @@ Mod_Load2QBSP_IBSP29_TEXINFO(byte *outbuf, dheader_t *outheader,
 			texture_offset = LittleLong(miptextures->offset[in->texture_id]);
 			if (texture_offset > 0)
 			{
-				dq1miptex_t *texture;
+				const dq1miptex_t *texture;
 
 				texture = (dq1miptex_t *)(inbuf + tex_offs + texture_offset);
 
@@ -682,7 +686,7 @@ Mod_Load2QBSP_RBSP_TEXINFO(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	texrinfo_t *in;
+	const texrinfo_t *in;
 	xtexinfo_t *out;
 	size_t i, count;
 
@@ -724,7 +728,7 @@ Mod_Load2QBSP_IBSP46_TEXINFO(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dshader_t *in;
+	const dshader_t *in;
 	xtexinfo_t *out;
 	int i, count;
 
@@ -752,7 +756,7 @@ Mod_Load2QBSP_IBSP_FACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dface_t *in;
+	const dface_t *in;
 	dqface_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -780,7 +784,7 @@ Mod_Load2QBSP_IBSP29_FACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	q1face_t *in;
+	const q1face_t *in;
 	dqface_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -809,7 +813,8 @@ Mod_Load2QBSP_IBSP29_LIGHTING(byte *outbuf, const dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	byte *in, *out;
+	const byte *in;
+	byte *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
 	in = (byte *)(inbuf + lumps[inlumppos].fileofs);
@@ -834,7 +839,7 @@ Mod_Load2QBSP_RBSP_FACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	drface_t *in;
+	const drface_t *in;
 	dqface_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -862,7 +867,7 @@ Mod_Load2QBSP_QBSP_FACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dqface_t *in;
+	const dqface_t *in;
 	dqface_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -890,7 +895,7 @@ Mod_Load2QBSP_IBSP46_FACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dq3surface_t *in;
+	const dq3surface_t *in;
 	dqface_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -918,7 +923,7 @@ Mod_Load2QBSP_IBSP_LEAFS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dleaf_t *in;
+	const dleaf_t *in;
 	dqleaf_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -956,7 +961,7 @@ Mod_Load2QBSP_IBSP29_LEAFS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dq1leaf_t *in;
+	const dq1leaf_t *in;
 	dqleaf_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -994,7 +999,7 @@ Mod_Load2QBSP_DKBSP_LEAFS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	ddkleaf_t *in;
+	const ddkleaf_t *in;
 	dqleaf_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1032,7 +1037,7 @@ Mod_Load2QBSP_QBSP_LEAFS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dqleaf_t *in;
+	const dqleaf_t *in;
 	dqleaf_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1069,10 +1074,11 @@ Mod_Load2QBSP_IBSP46_LEAFS(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	int i, count, count_leafbrush, count_brush, count_shader, *in_leafbrush;
-	dq3brush_t *in_brush;
-	dshader_t *in_shader;
-	dq3leaf_t *in;
+	int i, count, count_leafbrush, count_brush, count_shader;
+	const int *in_leafbrush;
+	const dq3brush_t *in_brush;
+	const dshader_t *in_shader;
+	const dq3leaf_t *in;
 	dqleaf_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1152,7 +1158,7 @@ Mod_Load2QBSP_IBSP_LEAFFACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	short *in;
+	const short *in;
 	int *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1174,7 +1180,8 @@ Mod_Load2QBSP_QBSP_LEAFFACES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	int *in, *out;
+	const int *in;
+	int *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
 	in = (int *)(inbuf + lumps[inlumppos].fileofs);
@@ -1195,7 +1202,7 @@ Mod_Load2QBSP_IBSP_LEAFBRUSHES(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	short *in;
+	const short *in;
 	int *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1216,7 +1223,7 @@ Mod_Load2QBSP_IBSP_EDGES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dedge_t *in;
+	const dedge_t *in;
 	dqedge_t *out;
 	size_t i, count;
 
@@ -1239,7 +1246,8 @@ Mod_Load2QBSP_QBSP_EDGES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dqedge_t *in, *out;
+	const dqedge_t *in;
+	dqedge_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1261,7 +1269,7 @@ Mod_Load2QBSP_IBSP46_VERTEXES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	q3drawvert_t *in;
+	const q3drawvert_t *in;
 	size_t i, count;
 	dvertex_t *out;
 
@@ -1288,7 +1296,8 @@ Mod_Load2QBSP_IBSP_MODELS(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dmodel_t *in, *out;
+	const dmodel_t *in;
+	dmodel_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1321,7 +1330,7 @@ Mod_Load2QBSP_IBSP29_MODELS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dq1model_t *in;
+	const dq1model_t *in;
 	dmodel_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1354,7 +1363,7 @@ Mod_Load2QBSP_IBSP29_H2MODELS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dh2model_t *in;
+	const dh2model_t *in;
 	dmodel_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1387,7 +1396,7 @@ Mod_Load2QBSP_IBSP46_MODELS(byte *outbuf, dheader_t *outheader,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
 	size_t i, count;
-	dq3model_t *in;
+	const dq3model_t *in;
 	dmodel_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1419,7 +1428,8 @@ Mod_Load2QBSP_IBSP_BRUSHES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dbrush_t *in, *out;
+	const dbrush_t *in;
+	dbrush_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1442,8 +1452,8 @@ Mod_Load2QBSP_IBSP46_BRUSHES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dshader_t *in_shader;
-	dq3brush_t *in;
+	const dshader_t *in_shader;
+	const dq3brush_t *in;
 	dbrush_t *out;
 	int count_shader;
 	size_t i, count;
@@ -1485,7 +1495,7 @@ Mod_Load2QBSP_IBSP_BRUSHSIDES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dbrushside_t *in;
+	const dbrushside_t *in;
 	dqbrushside_t *out;
 	size_t i, count;
 
@@ -1508,7 +1518,7 @@ Mod_Load2QBSP_RBSP_BRUSHSIDES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	drbrushside_t *in;
+	const drbrushside_t *in;
 	dqbrushside_t *out;
 	size_t i, count;
 
@@ -1531,7 +1541,8 @@ Mod_Load2QBSP_QBSP_BRUSHSIDES(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	dqbrushside_t *in, *out;
+	const dqbrushside_t *in;
+	dqbrushside_t *out;
 	size_t i, count;
 
 	count = lumps[inlumppos].filelen / rule_size;
@@ -1553,8 +1564,9 @@ Mod_Load2QBSP_IBSP_AREAS(byte *outbuf, dheader_t *outheader,
 	const byte *inbuf, const lump_t *lumps, size_t rule_size,
 	maptype_t maptype, int outlumppos, int inlumppos)
 {
-	darea_t *in, *out;
+	const darea_t *in;
 	size_t i, count;
+	darea_t *out;
 
 	count = lumps[inlumppos].filelen / rule_size;
 	in = (darea_t *)(inbuf + lumps[inlumppos].fileofs);
@@ -1968,7 +1980,7 @@ Mod_HasBSPXHeader(const byte *inbuf, const lump_t *lumps, int numlumps, int file
 
 	if (xofs + sizeof(bspx_header_t) < filesize)
 	{
-		bspx_header_t* xheader;
+		const bspx_header_t* xheader;
 
 		xheader = (bspx_header_t*)(inbuf + xofs);
 		if (LittleLong(xheader->ident) == BSPXHEADER)
@@ -1984,7 +1996,7 @@ static int
 Mod_Load2QBSP_IBSP_TEXINFO_Flags(const byte *inbuf, const lump_t *lumps,
 	size_t rule_size, int inlumppos)
 {
-	texinfo_t *in;
+	const texinfo_t *in;
 	size_t i, count;
 	int inflags;
 
@@ -2317,7 +2329,7 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 
 	if (xofs + sizeof(bspx_header_t) < filesize)
 	{
-		bspx_header_t* xheader;
+		const bspx_header_t* xheader;
 
 		xheader = (bspx_header_t*)(inbuf + xofs);
 		if (LittleLong(xheader->ident) == BSPXHEADER)
@@ -2382,7 +2394,7 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 	{
 		bspx_header_t *bspx_header;
 		bspx_lump_t *lump;
-		int numlumps, i;
+		int numbspxlumps, i;
 
 		ofs = ((ofs + 3) & ~3);
 		bspx_header = (bspx_header_t *)(outbuf + ofs);
@@ -2391,8 +2403,8 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 		memcpy(bspx_header, inbuf + xofs, (filesize - xofs));
 
 		/* fix positions */
-		numlumps = LittleLong(bspx_header->numlumps);
-		if ((numlumps * sizeof(*lump)) >= (filesize - xofs))
+		numbspxlumps = LittleLong(bspx_header->numlumps);
+		if ((numbspxlumps * sizeof(*lump)) >= (filesize - xofs))
 		{
 			Com_Error(ERR_DROP, "%s: Map %s has incorrect bspx lumps",
 				__func__, name);
@@ -2400,7 +2412,7 @@ Mod_Load2QBSP(const char *name, byte *inbuf, size_t filesize, size_t *out_len,
 		}
 
 		lump = (bspx_lump_t*)(bspx_header + 1);
-		for (i = 0; i < numlumps; i++, lump++)
+		for (i = 0; i < numbspxlumps; i++, lump++)
 		{
 			size_t fileofs;
 

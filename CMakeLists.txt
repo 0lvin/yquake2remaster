@@ -479,12 +479,13 @@ set(Game-Header
 	${GAME_SRC_DIR}/monster/supertank/supertank.h
 	${GAME_SRC_DIR}/monster/tank/tank.h
 	${GAME_SRC_DIR}/savegame/tables/clientfields.h
-	${GAME_SRC_DIR}/savegame/tables/fields.h
+	${GAME_SRC_DIR}/savegame/tables/entfields.h
 	${GAME_SRC_DIR}/savegame/tables/gamefunc_decs.h
 	${GAME_SRC_DIR}/savegame/tables/gamefunc_list.h
 	${GAME_SRC_DIR}/savegame/tables/gamemmove_decs.h
 	${GAME_SRC_DIR}/savegame/tables/gamemmove_list.h
 	${GAME_SRC_DIR}/savegame/tables/levelfields.h
+	${GAME_SRC_DIR}/savegame/tables/stfields.h
 	)
 
 set(Client-Source
@@ -698,13 +699,14 @@ set(GL1-Source
 	${REF_SRC_DIR}/gl1/gl1_mesh.c
 	${REF_SRC_DIR}/gl1/gl1_misc.c
 	${REF_SRC_DIR}/gl1/gl1_model.c
-	${REF_SRC_DIR}/gl1/gl1_scrap.c
 	${REF_SRC_DIR}/gl1/gl1_surf.c
 	${REF_SRC_DIR}/gl1/gl1_warp.c
 	${REF_SRC_DIR}/gl1/gl1_sdl.c
 	${REF_SRC_DIR}/gl1/gl1_buffer.c
+	${REF_SRC_DIR}/files/scrap.c
 	${REF_SRC_DIR}/files/common.c
 	${REF_SRC_DIR}/files/light.c
+	${REF_SRC_DIR}/files/lightmap.c
 	${REF_SRC_DIR}/files/maps.c
 	${REF_SRC_DIR}/files/mesh.c
 	${REF_SRC_DIR}/files/models.c
@@ -724,10 +726,10 @@ set(GL1-Header
 	${REF_SRC_DIR}/ref_shared.h
 	${REF_SRC_DIR}/constants/anormtab.h
 	${REF_SRC_DIR}/constants/warpsin.h
+	${REF_SRC_DIR}/files/lightmap.h
 	${REF_SRC_DIR}/files/stb_image.h
 	${REF_SRC_DIR}/files/surf.c
 	${REF_SRC_DIR}/gl1/header/local.h
-	${REF_SRC_DIR}/gl1/header/model.h
 	${REF_SRC_DIR}/gl1/header/qgl.h
 	${COMMON_SRC_DIR}/header/shared.h
 	)
@@ -757,6 +759,7 @@ set(GL3-Source
 	${REF_SRC_DIR}/files/mesh.c
 	${REF_SRC_DIR}/files/models.c
 	${REF_SRC_DIR}/files/stb.c
+	${REF_SRC_DIR}/files/scrap.c
 	${REF_SRC_DIR}/files/surf.c
 	${REF_SRC_DIR}/files/wal.c
 	${REF_SRC_DIR}/files/warp.c
@@ -777,7 +780,6 @@ set(GL3-Header
 	${REF_SRC_DIR}/files/DG_dynarr.h
 	${REF_SRC_DIR}/files/HandmadeMath.h
 	${REF_SRC_DIR}/gl3/header/local.h
-	${REF_SRC_DIR}/gl3/header/model.h
 	${COMMON_SRC_DIR}/header/shared.h
 	)
 
@@ -810,6 +812,7 @@ set(GL4-Source
 	${REF_SRC_DIR}/files/maps.c
 	${REF_SRC_DIR}/files/mesh.c
 	${REF_SRC_DIR}/files/models.c
+	${REF_SRC_DIR}/files/scrap.c
 	${REF_SRC_DIR}/files/stb.c
 	${REF_SRC_DIR}/files/surf.c
 	${REF_SRC_DIR}/files/wal.c
@@ -830,7 +833,6 @@ set(GL4-Header
 	${REF_SRC_DIR}/files/DG_dynarr.h
 	${REF_SRC_DIR}/files/HandmadeMath.h
 	${REF_SRC_DIR}/gl4/header/local.h
-	${REF_SRC_DIR}/gl4/header/model.h
 	${COMMON_SRC_DIR}/header/shared.h
 	)
 
@@ -878,7 +880,6 @@ set(SOFT-Header
 	${REF_SRC_DIR}/files/stb_image.h
 	${REF_SRC_DIR}/files/stb_image_resize.h
 	${REF_SRC_DIR}/soft/header/local.h
-	${REF_SRC_DIR}/soft/header/model.h
 	${COMMON_SRC_DIR}/header/shared.h
 	)
 
@@ -905,9 +906,11 @@ set(VK-Source
 	${REF_SRC_DIR}/vk/volk/volk.c
 	${REF_SRC_DIR}/files/common.c
 	${REF_SRC_DIR}/files/light.c
+	${REF_SRC_DIR}/files/lightmap.c
 	${REF_SRC_DIR}/files/maps.c
 	${REF_SRC_DIR}/files/mesh.c
 	${REF_SRC_DIR}/files/models.c
+	${REF_SRC_DIR}/files/scrap.c
 	${REF_SRC_DIR}/files/stb.c
 	${REF_SRC_DIR}/files/surf.c
 	${REF_SRC_DIR}/files/wal.c
@@ -920,10 +923,10 @@ set(VK-Source
 
 set(VK-Header
 	${REF_SRC_DIR}/ref_shared.h
+	${REF_SRC_DIR}/files/lightmap.h
 	${REF_SRC_DIR}/files/stb_image.h
 	${REF_SRC_DIR}/files/stb_image_resize.h
 	${REF_SRC_DIR}/vk/header/local.h
-	${REF_SRC_DIR}/vk/header/model.h
 	${REF_SRC_DIR}/vk/header/qvk.h
 	${REF_SRC_DIR}/vk/header/shaders.h
 	${REF_SRC_DIR}/vk/header/util.h

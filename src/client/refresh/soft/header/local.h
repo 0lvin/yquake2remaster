@@ -69,7 +69,7 @@ typedef struct image_s
 
 //===================================================================
 
-typedef unsigned char pixel_t;
+typedef byte pixel_t;
 typedef int	shift20_t;
 typedef int	zvalue_t;
 typedef unsigned int	light_t;
@@ -117,8 +117,6 @@ typedef struct
 
 extern oldrefdef_t	r_refdef;
 
-#include "model.h"
-
 /*
 ====================================================
 
@@ -152,9 +150,6 @@ extern oldrefdef_t	r_refdef;
 #define ALIAS_BOTTOM_CLIP	0x0008
 #define ALIAS_Z_CLIP		0x0010
 #define ALIAS_XY_CLIP_MASK	0x000F
-
-#define BMODEL_FULLY_CLIPPED	0x10 // value returned by R_BmodelCheckBBox ()
-				     //  if bbox is trivially rejected
 
 #define XCENTERING	(1.0 / 2.0)
 #define YCENTERING	(1.0 / 2.0)
@@ -330,8 +325,8 @@ extern float	d_sdivzstepu, d_tdivzstepu;
 extern float	d_sdivzstepv, d_tdivzstepv;
 extern float	d_sdivzorigin, d_tdivzorigin;
 
-void D_DrawSpansPow2(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
-void D_DrawZSpans(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
+void D_DrawSpansPow2(const espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
+void D_DrawZSpans(const espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
 void TurbulentPow2(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
 void NonTurbulentPow2(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv);
 
@@ -418,8 +413,6 @@ extern vec3_t  r_origin;
 extern vec3_t	modelorg;
 extern vec3_t	r_entorigin;
 
-extern  int	r_visframecount;
-
 extern msurface_t	*r_alpha_surfaces;
 
 //=============================================================================
@@ -471,9 +464,12 @@ typedef struct {
 
 extern spanpackage_t	*triangle_spans, *triangles_max;
 
-void R_PolysetDrawSpans8_33(const entity_t *currententity, spanpackage_t *pspanpackage);
-void R_PolysetDrawSpans8_66(const entity_t *currententity, spanpackage_t *pspanpackage);
-void R_PolysetDrawSpans8_Opaque(const entity_t *currententity, spanpackage_t *pspanpackage);
+void R_PolysetDrawSpans8_33(const entity_t *currententity, const spanpackage_t *pspanpackage);
+void R_PolysetDrawSpans8_66(const entity_t *currententity, const spanpackage_t *pspanpackage);
+void R_PolysetDrawSpans8_Opaque(const entity_t *currententity, const spanpackage_t *pspanpackage);
+extern void (*d_pdrawspans)(const entity_t *currententity, const spanpackage_t *pspanpackage);
+void R_PolysetDrawSpansConstant8_33(const entity_t *currententity, const spanpackage_t *pspanpackage);
+void R_PolysetDrawSpansConstant8_66(const entity_t *currententity, const spanpackage_t *pspanpackage);
 
 extern byte	**warp_rowptr;
 extern int	*warp_column;
@@ -504,7 +500,6 @@ extern float	r_time1;
 extern float	da_time1, da_time2;
 extern float	dp_time1, dp_time2, db_time1, db_time2, rw_time1, rw_time2;
 extern float	se_time1, se_time2, de_time1, de_time2;
-extern int r_viewcluster, r_oldviewcluster;
 
 extern int r_clipflags;
 
@@ -536,7 +531,9 @@ struct image_s	*RE_Draw_FindPic (const char *name);
 
 void	RE_Draw_GetPicSize (int *w, int *h, const char *name);
 void	RE_Draw_PicScaled (int x, int y, const char *name, float scale, const char *alttext);
-void	RE_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *message);
+void	RE_Draw_PicScaledCol (int x, int y, const char *name, float scale, const vec3_t color,
+	const char *alttext);
+void	RE_Draw_StringScaled (int x, int y, float scale, qboolean alt, const char *message);
 void	RE_Draw_StretchPic (int x, int y, int w, int h, const char *name);
 void	RE_Draw_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int bits);
 void	RE_Draw_CharScaled (int x, int y, int c, float scale);
@@ -545,6 +542,7 @@ void	RE_Draw_Fill (int x, int y, int w, int h, int c);
 void	RE_Draw_FadeScreen (void);
 
 extern byte d_8to24table[256 * 4];
+extern byte *d_16to8table;
 void	R_InitImages(void);
 void	R_ShutdownImages(void);
 image_t	*R_FindImage(const char *name, imagetype_t type);
@@ -554,7 +552,7 @@ byte	*Get_BestImageSize(const image_t *image, int *req_width, int *req_height);
 void	R_FreeUnusedImages(void);
 qboolean	R_ImageHasFreeSpace(void);
 pixel_t	R_ApplyLight(pixel_t pix, const light3_t light);
-void	R_Convert32To8bit(const unsigned char* pic_in, pixel_t* pic_out, size_t size, qboolean transparent);
+void	R_Convert32To8bit(const byte* pic_in, pixel_t* pic_out, size_t size, qboolean transparent);
 int	R_ConvertRGBColor(unsigned color);
 
 void R_InitSkyBox(model_t *loadmodel);
@@ -576,5 +574,14 @@ IMPORTED FUNCTIONS
 ====================================================================
 */
 extern refimport_t	ri;
+
+//============================================================================
+
+void Mod_Init(void);
+
+void Mod_Modellist_f(void);
+void Mod_FreeAll(void);
+
+extern int registration_sequence;
 
 #endif

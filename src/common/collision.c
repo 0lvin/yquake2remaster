@@ -132,6 +132,10 @@ static byte *pvsrow = NULL;
 static byte *phsrow = NULL;
 static byte *ptsrow = NULL;
 static size_t pxsrow_len = 0;
+// -2: nothing is cached
+#define CLUSTER_NOT_CACHED -2
+static int cached_pvs_cluster = CLUSTER_NOT_CACHED;
+static int cached_phs_cluster = CLUSTER_NOT_CACHED;
 static cbrush_t *box_brush;
 static cleaf_t *box_leaf;
 static cplane_t *box_planes = NULL;
@@ -470,7 +474,7 @@ CM_HeadnodeForBox(vec3_t mins, vec3_t maxs)
 }
 
 static int
-CM_PointLeafnum_r(vec3_t p, int num)
+CM_PointLeafnum_r(const vec3_t p, int num)
 {
 	float d;
 	cnode_t *node;
@@ -515,7 +519,7 @@ CM_PointLeafnum_r(vec3_t p, int num)
 }
 
 int
-CM_PointLeafnum(vec3_t p)
+CM_PointLeafnum(const vec3_t p)
 {
 	if (!cmod->numplanes || !cmod->numnodes || !cmod->map_nodes)
 	{
@@ -613,7 +617,7 @@ CM_BoxLeafnums(vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode)
 }
 
 int
-CM_PointContents(vec3_t p, int headnode)
+CM_PointContents(const vec3_t p, int headnode)
 {
 	int l;
 
@@ -632,7 +636,7 @@ CM_PointContents(vec3_t p, int headnode)
  * rotating entities
  */
 int
-CM_TransformedPointContents(vec3_t p, int headnode,
+CM_TransformedPointContents(const vec3_t p, int headnode,
 		vec3_t origin, vec3_t angles)
 {
 	vec3_t p_l;
@@ -1413,7 +1417,6 @@ CMod_LoadNodes(const char *name, cnode_t **map_nodes, int *numnodes,
 	cplane_t *map_planes, const byte *cmod_base, const lump_t *l)
 {
 	dqnode_t *in;
-	int child;
 	cnode_t *out;
 	int i, j, count;
 
@@ -1444,6 +1447,8 @@ CMod_LoadNodes(const char *name, cnode_t **map_nodes, int *numnodes,
 
 		for (j = 0; j < 2; j++)
 		{
+			int child;
+
 			child = in->children[j];
 			out->children[j] = child;
 		}
@@ -1556,7 +1561,8 @@ static void
 CMod_LoadLeafBrushes(const char *name, unsigned int **map_leafbrushes,
 	int *numleafbrushes, const byte *cmod_base, const lump_t *l)
 {
-	unsigned int *out, *in;
+	const unsigned int *in;
+	unsigned int *out;
 	int count;
 
 	in = (void *)(cmod_base + l->fileofs);
@@ -1618,7 +1624,7 @@ CMod_LoadBrushSides(const char *name, cbrushside_t **map_brushsides, int *numbru
 		num = in->planenum;
 		j = in->texinfo;
 
-		if (j >= numtexinf || num > numplanes)
+		if (j >= numtexinf || num < 0 || num >= numplanes)
 		{
 			Com_Error(ERR_DROP, "%s: Bad brushside texinfo", __func__);
 			return;
@@ -1828,10 +1834,12 @@ CM_ModFreeAll(void)
 	if (ptsrow)
 	{
 		free(ptsrow);
-		phsrow = NULL;
+		ptsrow = NULL;
 	}
 
 	pxsrow_len = 0;
+	cached_pvs_cluster = CLUSTER_NOT_CACHED;
+	cached_phs_cluster = CLUSTER_NOT_CACHED;
 
 	Com_Printf("Server models free up\n");
 }
@@ -1979,6 +1987,9 @@ CM_LoadCachedMap(const char *name, model_t *mod)
 		}
 
 		ptsrow = tmp;
+
+		cached_pvs_cluster = CLUSTER_NOT_CACHED;
+		cached_phs_cluster = CLUSTER_NOT_CACHED;
 
 		Com_Printf("Allocated " YQ2_COM_PRIdS " bit leafs of PVS/PHS buffer\n",
 			pxsrow_len);
@@ -2238,15 +2249,29 @@ CM_Cluster(int cluster, int type, byte *buffer, size_t size)
 const byte *
 CM_ClusterPVS(int cluster, size_t *size)
 {
+	const byte *result;
 	*size = pxsrow_len / 8;
-	return CM_Cluster(cluster, DVIS_PVS, pvsrow, *size);
+	if (cluster == cached_pvs_cluster)
+	{
+		return pvsrow;
+	}
+	result = CM_Cluster(cluster, DVIS_PVS, pvsrow, *size);
+	cached_pvs_cluster = cluster;
+	return result;
 }
 
 const byte *
 CM_ClusterPHS(int cluster, size_t *size)
 {
+	const byte *result;
 	*size = pxsrow_len / 8;
-	return CM_Cluster(cluster, DVIS_PHS, phsrow, *size);
+	if (cluster == cached_phs_cluster)
+	{
+		return phsrow;
+	}
+	result = CM_Cluster(cluster, DVIS_PHS, phsrow, *size);
+	cached_phs_cluster = cluster;
+	return result;
 }
 
 byte *

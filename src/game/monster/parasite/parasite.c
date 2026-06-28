@@ -59,14 +59,13 @@ mmove_t parasite_move_death = {0};
 
 void parasite_stand(edict_t *self);
 void parasite_start_run(edict_t *self);
-void parasite_run(edict_t *self);
-void parasite_walk(edict_t *self);
+static void parasite_run(edict_t *self);
+static void parasite_walk(edict_t *self);
 void parasite_start_walk(edict_t *self);
-void parasite_end_fidget(edict_t *self);
-void parasite_do_fidget(edict_t *self);
-void parasite_refidget(edict_t *self);
+static void parasite_do_fidget(edict_t *self);
+static void parasite_refidget(edict_t *self);
 
-void
+static void
 parasite_launch(edict_t *self)
 {
 	if (!self)
@@ -77,7 +76,7 @@ parasite_launch(edict_t *self)
 	gi.sound(self, CHAN_WEAPON, sound_launch, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 parasite_reel_in(edict_t *self)
 {
 	if (!self)
@@ -99,7 +98,7 @@ parasite_sight(edict_t *self, edict_t *other /* unused */)
 	gi.sound(self, CHAN_WEAPON, sound_sight, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 parasite_tap(edict_t *self)
 {
 	if (!self)
@@ -119,7 +118,7 @@ parasite_footstep(edict_t *self)
 	}
 }
 
-void
+static void
 parasite_scratch(edict_t *self)
 {
 	if (!self)
@@ -138,7 +137,7 @@ parasite_search(edict_t *self)
 		return;
 	}
 
-	gi.sound(self, CHAN_WEAPON, sound_search, 1, ATTN_IDLE, 0);
+	gi.sound(self, CHAN_VOICE, sound_search, 1, ATTN_NORM, 0);
 }
 
 static mframe_t parasite_frames_start_fidget[] = {
@@ -148,8 +147,7 @@ static mframe_t parasite_frames_start_fidget[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t parasite_move_start_fidget_static =
-{
+static const mmove_t parasite_move_start_fidget_static = {
 	FRAME_stand18,
 	FRAME_stand21,
 	parasite_frames_start_fidget,
@@ -165,8 +163,7 @@ static mframe_t parasite_frames_fidget[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t parasite_move_fidget_static =
-{
+static const mmove_t parasite_move_fidget_static = {
 	FRAME_stand22,
 	FRAME_stand27,
 	parasite_frames_fidget,
@@ -184,26 +181,14 @@ static mframe_t parasite_frames_end_fidget[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t parasite_move_end_fidget_static  =
-{
+static const mmove_t parasite_move_end_fidget_static  = {
 	FRAME_stand28,
 	FRAME_stand35,
 	parasite_frames_end_fidget,
 	parasite_stand
 };
 
-void
-parasite_end_fidget(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.currentmove = &parasite_move_end_fidget;
-}
-
-void
+static void
 parasite_do_fidget(edict_t *self)
 {
 	if (!self)
@@ -214,7 +199,7 @@ parasite_do_fidget(edict_t *self)
 	self->monsterinfo.currentmove = &parasite_move_fidget;
 }
 
-void
+static void
 parasite_refidget(edict_t *self)
 {
 	if (!self)
@@ -263,8 +248,7 @@ static mframe_t parasite_frames_stand[] = {
 	{ai_stand, 0, parasite_tap}
 };
 
-static const mmove_t parasite_move_stand_static =
-{
+static const mmove_t parasite_move_stand_static = {
 	FRAME_stand01,
 	FRAME_stand17,
 	parasite_frames_stand,
@@ -292,8 +276,7 @@ static mframe_t parasite_frames_run[] = {
 	{ai_run, 25, NULL}
 };
 
-static const mmove_t parasite_move_run_static =
-{
+static const mmove_t parasite_move_run_static = {
 	FRAME_run03,
 	FRAME_run09,
 	parasite_frames_run,
@@ -305,8 +288,7 @@ static mframe_t parasite_frames_start_run[] = {
 	{ai_run, 30, NULL},
 };
 
-static const mmove_t parasite_move_start_run_static =
-{
+static const mmove_t parasite_move_start_run_static = {
 	FRAME_run01,
 	FRAME_run02,
 	parasite_frames_start_run,
@@ -322,8 +304,7 @@ static mframe_t parasite_frames_stop_run[] = {
 	{ai_run, 0, NULL}
 };
 
-static const mmove_t parasite_move_stop_run_static =
-{
+static const mmove_t parasite_move_stop_run_static = {
 	FRAME_run10,
 	FRAME_run15,
 	parasite_frames_stop_run,
@@ -348,7 +329,7 @@ parasite_start_run(edict_t *self)
 	}
 }
 
-void
+static void
 parasite_run(edict_t *self)
 {
 	if (!self)
@@ -376,8 +357,7 @@ static mframe_t parasite_frames_walk[] = {
 	{ai_walk, 25, NULL}
 };
 
-static const mmove_t parasite_move_walk_static =
-{
+static const mmove_t parasite_move_walk_static = {
 	FRAME_run03,
 	FRAME_run09,
 	parasite_frames_walk,
@@ -389,8 +369,7 @@ static mframe_t parasite_frames_start_walk[] = {
 	{ai_walk, 30, parasite_walk}
 };
 
-static const mmove_t parasite_move_start_walk_static =
-{
+static const mmove_t parasite_move_start_walk_static = {
 	FRAME_run01,
 	FRAME_run02,
 	parasite_frames_start_walk,
@@ -406,8 +385,7 @@ static mframe_t parasite_frames_stop_walk[] = {
 	{ai_walk, 0, NULL}
 };
 
-static const mmove_t parasite_move_stop_walk_static =
-{
+static const mmove_t parasite_move_stop_walk_static = {
 	FRAME_run10,
 	FRAME_run15,
 	parasite_frames_stop_walk,
@@ -425,7 +403,7 @@ parasite_start_walk(edict_t *self)
 	self->monsterinfo.currentmove = &parasite_move_start_walk;
 }
 
-void
+static void
 parasite_walk(edict_t *self)
 {
 	if (!self)
@@ -450,8 +428,7 @@ static mframe_t parasite_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t parasite_move_pain1_static =
-{
+static const mmove_t parasite_move_pain1_static = {
 	FRAME_pain101,
 	FRAME_pain111,
 	parasite_frames_pain1,
@@ -525,7 +502,7 @@ parasite_drain_attack_ok(vec3_t start, vec3_t end)
 	return true;
 }
 
-void
+static void
 parasite_drain_attack(edict_t *self)
 {
 	vec3_t offset, start, origStart, f, r, end, dir;
@@ -539,7 +516,7 @@ parasite_drain_attack(edict_t *self)
 
 	AngleVectors(self->s.angles, f, r, NULL);
 	VectorSet(offset, 24, 0, 6);
-	G_ProjectSource(self->s.origin, offset, f, r, start);
+	M_ProjectFlashSource(self, offset, f, r, start);
 
 	VectorCopy(self->enemy->s.origin, end);
 	VectorSubtract(end, start, dir);
@@ -627,8 +604,7 @@ static mframe_t parasite_frames_drain[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t parasite_move_drain_static =
-{
+static const mmove_t parasite_move_drain_static = {
 	FRAME_drain01,
 	FRAME_drain18,
 	parasite_frames_drain,
@@ -670,8 +646,7 @@ static mframe_t parasite_frames_break[] = {
 	{ai_charge, 1, NULL}
 };
 
-static const mmove_t parasite_move_break_static =
-{
+static const mmove_t parasite_move_break_static = {
 	FRAME_break01,
 	FRAME_break32,
 	parasite_frames_break,
@@ -689,7 +664,7 @@ parasite_attack(edict_t *self)
 	self->monsterinfo.currentmove = &parasite_move_drain;
 }
 
-void
+static void
 parasite_jump_down(edict_t *self)
 {
 	vec3_t forward, up;
@@ -706,7 +681,7 @@ parasite_jump_down(edict_t *self)
 	VectorMA(self->velocity, 300, up, self->velocity);
 }
 
-void
+static void
 parasite_jump_up(edict_t *self)
 {
 	vec3_t forward, up;
@@ -723,7 +698,7 @@ parasite_jump_up(edict_t *self)
 	VectorMA(self->velocity, 450, up, self->velocity);
 }
 
-void
+static void
 parasite_jump_wait_land(edict_t *self)
 {
 	if (!self)
@@ -757,8 +732,7 @@ static mframe_t parasite_frames_jump_up[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t parasite_move_jump_up_static =
-{
+static const mmove_t parasite_move_jump_up_static = {
 	FRAME_jump01,
 	FRAME_jump08,
 	parasite_frames_jump_up,
@@ -776,15 +750,14 @@ static mframe_t parasite_frames_jump_down[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t parasite_move_jump_down_static =
-{
+static const mmove_t parasite_move_jump_down_static = {
 	FRAME_jump01,
 	FRAME_jump08,
 	parasite_frames_jump_down,
 	parasite_run
 };
 
-void
+static void
 parasite_jump(edict_t *self)
 {
 	if (!self)
@@ -821,7 +794,7 @@ parasite_blocked(edict_t *self, float dist)
 
 		AngleVectors(self->s.angles, f, r, NULL);
 		VectorSet(offset, 24, 0, 6);
-		G_ProjectSource(self->s.origin, offset, f, r, start);
+		M_ProjectFlashSource(self, offset, f, r, start);
 
 		VectorCopy(self->enemy->s.origin, end);
 
@@ -884,7 +857,7 @@ parasite_checkattack(edict_t *self)
 
 	AngleVectors(self->s.angles, f, r, NULL);
 	VectorSet(offset, 24, 0, 6);
-	G_ProjectSource(self->s.origin, offset, f, r, start);
+	M_ProjectFlashSource(self, offset, f, r, start);
 
 	VectorCopy(self->enemy->s.origin, end);
 
@@ -923,7 +896,7 @@ parasite_checkattack(edict_t *self)
 	return true;
 }
 
-void
+static void
 parasite_dead(edict_t *self)
 {
 	if (!self)
@@ -933,6 +906,7 @@ parasite_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -946,8 +920,7 @@ static mframe_t parasite_frames_death[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t parasite_move_death_static =
-{
+static const mmove_t parasite_move_death_static = {
 	FRAME_death101,
 	FRAME_death107,
 	parasite_frames_death,
@@ -957,10 +930,8 @@ static const mmove_t parasite_move_death_static =
 void
 parasite_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -969,6 +940,8 @@ parasite_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)
@@ -1070,6 +1043,7 @@ SP_monster_parasite(edict_t *self)
 	self->monsterinfo.attack = parasite_attack;
 	self->monsterinfo.sight = parasite_sight;
 	self->monsterinfo.idle = parasite_idle;
+	self->monsterinfo.search = parasite_search;
 	self->monsterinfo.blocked = parasite_blocked;
 	self->monsterinfo.checkattack = parasite_checkattack;
 

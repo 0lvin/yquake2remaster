@@ -36,13 +36,12 @@ static int sound_search1;
 static int sound_search2;
 static int tread_sound;
 
-void BossExplode2(edict_t *self);
-void boss5_dead(edict_t *self);
-void boss5Rocket(edict_t *self);
-void boss5MachineGun(edict_t *self);
-void boss5_reattack1(edict_t *self);
+static void boss5_dead(edict_t *self);
+static void boss5Rocket(edict_t *self);
+static void boss5MachineGun(edict_t *self);
+static void boss5_reattack1(edict_t *self);
 
-void
+static void
 TreadSound2(edict_t *self)
 {
 	if (!self)
@@ -209,17 +208,6 @@ mmove_t boss5_move_forward = {
 	boss5_frames_forward,
 	NULL
 };
-
-void
-boss5_forward(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.currentmove = &boss5_move_forward;
-}
 
 void
 boss5_walk(edict_t *self)
@@ -540,7 +528,7 @@ mmove_t boss5_move_end_attack1 = {
 	boss5_run
 };
 
-void
+static void
 boss5_reattack1(edict_t *self)
 {
 	if (!self)
@@ -622,7 +610,7 @@ boss5_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 boss5Rocket(edict_t *self)
 {
 	vec3_t forward, right;
@@ -650,7 +638,7 @@ boss5Rocket(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_number],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_number],
 			forward, right, start);
 
 	VectorCopy(self->enemy->s.origin, vec);
@@ -661,7 +649,7 @@ boss5Rocket(edict_t *self)
 	monster_fire_rocket(self, start, dir, 50, 500, flash_number);
 }
 
-void
+static void
 boss5MachineGun(edict_t *self)
 {
 	vec3_t dir;
@@ -682,7 +670,7 @@ boss5MachineGun(edict_t *self)
 	dir[2] = 0;
 
 	AngleVectors(dir, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_number],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_number],
 			forward, right, start);
 
 	if (self->enemy)
@@ -733,7 +721,7 @@ boss5_attack(edict_t *self)
 
 /* death */
 
-void
+static void
 boss5_dead(edict_t *self)
 {
 	if (!self)
@@ -743,6 +731,7 @@ boss5_dead(edict_t *self)
 
 	VectorSet(self->mins, -60, -60, 0);
 	VectorSet(self->maxs, 60, 60, 72);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -759,7 +748,7 @@ BossExplode2(edict_t *self)
 
 	self->think = BossExplode2;
 	VectorCopy(self->s.origin, org);
-	org[2] += 24 + (rand() & 15);
+	org[2] += 24 + (randk() & 15);
 
 	switch (self->count++)
 	{
@@ -826,7 +815,7 @@ BossExplode2(edict_t *self)
 void
 boss5_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage /* unused */,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
 	if (!self)
 	{

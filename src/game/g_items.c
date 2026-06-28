@@ -48,7 +48,7 @@ static int quad_fire_drop_timeout_hack;
 gitem_t *
 GetItemByIndex(int index)
 {
-	if ((index == 0) || (index >= game.num_items))
+	if ((index <= 0) || (index >= itemlist_len))
 	{
 		return NULL;
 	}
@@ -56,8 +56,24 @@ GetItemByIndex(int index)
 	return &itemlist[index];
 }
 
+int
+GetWeaponAmmoIndex(const gitem_t *weap)
+{
+	if (weap && weap->ammo)
+	{
+		const gitem_t *ammo = FindItem(weap->ammo);
+
+		if (ammo)
+		{
+			return ITEM_INDEX(ammo);
+		}
+	}
+
+	return 0;
+}
+
 static gitem_t *
-FindItemInList(const char *classname, gitem_t *list, int count)
+FindItemInList(const char *classname, gitem_t *list, size_t count)
 {
 	int i;
 	gitem_t *it;
@@ -88,7 +104,7 @@ FindItemInList(const char *classname, gitem_t *list, int count)
 gitem_t *
 FindItemByClassname(const char *classname)
 {
-	return FindItemInList(classname, itemlist, game.num_items);
+	return FindItemInList(classname, itemlist, itemlist_len);
 }
 
 gitem_t *
@@ -104,7 +120,7 @@ FindItem(const char *pickup_name)
 
 	it = itemlist;
 
-	for (i = 0; i < game.num_items; i++, it++)
+	for (i = 0; i < itemlist_len; i++, it++)
 	{
 		if (!it->pickup_name)
 		{
@@ -256,7 +272,7 @@ Pickup_Powerup(edict_t *ent, edict_t *other)
 	return true;
 }
 
-qboolean
+static qboolean
 Pickup_General(edict_t *ent, edict_t *other)
 {
 	if (!ent || !other)
@@ -282,8 +298,8 @@ Pickup_General(edict_t *ent, edict_t *other)
 	return true;
 }
 
-void
-Drop_General(edict_t *ent, gitem_t *item)
+static void
+Drop_General(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -292,7 +308,7 @@ Drop_General(edict_t *ent, gitem_t *item)
 
 	Drop_Item(ent, item);
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 }
 
 /* ====================================================================== */
@@ -344,7 +360,7 @@ Pickup_AncientHead(edict_t *ent, edict_t *other)
 qboolean
 Pickup_Bandolier(edict_t *ent, edict_t *other)
 {
-	gitem_t *item;
+	const gitem_t *item;
 	int index;
 
 	if (!ent || !other)
@@ -431,7 +447,7 @@ Pickup_Bandolier(edict_t *ent, edict_t *other)
 qboolean
 Pickup_Pack(edict_t *ent, edict_t *other)
 {
-	gitem_t *item;
+	const gitem_t *item;
 	int index;
 
 	if (!ent || !other)
@@ -667,8 +683,8 @@ Pickup_Nuke(edict_t *ent, edict_t *other)
 	return true;
 }
 
-void
-Use_IR(edict_t *ent, gitem_t *item)
+static void
+Use_IR(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -676,7 +692,7 @@ Use_IR(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (ent->client->ir_framenum > level.framenum)
 	{
@@ -690,11 +706,11 @@ Use_IR(edict_t *ent, gitem_t *item)
 	gi.sound(ent, CHAN_ITEM, gi.soundindex("misc/ir_start.wav"), 1, ATTN_NORM, 0);
 }
 
-void
-Use_Double(edict_t *ent, gitem_t *item)
+static void
+Use_Double(edict_t *ent, const gitem_t *item)
 {
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (ent->client->double_framenum > level.framenum)
 	{
@@ -708,8 +724,8 @@ Use_Double(edict_t *ent, gitem_t *item)
 	gi.sound(ent, CHAN_ITEM, gi.soundindex("misc/ddamage1.wav"), 1, ATTN_NORM, 0);
 }
 
-void
-Use_Compass(edict_t *ent, gitem_t *item)
+static void
+Use_Compass(edict_t *ent, const gitem_t *item)
 {
 	int ang;
 
@@ -729,8 +745,8 @@ Use_Compass(edict_t *ent, gitem_t *item)
 			ent->s.origin[0], ent->s.origin[1], ent->s.origin[2], ang);
 }
 
-void
-Use_Nuke(edict_t *ent, gitem_t *item)
+static void
+Use_Nuke(edict_t *ent, const gitem_t *item)
 {
 	vec3_t forward, right, start;
 	float speed;
@@ -741,7 +757,7 @@ Use_Nuke(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	AngleVectors(ent->client->v_angle, forward, right, NULL);
 
@@ -750,8 +766,8 @@ Use_Nuke(edict_t *ent, gitem_t *item)
 	fire_nuke(ent, start, forward, speed);
 }
 
-void
-Use_Doppleganger(edict_t *ent, gitem_t *item)
+static void
+Use_Doppleganger(edict_t *ent, const gitem_t *item)
 {
 	vec3_t forward, right;
 	vec3_t createPt, spawnPt;
@@ -779,7 +795,7 @@ Use_Doppleganger(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	SpawnGrow_Spawn(spawnPt, 0);
 	fire_doppleganger(ent, spawnPt, forward);
@@ -853,8 +869,8 @@ Pickup_Sphere(edict_t *ent, edict_t *other)
 	return true;
 }
 
-void
-Use_Defender(edict_t *ent, gitem_t *item)
+static void
+Use_Defender(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item || !ent->client)
 	{
@@ -868,13 +884,13 @@ Use_Defender(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	Defender_Launch(ent);
 }
 
-void
-Use_Hunter(edict_t *ent, gitem_t *item)
+static void
+Use_Hunter(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item || !ent->client)
 	{
@@ -888,13 +904,13 @@ Use_Hunter(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	Hunter_Launch(ent);
 }
 
-void
-Use_Vengeance(edict_t *ent, gitem_t *item)
+static void
+Use_Vengeance(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item || !ent->client)
 	{
@@ -908,7 +924,7 @@ Use_Vengeance(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	Vengeance_Launch(ent);
 }
@@ -916,7 +932,7 @@ Use_Vengeance(edict_t *ent, gitem_t *item)
 /* ====================================================================== */
 
 void
-Use_Quad(edict_t *ent, gitem_t *item)
+Use_Quad(edict_t *ent, const gitem_t *item)
 {
 	int timeout;
 
@@ -926,7 +942,7 @@ Use_Quad(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (quad_drop_timeout_hack)
 	{
@@ -954,7 +970,7 @@ Use_Quad(edict_t *ent, gitem_t *item)
 /* ===================================================================== */
 
 void
-Use_QuadFire(edict_t *ent, gitem_t *item)
+Use_QuadFire(edict_t *ent, const gitem_t *item)
 {
 	int timeout;
 
@@ -964,7 +980,7 @@ Use_QuadFire(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (quad_fire_drop_timeout_hack)
 	{
@@ -990,8 +1006,8 @@ Use_QuadFire(edict_t *ent, gitem_t *item)
 
 /* ====================================================================== */
 
-void
-Use_Breather(edict_t *ent, gitem_t *item)
+static void
+Use_Breather(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item || !ent->client)
 	{
@@ -999,7 +1015,7 @@ Use_Breather(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (ent->client->breather_framenum > level.framenum)
 	{
@@ -1013,8 +1029,8 @@ Use_Breather(edict_t *ent, gitem_t *item)
 
 /* ====================================================================== */
 
-void
-Use_Envirosuit(edict_t *ent, gitem_t *item)
+static void
+Use_Envirosuit(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item || !ent->client)
 	{
@@ -1022,7 +1038,7 @@ Use_Envirosuit(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (ent->client->enviro_framenum > level.framenum)
 	{
@@ -1036,8 +1052,8 @@ Use_Envirosuit(edict_t *ent, gitem_t *item)
 
 /* ====================================================================== */
 
-void
-Use_Invulnerability(edict_t *ent, gitem_t *item)
+static void
+Use_Invulnerability(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -1045,7 +1061,7 @@ Use_Invulnerability(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 
 	if (ent->client->invincible_framenum > level.framenum)
 	{
@@ -1060,8 +1076,8 @@ Use_Invulnerability(edict_t *ent, gitem_t *item)
 					"items/protect.wav"), 1, ATTN_NORM, 0);
 }
 
-void
-Use_Invisibility(edict_t *ent, gitem_t *item)
+static void
+Use_Invisibility(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -1084,8 +1100,8 @@ Use_Invisibility(edict_t *ent, gitem_t *item)
 
 /* ====================================================================== */
 
-void
-Use_Silencer(edict_t *ent, gitem_t *item)
+static void
+Use_Silencer(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -1093,7 +1109,7 @@ Use_Silencer(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[ITEM_INDEX(item)]--;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 	ent->client->silencer_shots += 30;
 }
 
@@ -1141,7 +1157,7 @@ Pickup_Key(edict_t *ent, edict_t *other)
 /* ====================================================================== */
 
 qboolean
-Add_Ammo(edict_t *ent, gitem_t *item, int count)
+Add_Ammo(edict_t *ent, const gitem_t *item, int count)
 {
 	int index;
 	int max;
@@ -1276,8 +1292,8 @@ Pickup_Ammo(edict_t *ent, edict_t *other)
 	return true;
 }
 
-void
-Drop_Ammo(edict_t *ent, gitem_t *item)
+static void
+Drop_Ammo(edict_t *ent, const gitem_t *item)
 {
 	edict_t *dropped;
 	int index;
@@ -1310,7 +1326,7 @@ Drop_Ammo(edict_t *ent, gitem_t *item)
 	}
 
 	ent->client->pers.inventory[index] -= dropped->count;
-	ValidateSelectedItem(ent);
+	ValidateSelectedItem(ent->client);
 }
 
 /* ====================================================================== */
@@ -1323,7 +1339,7 @@ MegaHealth_think(edict_t *self)
 		return;
 	}
 
-	if ((self->owner->health > self->owner->max_health)
+	if (self->owner && (self->owner->health > self->owner->max_health)
 		&& !CTFHasRegeneration(self->owner))
 	{
 		self->nextthink = level.time + 1;
@@ -1400,7 +1416,7 @@ Pickup_Health(edict_t *ent, edict_t *other)
 /* ====================================================================== */
 
 int
-ArmorIndex(edict_t *ent)
+ArmorIndex(const edict_t *ent)
 {
 	if (!ent || !ent->client)
 	{
@@ -1428,12 +1444,8 @@ ArmorIndex(edict_t *ent)
 qboolean
 Pickup_Armor(edict_t *ent, edict_t *other)
 {
+	const gitem_armor_t *oldinfo, *newinfo;
 	int old_armor_index;
-	gitem_armor_t *oldinfo;
-	gitem_armor_t *newinfo;
-	int newcount;
-	float salvage;
-	int salvagecount;
 
 	if (!ent || !other)
 	{
@@ -1480,6 +1492,9 @@ Pickup_Armor(edict_t *ent, edict_t *other)
 
 		if (newinfo->normal_protection > oldinfo->normal_protection)
 		{
+			int salvagecount, newcount;
+			float salvage;
+
 			/* calc new armor values */
 			salvage = oldinfo->normal_protection / newinfo->normal_protection;
 			salvagecount = salvage *
@@ -1499,6 +1514,9 @@ Pickup_Armor(edict_t *ent, edict_t *other)
 		}
 		else
 		{
+			int salvagecount, newcount;
+			float salvage;
+
 			/* calc new armor values */
 			salvage = newinfo->normal_protection / oldinfo->normal_protection;
 			salvagecount = salvage * newinfo->base_count;
@@ -1532,7 +1550,7 @@ Pickup_Armor(edict_t *ent, edict_t *other)
 /* ====================================================================== */
 
 int
-PowerArmorType(edict_t *ent)
+PowerArmorType(const edict_t *ent)
 {
 	if (!ent)
 	{
@@ -1562,11 +1580,9 @@ PowerArmorType(edict_t *ent)
 	return POWER_ARMOR_NONE;
 }
 
-void
-Use_PowerArmor(edict_t *ent, gitem_t *item)
+static void
+Use_PowerArmor(edict_t *ent, const gitem_t *item)
 {
-	int index;
-
 	if (!ent || !item)
 	{
 		return;
@@ -1580,6 +1596,8 @@ Use_PowerArmor(edict_t *ent, gitem_t *item)
 	}
 	else
 	{
+		int index;
+
 		index = ITEM_INDEX(FindItem("cells"));
 
 		if (!ent->client->pers.inventory[index])
@@ -1625,8 +1643,8 @@ Pickup_PowerArmor(edict_t *ent, edict_t *other)
 	return true;
 }
 
-void
-Drop_PowerArmor(edict_t *ent, gitem_t *item)
+static void
+Drop_PowerArmor(edict_t *ent, const gitem_t *item)
 {
 	if (!ent || !item)
 	{
@@ -1645,7 +1663,8 @@ Drop_PowerArmor(edict_t *ent, gitem_t *item)
 /* ====================================================================== */
 
 void
-Touch_Item(edict_t *ent, edict_t *other, cplane_t *plane /* unused */, csurface_t *surf /* unused */)
+Touch_Item(edict_t *ent, edict_t *other, const cplane_t *plane /* unused */,
+	const csurface_t *surf /* unused */)
 {
 	qboolean taken;
 
@@ -1683,7 +1702,7 @@ Touch_Item(edict_t *ent, edict_t *other, cplane_t *plane /* unused */, csurface_
 
 		/* show icon and name on status bar */
 		other->client->ps.stats[STAT_PICKUP_ICON] =
-			gi.imageindex(ent->item->icon);
+			FirstPersonWeaponIcon(ent->item);
 		other->client->ps.stats[STAT_PICKUP_STRING] =
 			CS_ITEMS + ITEM_INDEX(ent->item);
 		other->client->pickup_msg_time = level.time + 3.0;
@@ -1789,7 +1808,7 @@ Touch_Item(edict_t *ent, edict_t *other, cplane_t *plane /* unused */, csurface_
 /* ====================================================================== */
 
 void
-drop_temp_touch(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+drop_temp_touch(edict_t *ent, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (!ent || !other)
 	{
@@ -1826,11 +1845,10 @@ drop_make_touchable(edict_t *ent)
 }
 
 edict_t *
-Drop_Item(edict_t *ent, gitem_t *item)
+Drop_Item(edict_t *ent, const gitem_t *item)
 {
 	edict_t *dropped;
 	vec3_t forward, right;
-	vec3_t offset;
 
 	if (!ent || !item)
 	{
@@ -1864,6 +1882,7 @@ Drop_Item(edict_t *ent, gitem_t *item)
 
 	if (ent->client)
 	{
+		vec3_t offset;
 		trace_t trace;
 
 		AngleVectors(ent->client->v_angle, forward, right, NULL);
@@ -1918,24 +1937,26 @@ Use_Item(edict_t *ent, edict_t *other /* unused */, edict_t *activator /* unused
 
 /* ====================================================================== */
 
-void
-FixEntityPosition(edict_t *ent)
+/*
+ * Passedict and edicts owned by passedict are explicitly not checked.
+ */
+static float
+GetBetterPosition(const vec3_t ent_mins, const vec3_t ent_maxs, const edict_t *passedict,
+	const vec3_t ent_origin, const vec3_t diff, vec3_t best_pos, float best_dist,int contentmask)
 {
-	int i;
+	byte i;
 
 	for (i = 0; i < 3; i++)
 	{
-		int j;
+		byte j;
 
 		for (j = 0; j < 3; j++)
 		{
-			vec3_t pos, diff;
 			trace_t tr_pos;
-			int k;
+			vec3_t pos;
+			byte k;
 
-			VectorCopy(ent->s.origin, pos);
-
-			VectorSubtract(ent->maxs, ent->mins, diff);
+			VectorCopy(ent_origin, pos);
 
 			/* move by up */
 			for (k = 0; k < i + 1; k++)
@@ -1943,14 +1964,22 @@ FixEntityPosition(edict_t *ent)
 				int v;
 
 				v = (j + k) % 3;
-				pos[v] = ent->s.origin[v] + diff[v];
+				pos[v] = ent_origin[v] + diff[v];
 			}
 
-			tr_pos = gi.trace(pos, ent->mins, ent->maxs, ent->s.origin, ent, MASK_SOLID);
+			tr_pos = gi.trace(pos, ent_mins, ent_maxs, ent_origin, passedict, contentmask);
 			if (!tr_pos.startsolid)
 			{
-				VectorCopy(tr_pos.endpos, ent->s.origin);
-				return;
+				vec3_t diff_pos;
+				vec_t diff_pos_len;
+
+				VectorSubtract(tr_pos.endpos, ent_origin, diff_pos);
+				diff_pos_len = VectorLengthSquared(diff_pos);
+				if (best_dist > diff_pos_len)
+				{
+					VectorCopy(tr_pos.endpos, best_pos);
+					best_dist = diff_pos_len;
+				}
 			}
 
 			/* move by down */
@@ -1959,17 +1988,57 @@ FixEntityPosition(edict_t *ent)
 				int v;
 
 				v = (j + k) % 3;
-				pos[v] = ent->s.origin[v] - diff[v];
+				pos[v] = ent_origin[v] - diff[v];
 			}
 
-			tr_pos = gi.trace(pos, ent->mins, ent->maxs, ent->s.origin, ent, MASK_SOLID);
+			tr_pos = gi.trace(pos, ent_mins, ent_maxs, ent_origin, passedict, contentmask);
 			if (!tr_pos.startsolid)
 			{
-				VectorCopy(tr_pos.endpos, ent->s.origin);
-				return;
+				vec3_t diff_pos;
+				vec_t diff_pos_len;
+
+				VectorSubtract(tr_pos.endpos, ent_origin, diff_pos);
+				diff_pos_len = VectorLengthSquared(diff_pos);
+				if (best_dist > diff_pos_len)
+				{
+					VectorCopy(tr_pos.endpos, best_pos);
+					best_dist = diff_pos_len;
+				}
 			}
 		}
 	}
+
+	return best_dist;
+}
+
+void
+FixEntityPosition(const vec3_t ent_mins, const vec3_t ent_maxs, const edict_t *passedict,
+	vec3_t ent_origin, int contentmask)
+{
+	vec3_t best_pos, diff, half_diff;
+	float best_dist, half_dist;
+
+	VectorCopy(ent_origin, best_pos);
+	VectorSubtract(ent_maxs, ent_mins, diff);
+
+	best_dist = VectorLengthSquared(diff);
+
+	/* get half diff / entity size */
+	VectorScale(diff, 0.5, half_diff);
+
+	/* search nearest position in half of entity box */
+	half_dist = GetBetterPosition(ent_mins, ent_maxs, passedict, ent_origin,
+		half_diff, best_pos, best_dist * 4, contentmask);
+
+	if (half_dist > best_dist)
+	{
+		/* no space near to entity, search little more */
+		GetBetterPosition(ent_mins, ent_maxs, passedict, ent_origin,
+			diff, best_pos, half_dist, contentmask);
+	}
+
+	/* should be either better position or original value */
+	VectorCopy(best_pos, ent_origin);
 }
 
 void
@@ -1977,8 +2046,7 @@ droptofloor(edict_t *ent)
 {
 	vec3_t dest;
 	trace_t tr;
-	float *v;
-	int i;
+	const float *v;
 
 	if (!ent)
 	{
@@ -2003,6 +2071,7 @@ droptofloor(edict_t *ent)
 	{
 		/* key_power_cube is inside walls */
 		vec3_t mins, maxs;
+		int i;
 
 		/* set real size of item model except height to items fly hack */
 		VectorCopy(ent->mins, mins);
@@ -2027,7 +2096,7 @@ droptofloor(edict_t *ent)
 
 	if (tr.startsolid)
 	{
-		FixEntityPosition(ent);
+		FixEntityPosition(ent->mins, ent->maxs, ent, ent->s.origin, MASK_SOLID);
 
 		tr = gi.trace(ent->s.origin, ent->mins, ent->maxs, dest, ent, MASK_SOLID);
 	}
@@ -2092,12 +2161,10 @@ droptofloor(edict_t *ent)
  * and for each item in each client's inventory.
  */
 void
-PrecacheItem(gitem_t *it)
+PrecacheItem(const gitem_t *it)
 {
-	char *s, *start;
+	const char *s;
 	char data[MAX_QPATH];
-	int len;
-	gitem_t *ammo;
 
 	if (!it)
 	{
@@ -2127,6 +2194,8 @@ PrecacheItem(gitem_t *it)
 	/* parse everything for its ammo */
 	if (it->ammo && it->ammo[0])
 	{
+		const gitem_t *ammo;
+
 		ammo = FindItem(it->ammo);
 
 		if (ammo != it)
@@ -2145,6 +2214,9 @@ PrecacheItem(gitem_t *it)
 
 	while (*s)
 	{
+		const char *start;
+		int len;
+
 		start = s;
 
 		while (*s && *s != ' ')
@@ -2209,7 +2281,7 @@ Item_TriggeredSpawn(edict_t *self, edict_t *other /* unused */, edict_t *activat
 /*
  * Set up an item to spawn in later.
  */
-void
+static void
 SetTriggeredSpawn(edict_t *ent)
 {
 	if (!ent)
@@ -2436,8 +2508,8 @@ P_ToggleFlashlight(edict_t *ent, qboolean state)
 		1.f, ATTN_STATIC, 0);
 }
 
-void
-Use_Flashlight(edict_t *ent, gitem_t *inv)
+static void
+Use_Flashlight(edict_t *ent, const gitem_t *item)
 {
 	P_ToggleFlashlight(ent, !(ent->flags & FL_FLASHLIGHT));
 }
@@ -4402,6 +4474,8 @@ static const gitem_t gameitemlist[] = {
 
 gitem_t itemlist[MAX_ITEMS];
 
+size_t itemlist_len = ARRLEN(gameitemlist) - 1;
+
 /*
  * QUAKED item_health (.3 .3 1) (-16 -16 -16) (16 16 16) TRIGGER_SPAWN
  */
@@ -4605,6 +4679,7 @@ InitItems(void)
 						itemlist[num_items].pickup = Pickup_Weapon;
 						itemlist[num_items].use = Use_Weapon;
 						itemlist[num_items].drop = Drop_Weapon;
+						itemlist[num_items].weaponthink = Weapon_DynamicWeapon;
 						itemlist[num_items].world_model_flags = EF_ROTATE;
 						itemlist[num_items].flags = IT_WEAPON;
 					}
@@ -4637,13 +4712,20 @@ InitItems(void)
 						break;
 					}
 				}
+				else
+				{
+					if (!it->world_model)
+					{
+						it->world_model = dyn_items[i].world_model;
+					}
+				}
 			}
 		}
 
 		free(dyn_items);
 	}
 
-	game.num_items = num_items;
+	itemlist_len = num_items;
 }
 
 qboolean
@@ -4665,10 +4747,11 @@ void
 SetItemNames(void)
 {
 	int i;
-	gitem_t *it;
 
-	for (i = 0; i < game.num_items; i++)
+	for (i = 0; i < itemlist_len; i++)
 	{
+		gitem_t *it;
+
 		it = &itemlist[i];
 		gi.configstring(CS_ITEMS + i, it->pickup_name);
 	}
@@ -4683,7 +4766,7 @@ SetItemNames(void)
 void
 SP_xatrix_item(edict_t *self)
 {
-	char *spawnClass = NULL;
+	const char *spawnClass = NULL;
 	gitem_t *item;
 
 	if (!self)
@@ -4732,7 +4815,7 @@ SP_xatrix_item(edict_t *self)
 		spawnClass = "weapon_plasmabeam";
 	}
 
-	item = FindItemInList(spawnClass, itemlist, game.num_items);
+	item = FindItemInList(spawnClass, itemlist, itemlist_len);
 	if (item)
 	{
 		/* found it */

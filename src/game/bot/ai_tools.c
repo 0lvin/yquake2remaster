@@ -32,41 +32,13 @@
 #include "ai_local.h"
 
 //==========================================
-// AIDebug_ToogleBotDebug
-//==========================================
-void AIDebug_ToogleBotDebug(void)
-{
-/*	if (AIDevel.debugMode || !sv_cheats->integer )
-	{
-//		Com_Printf("BOT: Debug Mode Off\n");
-		AIDevel.debugMode = false;
-		return;
-	}
-
-	//Activate debug mode
-	Com_Printf("\n======================================\n");
-	Com_Printf("--==[ D E B U G ]==--\n");
-	Com_Printf("======================================\n");
-	Com_Printf("'addnode [nodetype]' -- Add [specified] node to players current location\n");
-	Com_Printf("'movenode [node] [x y z]' -- Move [node] to [x y z] coordinates\n");
-	Com_Printf("'findnode' -- Finds closest node\n");
-	Com_Printf("'removelink [node1 node2]' -- Removes link between two nodes\n");
-	Com_Printf("'addlink [node1 node2]' -- Adds a link between two nodes\n");
-	Com_Printf("======================================\n\n");
-
-	Com_Printf("BOT: Debug Mode On\n");
-
-	AIDevel.debugMode = true;
-*/
-}
-
-//==========================================
 // AIDebug_SetChased
 // Theorically, only one client
 //	at the time will chase. Otherwise it will
 //	be a really fucked up situation.
 //==========================================
-void AIDebug_SetChased(edict_t *ent)
+void
+AIDebug_SetChased(const edict_t *ent)
 {
 /*	int i;
 	AIDevel.chaseguy = NULL;
@@ -120,7 +92,8 @@ void AITools_DrawLine(vec3_t origin, vec3_t dest)
 // Draws the current path (floods as hell also)
 //==========================================
 // static int	drawnpath_timeout;
-void AITools_DrawPath(edict_t *self, int node_from, int node_to)
+void
+AITools_DrawPath(const edict_t *self, int node_from, int node_to)
 {
 /*
 	int			count = 0;

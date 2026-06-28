@@ -43,7 +43,7 @@ gl4state_t gl4state;
 
 unsigned gl4_rawpalette[256];
 
-gl4model_t *gl4_worldmodel;
+model_t *gl4_worldmodel;
 
 float gl4depthmin=0.0f, gl4depthmax=1.0f;
 
@@ -55,14 +55,15 @@ vec3_t vpn;
 vec3_t vright;
 vec3_t gl4_origin;
 
-int gl4_visframecount; /* bumped when going to a new PVS */
 int gl4_framecount; /* used for dlight push checking */
 
 int c_brush_polys, c_alias_polys;
 
 static float v_blend[4]; /* final blending color */
 
-int gl4_viewcluster, gl4_viewcluster2, gl4_oldviewcluster, gl4_oldviewcluster2;
+static qboolean bloomInit = false;
+static GLuint sceneFBO = 0, sceneColorTex = 0, sceneDepthRBO = 0;
+static GLuint fullscreenVAO = 0, fullscreenVBO = 0;
 
 const hmm_mat4 gl4_identityMat4 = {{
 		{1, 0, 0, 0},
@@ -70,6 +71,11 @@ const hmm_mat4 gl4_identityMat4 = {{
 		{0, 0, 1, 0},
 		{0, 0, 0, 1},
 }};
+
+GLenum drawBuf = GL_COLOR_ATTACHMENT0;
+
+/* bloom control */
+cvar_t *r_bloom;
 
 cvar_t *gl_version_override;
 cvar_t *gl_texturemode;
@@ -84,12 +90,9 @@ cvar_t *gl4_intensity_2D;
 cvar_t *gl4_overbrightbits;
 cvar_t *gl_nobind;
 cvar_t *gl_finish;
-cvar_t *gl_zfix;
 cvar_t *gl4_debugcontext;
 cvar_t *gl4_usebigvbo;
 cvar_t *gl4_usefbo;
-
-static cvar_t *gl_znear;
 
 // Yaw-Pitch-Roll
 // equivalent to R_z * R_y * R_x where R_x is the trans matrix for rotating around X axis for aroundXdeg
@@ -175,6 +178,10 @@ GL4_Register(void)
 	//  1: reduce calls to glBufferData() with one big VBO (see GL4_BufferAndDraw3D())
 	// -1: auto (let yq2 choose to enable/disable this based on detected driver)
 	gl4_usebigvbo = ri.Cvar_Get("gl4_usebigvbo", "-1", CVAR_ARCHIVE);
+
+	/* bloom control */
+	r_bloom = ri.Cvar_Get("r_bloom", "0", CVAR_ARCHIVE);
+
 	gl_nobind = ri.Cvar_Get("gl_nobind", "0", 0);
 
 	gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
@@ -184,14 +191,11 @@ GL4_Register(void)
 
 	gl4_overbrightbits = ri.Cvar_Get("gl4_overbrightbits", "1.3", CVAR_ARCHIVE);
 
-	gl_zfix = ri.Cvar_Get("gl_zfix", "0", 0);
 	gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
-	gl_znear = ri.Cvar_Get("gl_znear", "4", CVAR_ARCHIVE);
 
 	gl4_usefbo = ri.Cvar_Get("gl4_usefbo", "1", CVAR_ARCHIVE); // use framebuffer object for postprocess effects (water)
 
 #if 0 // TODO!
-	//gl_farsee = ri.Cvar_Get("gl_farsee", "0", CVAR_LATCH | CVAR_ARCHIVE);
 	//gl_overbrightbits = ri.Cvar_Get("gl_overbrightbits", "0", CVAR_ARCHIVE);
 
 	gl1_particle_min_size = ri.Cvar_Get("gl1_particle_min_size", "2", CVAR_ARCHIVE);
@@ -205,7 +209,6 @@ GL4_Register(void)
 	//gl_nobind = ri.Cvar_Get("gl_nobind", "0", 0);
 	gl_showbbox = Cvar_Get("gl_showbbox", "0", 0);
 	//gl1_ztrick = ri.Cvar_Get("gl1_ztrick", "0", 0); NOTE: dump this.
-	//gl_zfix = ri.Cvar_Get("gl_zfix", "0", 0);
 	//gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
 
 	//gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
@@ -348,7 +351,7 @@ GL4_SetMode(void)
 				ri.Cvar_SetValue("r_msaa_samples", 0.0f);
 				r_msaa_samples->modified = false;
 
-				if ((err = SetMode_impl(&vid.width, &vid.height, r_mode->value, 0)) == rserr_ok)
+				if (SetMode_impl(&vid.width, &vid.height, r_mode->value, 0) == rserr_ok)
 				{
 					return true;
 				}
@@ -365,7 +368,7 @@ GL4_SetMode(void)
 		}
 
 		/* try setting it back to something safe */
-		if ((err = SetMode_impl(&vid.width, &vid.height, gl4state.prev_mode, 0)) != rserr_ok)
+		if (SetMode_impl(&vid.width, &vid.height, gl4state.prev_mode, 0) != rserr_ok)
 		{
 			Com_Printf("ref_gl4::GL4_SetMode() - could not revert to safe mode\n");
 			return false;
@@ -513,7 +516,19 @@ GL4_Init(void)
 		return false;
 	}
 
+	if (GL4_InitBloomShaders())
+	{
+		R_Printf(PRINT_ALL, "Loading bloom shaders succeeded.\n");
+	}
+	else
+	{
+		R_Printf(PRINT_ALL, "Loading bloom shaders failed.\n");
+		return false;
+	}
+
 	registration_sequence = 1; // from R_InitImages() (everything else from there shouldn't be needed anymore)
+
+	Scrap_Init();
 
 	R_VertBufferInit();
 
@@ -553,6 +568,8 @@ GL4_Shutdown(void)
 		GL4_SurfShutdown();
 		GL4_Draw_ShutdownLocal();
 		GL4_ShutdownShaders();
+		GL4_BloomShutdown();
+		GL4_ShutdownBloomShaders();
 
 		// free the postprocessing FBO and its renderbuffer and texture
 		if (gl4state.ppFBrbo != 0)
@@ -615,7 +632,6 @@ GL4_DrawBeam(entity_t *e)
 	vec3_t oldorigin, origin;
 
 	mvtx_t verts[NUM_BEAM_SEGS*4];
-	unsigned int pointb;
 
 	oldorigin[0] = e->oldorigin[0];
 	oldorigin[1] = e->oldorigin[1];
@@ -663,6 +679,8 @@ GL4_DrawBeam(entity_t *e)
 
 	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
 	{
+		unsigned int pointb;
+
 		VectorCopy(start_points[i], verts[4*i+0].pos);
 		VectorCopy(end_points[i], verts[4*i+1].pos);
 
@@ -682,14 +700,14 @@ GL4_DrawBeam(entity_t *e)
 }
 
 static void
-GL4_DrawSpriteModel(entity_t *e, const gl4model_t *currentmodel)
+GL4_DrawSpriteModel(entity_t *e, const model_t *currentmodel)
 {
 	float alpha = 1.0F;
 	mvtx_t verts[4];
-	dsprframe_t *frame;
+	const dsprframe_t *frame;
 	float *up, *right;
 	dsprite_t *psprite;
-	gl4image_t *skin = NULL;
+	const gl4image_t *skin = NULL;
 	vec3_t scale;
 
 	VectorCopy(e->scale, scale);
@@ -805,9 +823,8 @@ GL4_DrawNullModel(entity_t *currententity)
 	}
 	else
 	{
-		R_LightPoint(gl4_worldmodel->grid, currententity,
-			gl4_worldmodel->surfaces, gl4_worldmodel->nodes, currententity->origin,
-			shadelight, r_modulate->value, lightspot);
+		R_LightPoint(gl4_worldmodel, currententity,
+			currententity->origin, shadelight, lightspot);
 	}
 
 	hmm_mat4 origModelMat = gl4state.uni3DData.transModelMat4;
@@ -949,7 +966,7 @@ GL4_DrawEntitiesOnList(void)
 		}
 		else
 		{
-			gl4model_t *currentmodel = currententity->model;
+			model_t *currentmodel = currententity->model;
 
 			if (!currentmodel)
 			{
@@ -1001,7 +1018,7 @@ GL4_DrawEntitiesOnList(void)
 		}
 		else
 		{
-			gl4model_t *currentmodel = currententity->model;
+			model_t *currentmodel = currententity->model;
 
 			if (!currentmodel)
 			{
@@ -1036,8 +1053,6 @@ GL4_DrawEntitiesOnList(void)
 static void
 SetupFrame(void)
 {
-	mleaf_t *leaf;
-
 	gl4_framecount++;
 
 	/* build the transformation matrix for the given view angles */
@@ -1045,54 +1060,9 @@ SetupFrame(void)
 
 	AngleVectors(r_newrefdef.viewangles, vpn, vright, vup);
 
-	/* current viewcluster */
-	if (!(r_newrefdef.rdflags & RDF_NOWORLDMODEL))
-	{
-		if (!gl4_worldmodel)
-		{
-			Com_Error(ERR_DROP, "%s: bad world model", __func__);
-			return;
-		}
+	R_SetClusters(gl4_worldmodel, gl4_origin);
 
-		gl4_oldviewcluster = gl4_viewcluster;
-		gl4_oldviewcluster2 = gl4_viewcluster2;
-		leaf = Mod_PointInLeaf(gl4_origin, gl4_worldmodel->nodes);
-		gl4_viewcluster = gl4_viewcluster2 = leaf->cluster;
-
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
-
-			VectorCopy(gl4_origin, temp);
-			temp[2] -= 16;
-			leaf = Mod_PointInLeaf(temp, gl4_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl4_viewcluster2))
-			{
-				gl4_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
-
-			VectorCopy(gl4_origin, temp);
-			temp[2] += 16;
-			leaf = Mod_PointInLeaf(temp, gl4_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl4_viewcluster2))
-			{
-				gl4_viewcluster2 = leaf->cluster;
-			}
-		}
-	}
-
-	R_CombineBlendWithFog(v_blend, false);
+	R_CombineBlendWithFog(v_blend, true);
 
 	c_brush_polys = 0;
 	c_alias_polys = 0;
@@ -1178,8 +1148,8 @@ hmm_mat4
 GL4_SetPerspective(GLdouble fovy)
 {
 	// gluPerspective() / R_MYgluPerspective() style parameters
-	const GLdouble zNear = Q_max(gl_znear->value, 0.1f);
-	const GLdouble zFar = (r_farsee->value) ? (gl4_worldmodel->radius * 2) : 4096.0f;
+	const GLdouble zNear = R_GetNearValue();
+	const GLdouble zFar = R_GetFarValue(gl4_worldmodel);
 	const GLdouble aspect = (GLdouble)r_newrefdef.width / r_newrefdef.height;
 
 	// calculation of left, right, bottom, top is from R_MYgluPerspective() of old gl backend
@@ -1345,6 +1315,32 @@ SetupGL(void)
 
 	gl4state.uni3DData.time = r_newrefdef.time;
 
+	/* Set up fog parameters from server data */
+	gl4state.uni3DData.fogColor = HMM_Vec4(
+		r_newrefdef.fog.red / 255.0f,
+		r_newrefdef.fog.green / 255.0f,
+		r_newrefdef.fog.blue / 255.0f,
+		r_newrefdef.fog.density / 64.0f
+	);
+
+	/* Height fog parameters */
+	gl4state.uni3DData.heightfog_start = HMM_Vec4(
+		r_newrefdef.fog.hf_start_r / 255.0f,
+		r_newrefdef.fog.hf_start_g / 255.0f,
+		r_newrefdef.fog.hf_start_b / 255.0f,
+		(float)r_newrefdef.fog.hf_start_dist
+	);
+
+	gl4state.uni3DData.heightfog_end = HMM_Vec4(
+		r_newrefdef.fog.hf_end_r / 255.0f,
+		r_newrefdef.fog.hf_end_g / 255.0f,
+		r_newrefdef.fog.hf_end_b / 255.0f,
+		(float)r_newrefdef.fog.hf_end_dist
+	);
+
+	gl4state.uni3DData.heightfog_density = r_newrefdef.fog.hf_density;
+	gl4state.uni3DData.heightfog_falloff = r_newrefdef.fog.hf_falloff;
+
 	GL4_UpdateUBO3D();
 
 	/* set drawing parms */
@@ -1366,7 +1362,7 @@ extern int c_visible_lightmaps, c_visible_textures;
  * r_newrefdef must be set before the first call
  */
 static void
-GL4_RenderView(refdef_t *fd)
+GL4_RenderView(const refdef_t *fd)
 {
 #if 0 // TODO: keep stereo stuff?
 	if ((gl_state.stereo_mode != STEREO_MODE_NONE) && gl_state.camera_separation) {
@@ -1504,6 +1500,80 @@ GL4_RenderView(refdef_t *fd)
 		glFinish();
 	}
 
+	if (!bloomInit)
+	{
+		int w = vid.width;
+		int h = vid.height;
+
+		/* color texture + depth renderbuffer */
+		glGenFramebuffers(1, &sceneFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+
+		glGenTextures(1, &sceneColorTex);
+		glBindTexture(GL_TEXTURE_2D, sceneColorTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorTex, 0);
+
+		glGenRenderbuffers(1, &sceneDepthRBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, sceneDepthRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, sceneDepthRBO);
+
+		/* ensure drawbuffers are set */
+		{
+			glDrawBuffers(1, &drawBuf);
+		}
+
+		/* check completeness */
+		{
+			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (status != GL_FRAMEBUFFER_COMPLETE)
+			{
+				R_Printf(PRINT_ALL, "GL4_RenderView: sceneFBO incomplete: 0x%X\n", status);
+			}
+		}
+
+		if (fullscreenVAO == 0)
+		{
+			const GLfloat quadVerts[] = {
+				/* X, Y, S, T */
+				0.0f, (GLfloat)h, 0.0f, 1.0f,
+				0.0f, 0.0f,       0.0f, 0.0f,
+				(GLfloat)w, (GLfloat)h, 1.0f, 1.0f,
+				(GLfloat)w, 0.0f,        1.0f, 0.0f
+			};
+
+			glGenVertexArrays(1, &fullscreenVAO);
+			glBindVertexArray(fullscreenVAO);
+
+			glGenBuffers(1, &fullscreenVBO);
+			glBindBuffer(GL_ARRAY_BUFFER, fullscreenVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+
+			glEnableVertexAttribArray(GL4_ATTRIB_POSITION);
+			glVertexAttribPointer(GL4_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE,
+								  4 * sizeof(GLfloat), (const void*)0);
+
+			glEnableVertexAttribArray(GL4_ATTRIB_TEXCOORD);
+			glVertexAttribPointer(GL4_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
+								  4 * sizeof(GLfloat), (const void*)(2 * sizeof(GLfloat)));
+
+			glBindVertexArray(0);
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		bloomInit = true;
+	}
+
+	/* render scene */
+	glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+	glViewport(0, 0, vid.width, vid.height);
+	glClearColor(0, 0, 0, 1);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	SetupFrame();
 
 	R_SetFrustum(vup, vpn, vright, gl4_origin,
@@ -1511,7 +1581,7 @@ GL4_RenderView(refdef_t *fd)
 
 	SetupGL();
 
-	GL4_MarkLeaves(); /* done here so we know if we're in water */
+	R_MarkLeaves(gl4_worldmodel); /* done here so we know if we're in water */
 
 	GL4_DrawWorld();
 
@@ -1528,6 +1598,65 @@ GL4_RenderView(refdef_t *fd)
 		Com_Printf("%4i wpoly %4i epoly %i tex %i lmaps\n",
 				c_brush_polys, c_alias_polys, c_visible_textures,
 				c_visible_lightmaps);
+	}
+
+	/* apply bloom */
+	GL4_SetGL2D();
+
+	if (r_bloom && r_bloom->value != 0.0f && gl4_bloomBright.shaderProgram && gl4_bloomBlur.shaderProgram && gl4_bloomComposite.shaderProgram)
+	{
+		GLuint compositeTex = GL4_ApplyBloom(sceneColorTex, vid.width, vid.height);
+
+		if (compositeTex != 0)
+		{
+			/* draw to framebuffer */
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, vid.width, vid.height);
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			/* draw fullscreen quad */
+			glDisable(GL_DEPTH_TEST);
+			GL4_UseProgram(gl4state.si2DpostProcess.shaderProgram);
+			GL4_Bind(compositeTex);
+
+			if (gl4state.si2DpostProcess.uniLmScalesOrTime != -1)
+				glUniform1f(gl4state.si2DpostProcess.uniLmScalesOrTime, r_newrefdef.time);
+
+			if (gl4state.si2DpostProcess.uniVblend != -1)
+			{
+				float zeroBlend[4] = {0,0,0,0};
+				glUniform4fv(gl4state.si2DpostProcess.uniVblend, 1, zeroBlend);
+			}
+
+			glBindVertexArray(fullscreenVAO);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			glBindVertexArray(0);
+
+			/* cleanup */
+			GL4_Bind(0);
+			glEnable(GL_DEPTH_TEST);
+			glDeleteTextures(1, &compositeTex);
+		}
+		else
+		{
+			/* blit to default framebuffer */
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneFBO);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			glBlitFramebuffer(0, 0, vid.width, vid.height,
+							  0, 0, vid.width, vid.height,
+							  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		}
+	}
+	else
+	{
+		/* bloom disabled */
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneFBO);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, vid.width, vid.height,
+						  0, 0, vid.width, vid.height,
+						  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
 #if 0 // TODO: stereo stuff
@@ -1569,7 +1698,7 @@ GL4_GetSpecialBufferModeForStereoMode(enum stereo_modes stereo_mode) {
 #endif // 0
 
 static void
-GL4_SetLightLevel(entity_t *currententity)
+GL4_SetLightLevel(const entity_t *currententity)
 {
 	vec3_t shadelight = {0};
 
@@ -1579,9 +1708,8 @@ GL4_SetLightLevel(entity_t *currententity)
 	}
 
 	/* save off light value for server to look at */
-	R_LightPoint(gl4_worldmodel->grid, currententity,
-		gl4_worldmodel->surfaces, gl4_worldmodel->nodes, r_newrefdef.vieworg,
-		shadelight, r_modulate->value, lightspot);
+	R_LightPoint(gl4_worldmodel, currententity,
+		r_newrefdef.vieworg, shadelight, lightspot);
 
 	/* pick the greatest component, which should be the
 	 * same as the mono value returned by software */
@@ -1610,7 +1738,7 @@ GL4_SetLightLevel(entity_t *currententity)
 }
 
 static void
-GL4_RenderFrame(refdef_t *fd)
+GL4_RenderFrame(const refdef_t *fd)
 {
 	GL4_RenderView(fd);
 	GL4_SetLightLevel(NULL);
@@ -1620,6 +1748,7 @@ GL4_RenderFrame(refdef_t *fd)
 		glBindFramebuffer(GL_FRAMEBUFFER, 0); // now render to default framebuffer
 		gl4state.ppFBObound = false;
 	}
+
 	GL4_SetGL2D();
 
 	int x = (vid.width - r_newrefdef.width)/2;
@@ -1664,7 +1793,7 @@ GL4_Clear(void)
 
 	glDepthRange(gl4depthmin, gl4depthmax);
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		if (gl4depthmax > gl4depthmin)
 		{
@@ -1791,7 +1920,7 @@ GL4_BeginFrame(float camera_separation)
 }
 
 static void
-GL4_SetPalette(const unsigned char *palette)
+GL4_SetPalette(const byte *palette)
 {
 	int i;
 	byte *rp = (byte *)gl4_rawpalette;
@@ -1864,6 +1993,7 @@ GetRefAPI(refimport_t imp)
 	re.DrawGetPicSize = GL4_Draw_GetPicSize;
 
 	re.DrawPicScaled = GL4_Draw_PicScaled;
+	re.DrawPicScaledCol = GL4_Draw_PicScaledCol;
 	re.DrawStretchPic = GL4_Draw_StretchPic;
 
 	re.DrawCharScaled = GL4_Draw_CharScaled;

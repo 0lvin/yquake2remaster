@@ -39,15 +39,9 @@
 #define TRACKER_IMPACT_FLAGS (DAMAGE_NO_POWER_ARMOR | DAMAGE_ENERGY)
 #define TRACKER_DAMAGE_TIME 0.5
 
-extern byte P_DamageModifier(edict_t *ent);
-extern void check_dodge(edict_t *self, vec3_t start, vec3_t dir, int speed);
-extern void hurt_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf);
-extern void Grenade_Explode(edict_t *ent);
-
 void
-flechette_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+flechette_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	vec3_t dir;
 	vec3_t normal;
 
 	if (!self || !other)
@@ -81,6 +75,8 @@ flechette_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf
 	}
 	else
 	{
+		vec3_t dir;
+
 		VectorScale(normal, 256, dir);
 
 		gi.WriteByte(svc_temp_entity);
@@ -194,7 +190,7 @@ Prox_Explode(edict_t *ent)
 
 void
 prox_die(edict_t *self, edict_t *inflictor, edict_t *attacker /* unused */,
-		int damage, vec3_t point)
+		int damage, const vec3_t point)
 {
 	if (!self || !inflictor)
 	{
@@ -215,8 +211,8 @@ prox_die(edict_t *self, edict_t *inflictor, edict_t *attacker /* unused */,
 }
 
 void
-Prox_Field_Touch(edict_t *ent, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+Prox_Field_Touch(edict_t *ent, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	edict_t *prox;
 
@@ -373,14 +369,13 @@ prox_open(edict_t *ent)
 }
 
 void
-prox_land(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+prox_land(edict_t *ent, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	edict_t *field;
 	vec3_t dir;
 	vec3_t normal;
 	vec3_t forward, right, up;
 	int movetype = MOVETYPE_NONE;
-	int stick_ok = 0;
 	vec3_t land_point;
 
 	if (!ent || !other)
@@ -423,8 +418,8 @@ prox_land(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
 	{
 		/* Here we need to check to see if we can stop on this entity. */
 		vec3_t out;
-		float backoff, change;
-		int i;
+		float backoff;
+		int i, stick_ok;
 
 		if ((other->movetype == MOVETYPE_PUSH) && (normal[2] > 0.7))
 		{
@@ -439,6 +434,8 @@ prox_land(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
 
 		for (i = 0; i < 3; i++)
 		{
+			float change;
+
 			change = normal[i] * backoff;
 			out[i] = ent->velocity[i] - change;
 
@@ -705,7 +702,7 @@ Nuke_Quake(edict_t *self)
 	}
 }
 
-void
+static void
 Nuke_Explode(edict_t *ent)
 {
 	if (!ent)
@@ -754,7 +751,7 @@ Nuke_Explode(edict_t *ent)
 
 void
 nuke_die(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker, int damage, vec3_t point)
+		edict_t *attacker, int damage, const vec3_t point)
 {
 	if (!self)
 	{
@@ -865,8 +862,8 @@ Nuke_Think(edict_t *ent)
 }
 
 void
-nuke_bounce(edict_t *ent, edict_t *other /* unused */, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+nuke_bounce(edict_t *ent, edict_t *other /* unused */, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!ent)
 	{
@@ -943,7 +940,8 @@ fire_nuke(edict_t *self, vec3_t start, vec3_t aimdir, int speed)
 
 	gi.linkentity(nuke);
 }
-void
+
+static void
 tesla_remove(edict_t *self)
 {
 	edict_t *cur, *next;
@@ -992,7 +990,7 @@ tesla_remove(edict_t *self)
 
 void
 tesla_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -1002,7 +1000,7 @@ tesla_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* u
 	tesla_remove(self);
 }
 
-void
+static void
 tesla_blow(edict_t *self)
 {
 	if (!self)
@@ -1016,7 +1014,7 @@ tesla_blow(edict_t *self)
 }
 
 void
-tesla_zap(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+tesla_zap(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 }
 
@@ -1255,7 +1253,7 @@ tesla_think(edict_t *ent)
 }
 
 void
-tesla_lava(edict_t *ent, edict_t *other /* unused */, cplane_t *plane, csurface_t *surf /* unused */)
+tesla_lava(edict_t *ent, edict_t *other /* unused */, const cplane_t *plane, const csurface_t *surf /* unused */)
 {
 	vec3_t land_point;
 	vec3_t normal;
@@ -1345,7 +1343,7 @@ fire_tesla(edict_t *self, vec3_t start, vec3_t aimdir,
 	gi.linkentity(tesla);
 }
 
-void
+static void
 fire_beams(edict_t *self, vec3_t start, vec3_t aimdir, vec3_t offset,
 		int damage, int kick, int te_beam, int te_impact, int mod)
 {
@@ -1504,10 +1502,8 @@ fire_heatbeam(edict_t *self, vec3_t start, vec3_t aimdir, vec3_t offset,
  * Fires a single green blaster bolt.  Used by monsters, generally.
  */
 void
-blaster2_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+blaster2_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	int mod;
-	int damagestat;
 	vec3_t normal;
 
 	if (!self || !other)
@@ -1535,10 +1531,14 @@ blaster2_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
 
 	if (other->takedamage)
 	{
+		int mod;
+
 		mod = MOD_BLASTER2;
 
 		if (self->owner)
 		{
+			int damagestat;
+
 			/* the only time players will be firing blaster2
 			   bolts will be from the defender sphere. */
 			if (self->owner->client)
@@ -1650,9 +1650,6 @@ fire_blaster2(edict_t *self, vec3_t start, vec3_t dir, int damage,
 void
 tracker_pain_daemon_think(edict_t *self)
 {
-	static vec3_t pain_normal = {0, 0, 1};
-	int hurt;
-
 	if (!self)
 	{
 		return;
@@ -1676,6 +1673,8 @@ tracker_pain_daemon_think(edict_t *self)
 	{
 		if (self->enemy->health > 0)
 		{
+			static const vec3_t pain_normal = {0, 0, 1};
+
 			T_Damage(self->enemy, self, self->owner, vec3_origin, self->enemy->s.origin,
 					pain_normal, self->dmg, 0, TRACKER_DAMAGE_FLAGS, MOD_TRACKER);
 
@@ -1685,6 +1684,8 @@ tracker_pain_daemon_think(edict_t *self)
 				/* if we killed a monster, gib them. */
 				if (self->enemy->health < 1)
 				{
+					int hurt;
+
 					if (self->enemy->gib_health)
 					{
 						hurt = -self->enemy->gib_health;
@@ -1722,7 +1723,7 @@ tracker_pain_daemon_think(edict_t *self)
 	}
 }
 
-void
+static void
 tracker_pain_daemon_spawn(edict_t *owner, edict_t *enemy, int damage)
 {
 	edict_t *daemon;
@@ -1742,7 +1743,7 @@ tracker_pain_daemon_spawn(edict_t *owner, edict_t *enemy, int damage)
 	daemon->dmg = damage;
 }
 
-void
+static void
 tracker_explode(edict_t *self)
 {
 	if (!self)
@@ -1759,11 +1760,8 @@ tracker_explode(edict_t *self)
 }
 
 void
-tracker_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+tracker_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	float damagetime;
-	vec3_t normal;
-
 	if (!self || !other)
 	{
 		return;
@@ -1787,12 +1785,16 @@ tracker_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
 
 	if (other->takedamage)
 	{
+		vec3_t normal;
+
 		get_normal_vector(plane, normal);
 
 		if ((other->svflags & SVF_MONSTER) || other->client)
 		{
 			if (other->health > 0) /* knockback only for living creatures */
 			{
+				float damagetime;
+
 				T_Damage(other, self, self->owner, self->velocity, self->s.origin,
 						normal, 0, (self->dmg * 3), TRACKER_IMPACT_FLAGS,
 						MOD_TRACKER);

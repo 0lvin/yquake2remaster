@@ -74,8 +74,8 @@ void train_next(edict_t *self);
 void door_go_down(edict_t *self);
 void plat2_go_down(edict_t *ent);
 void plat2_go_up(edict_t *ent);
-void plat2_spawn_danger_area(edict_t *ent);
-void plat2_kill_danger_area(edict_t *ent);
+static void plat2_spawn_danger_area(edict_t *ent);
+static void plat2_kill_danger_area(const edict_t *ent);
 void Think_AccelMove(edict_t *ent);
 void plat_go_down(edict_t *ent);
 
@@ -124,7 +124,11 @@ Move_Done(edict_t *ent)
 	}
 
 	VectorClear(ent->velocity);
-	ent->moveinfo.endfunc(ent);
+
+	if (ent->moveinfo.endfunc)
+	{
+		ent->moveinfo.endfunc(ent);
+	}
 }
 
 void
@@ -224,7 +228,11 @@ AngleMove_Done(edict_t *ent)
 	}
 
 	VectorClear(ent->avelocity);
-	ent->moveinfo.endfunc(ent);
+
+	if (ent->moveinfo.endfunc)
+	{
+		ent->moveinfo.endfunc(ent);
+	}
 }
 
 void
@@ -323,7 +331,7 @@ AngleMove_Begin(edict_t *ent)
 	}
 }
 
-void
+static void
 AngleMove_Calc(edict_t *ent, void (*func)(edict_t *))
 {
 	if (!ent || !func)
@@ -537,6 +545,7 @@ Think_AccelMove(edict_t *ent)
 	ent->think = Think_AccelMove;
 }
 
+/* ->moveinfo.endfunc = plat_hit_top; */
 void
 plat_hit_top(edict_t *ent)
 {
@@ -562,6 +571,7 @@ plat_hit_top(edict_t *ent)
 	ent->nextthink = level.time + 3;
 }
 
+/* ->moveinfo.endfunc = plat_hit_bottom; */
 void
 plat_hit_bottom(edict_t *ent)
 {
@@ -610,7 +620,7 @@ plat_go_down(edict_t *ent)
 	Move_Calc(ent, ent->moveinfo.end_origin, plat_hit_bottom);
 }
 
-void
+static void
 plat_go_up(edict_t *ent)
 {
 	if (!ent)
@@ -717,7 +727,11 @@ wait_and_change_think(edict_t* ent)
 {
 	void (*afterwaitfunc)(edict_t *) = ent->moveinfo.endfunc;
 	ent->moveinfo.endfunc = NULL;
-	afterwaitfunc(ent);
+
+	if (afterwaitfunc)
+	{
+		afterwaitfunc(ent);
+	}
 }
 
 /*
@@ -729,6 +743,7 @@ static void
 wait_and_change(edict_t* ent, void (*afterwaitfunc)(edict_t *))
 {
 	float waittime = coop_elevator_delay->value;
+
 	if (coop->value && waittime > 0.0f)
 	{
 		if (ent->nextthink == 0)
@@ -738,15 +753,15 @@ wait_and_change(edict_t* ent, void (*afterwaitfunc)(edict_t *))
 			ent->nextthink = level.time + waittime;
 		}
 	}
-	else
+	else if (afterwaitfunc)
 	{
 		afterwaitfunc(ent);
 	}
 }
 
 void
-Touch_Plat_Center(edict_t *ent, edict_t *other, cplane_t *plane /* unsed */,
-		csurface_t *surf /* unused */)
+Touch_Plat_Center(edict_t *ent, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!ent || !other)
 	{
@@ -796,7 +811,6 @@ plat_spawn_inside_trigger(edict_t *ent)
 
 	tmin[0] = ent->mins[0] + 25;
 	tmin[1] = ent->mins[1] + 25;
-	tmin[2] = ent->mins[2];
 
 	tmax[0] = ent->maxs[0] - 25;
 	tmax[1] = ent->maxs[1] - 25;
@@ -948,7 +962,7 @@ SP_func_plat(edict_t *ent)
 	ent->moveinfo.sound_end = gi.soundindex("plats/pt1_end.wav");
 }
 
-void
+static void
 plat2_spawn_danger_area(edict_t *ent)
 {
 	if (!ent)
@@ -965,8 +979,8 @@ plat2_spawn_danger_area(edict_t *ent)
 	SpawnBadArea(mins, maxs, 0, ent);
 }
 
-void
-plat2_kill_danger_area(edict_t *ent)
+static void
+plat2_kill_danger_area(const edict_t *ent)
 {
 	edict_t *t;
 
@@ -986,7 +1000,7 @@ plat2_kill_danger_area(edict_t *ent)
 	}
 }
 
-void
+static void
 plat2_hit_top(edict_t *ent)
 {
 	if (!ent)
@@ -1043,7 +1057,7 @@ plat2_hit_top(edict_t *ent)
 	G_UseTargets(ent, ent);
 }
 
-void
+static void
 plat2_hit_bottom(edict_t *ent)
 {
 	if (!ent)
@@ -1155,8 +1169,8 @@ plat2_go_up(edict_t *ent)
 	Move_Calc(ent, ent->moveinfo.start_origin, plat2_hit_top);
 }
 
-void
-plat2_operate(edict_t *ent, edict_t *other)
+static void
+plat2_operate(edict_t *ent, const edict_t *other)
 {
 	int otherState;
 	float pauseTime;
@@ -1245,7 +1259,7 @@ plat2_operate(edict_t *ent, edict_t *other)
 
 void
 Touch_Plat_Center2(edict_t *ent, edict_t *other,
-		cplane_t *plane /* unused */, csurface_t *surf /* unused */)
+		const cplane_t *plane /* unused */, const csurface_t *surf /* unused */)
 {
 	if (!ent || !other)
 	{
@@ -1403,8 +1417,6 @@ plat2_activate(edict_t *ent, edict_t *other /* unused */,
 void
 SP_func_plat2(edict_t *ent)
 {
-	edict_t *trigger;
-
 	if (!ent)
 	{
 		return;
@@ -1479,6 +1491,8 @@ SP_func_plat2(edict_t *ent)
 	}
 	else
 	{
+		edict_t *trigger;
+
 		ent->use = Use_Plat2;
 
 		trigger = plat_spawn_inside_trigger(ent); /* the "start moving" trigger */
@@ -1600,8 +1614,8 @@ rotating_blocked(edict_t *self, edict_t *other)
 }
 
 void
-rotating_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+rotating_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -1783,6 +1797,7 @@ SP_func_rotating(edict_t *ent)
  *    4) metallic click
  *    5) in-out
  */
+/* ->moveinfo.endfunc = button_done; */
 void
 button_done(edict_t *self)
 {
@@ -1795,7 +1810,14 @@ button_done(edict_t *self)
 
 	if (!self->bmodel_anim.enabled)
 	{
-		self->s.effects &= ~EF_ANIM23;
+		if (level.is_n64)
+		{
+			self->s.frame = 0;
+		}
+		else
+		{
+			self->s.effects &= ~EF_ANIM23;
+		}
 		self->s.effects |= EF_ANIM01;
 	}
 	else
@@ -1824,6 +1846,7 @@ button_return(edict_t *self)
 	}
 }
 
+/* ->moveinfo.endfunc = button_wait; */
 void
 button_wait(edict_t *self)
 {
@@ -1837,7 +1860,14 @@ button_wait(edict_t *self)
 	if (!self->bmodel_anim.enabled)
 	{
 		self->s.effects &= ~EF_ANIM01;
-		self->s.effects |= EF_ANIM23;
+		if (level.is_n64)
+		{
+			self->s.frame = 2;
+		}
+		else
+		{
+			self->s.effects |= EF_ANIM23;
+		}
 	}
 	else
 	{
@@ -1854,7 +1884,7 @@ button_wait(edict_t *self)
 	}
 }
 
-void
+static void
 button_fire(edict_t *self)
 {
 	if (!self)
@@ -1893,8 +1923,8 @@ button_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
 }
 
 void
-button_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+button_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -1916,9 +1946,8 @@ button_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
 }
 
 void
-button_killed(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker, int damage /* unused */,
-		vec3_t point /* unused */)
+button_killed(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unsued */,
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -2050,8 +2079,8 @@ SP_func_button(edict_t *ent)
  *    4)	heavy
  */
 
-void
-door_use_areaportals(edict_t *self, qboolean open)
+static void
+door_use_areaportals(const edict_t *self, qboolean open)
 {
 	edict_t *t = NULL;
 
@@ -2074,6 +2103,7 @@ door_use_areaportals(edict_t *self, qboolean open)
 	}
 }
 
+/* ->moveinfo.endfunc = door_hit_top; */
 void
 door_hit_top(edict_t *self)
 {
@@ -2108,6 +2138,7 @@ door_hit_top(edict_t *self)
 	}
 }
 
+/* ->moveinfo.endfunc = door_hit_bottom; */
 void
 door_hit_bottom(edict_t *self)
 {
@@ -2170,7 +2201,7 @@ door_go_down(edict_t *self)
 	}
 }
 
-void
+static void
 door_go_up(edict_t *self, edict_t *activator)
 {
 	if (!self)
@@ -2388,10 +2419,10 @@ door_use(edict_t *self, edict_t *other /* unused */, edict_t *activator)
 }
 
 void
-Touch_DoorTrigger(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+Touch_DoorTrigger(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
-	if (!self || !other)
+	if (!self || !self->owner || !other)
 	{
 		return;
 	}
@@ -2428,9 +2459,6 @@ Think_CalcMoveSpeed(edict_t *self)
 	edict_t *ent;
 	float min;
 	float time;
-	float newspeed;
-	float ratio;
-	float dist;
 
 	if (!self)
 	{
@@ -2447,6 +2475,8 @@ Think_CalcMoveSpeed(edict_t *self)
 
 	for (ent = self->teamchain; ent; ent = ent->teamchain)
 	{
+		float dist;
+
 		dist = fabs(ent->moveinfo.distance);
 
 		if (dist < min)
@@ -2460,6 +2490,9 @@ Think_CalcMoveSpeed(edict_t *self)
 	/* adjust speeds so they will all complete at the same time */
 	for (ent = self; ent; ent = ent->teamchain)
 	{
+		float newspeed;
+		float ratio;
+
 		newspeed = fabs(ent->moveinfo.distance) / time;
 		ratio = newspeed / ent->moveinfo.speed;
 
@@ -2591,9 +2624,8 @@ door_blocked(edict_t *self, edict_t *other)
 }
 
 void
-door_killed(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker, int damage /* unused */,
-		vec3_t point /* unused */)
+door_killed(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker,
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	edict_t *ent;
 
@@ -2612,8 +2644,8 @@ door_killed(edict_t *self, edict_t *inflictor /* unused */,
 }
 
 void
-door_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+door_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	int sound_index;
 
@@ -3174,6 +3206,7 @@ train_blocked(edict_t *self, edict_t *other)
 			vec3_origin, self->dmg, 1, 0, MOD_CRUSH);
 }
 
+/* ->moveinfo.endfunc = train_wait; */
 void
 train_wait(edict_t *self)
 {
@@ -3232,11 +3265,6 @@ train_wait(edict_t *self)
 	{
 		train_next(self);
 	}
-}
-
-void
-train_piece_wait(edict_t *self)
-{
 }
 
 void
@@ -3366,35 +3394,9 @@ again:
 	VectorCopy(dest, self->moveinfo.end_origin);
 	Move_Calc(self, dest, train_wait);
 	self->spawnflags |= TRAIN_START_ON;
-
-/*
-Rogue code, broke platforms in q64/outpost
-	if (self->team)
-	{
-		edict_t *e;
-		vec3_t dir, dst;
-
-		VectorSubtract(dest, self->s.origin, dir);
-
-		for (e = self->teamchain; e; e = e->teamchain)
-		{
-			VectorAdd(dir, e->s.origin, dst);
-			VectorCopy(e->s.origin, e->moveinfo.start_origin);
-			VectorCopy(dst, e->moveinfo.end_origin);
-
-			e->moveinfo.state = STATE_TOP;
-			e->speed = self->speed;
-			e->moveinfo.speed = self->moveinfo.speed;
-			e->moveinfo.accel = self->moveinfo.accel;
-			e->moveinfo.decel = self->moveinfo.decel;
-			e->movetype = MOVETYPE_PUSH;
-			Move_Calc(e, dst, train_piece_wait);
-		}
-	}
-*/
 }
 
-void
+static void
 train_resume(edict_t *self)
 {
 	edict_t *ent;
@@ -3442,7 +3444,7 @@ func_train_find(edict_t *self)
 
 	if (!self->target)
 	{
-		gi.dprintf("train_find: no target\n");
+		gi.dprintf("%s: no target provided\n", __func__);
 		return;
 	}
 
@@ -3450,7 +3452,7 @@ func_train_find(edict_t *self)
 
 	if (!ent)
 	{
-		gi.dprintf("train_find: target %s not found\n", self->target);
+		gi.dprintf("%s: target '%s' not found\n", __func__, self->target);
 		return;
 	}
 
@@ -3862,6 +3864,7 @@ door_secret_use(edict_t *self, edict_t *other /* unused */,
 	door_use_areaportals(self, true);
 }
 
+/* ->moveinfo.endfunc = door_secret_move1; */
 void
 door_secret_move1(edict_t *self)
 {
@@ -3885,6 +3888,7 @@ door_secret_move2(edict_t *self)
 	Move_Calc(self, self->pos2, door_secret_move3);
 }
 
+/* ->moveinfo.endfunc = door_secret_move3; */
 void
 door_secret_move3(edict_t *self)
 {
@@ -3913,6 +3917,7 @@ door_secret_move4(edict_t *self)
 	Move_Calc(self, self->pos1, door_secret_move5);
 }
 
+/* ->moveinfo.endfunc = door_secret_move5; */
 void
 door_secret_move5(edict_t *self)
 {
@@ -3936,6 +3941,7 @@ door_secret_move6(edict_t *self)
 	Move_Calc(self, vec3_origin, door_secret_done);
 }
 
+/* ->moveinfo.endfunc = door_secret_done; */
 void
 door_secret_done(edict_t *self)
 {
@@ -3990,9 +3996,8 @@ door_secret_blocked(edict_t *self, edict_t *other)
 }
 
 void
-door_secret_die(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker, int damage /* unused */,
-		vec3_t point /* unused */)
+door_secret_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker,
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -4165,7 +4170,7 @@ rotating_light_alarm(edict_t *self)
 void
 rotating_light_killed(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage /* unused */,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -4177,7 +4182,7 @@ rotating_light_killed(edict_t *self, edict_t *inflictor /* unused */,
 	gi.WriteByte(30);
 	gi.WritePosition(self->s.origin);
 	gi.WriteDir(vec3_origin);
-	gi.WriteByte(0xe0 + (rand() & 7));
+	gi.WriteByte(0xe0 + (randk() & 7));
 	gi.multicast(self->s.origin, MULTICAST_PVS);
 
 	self->s.effects &= ~EF_SPINNINGLIGHTS;
@@ -4294,7 +4299,7 @@ object_repair_fx(edict_t *ent)
 		gi.WriteByte(10);
 		gi.WritePosition(ent->s.origin);
 		gi.WriteDir(vec3_origin);
-		gi.WriteByte(0xe0 + (rand() & 7));
+		gi.WriteByte(0xe0 + (randk() & 7));
 		gi.multicast(ent->s.origin, MULTICAST_PVS);
 	}
 }
@@ -4334,7 +4339,7 @@ object_repair_sparks(edict_t *ent)
 	gi.WriteByte(10);
 	gi.WritePosition(ent->s.origin);
 	gi.WriteDir(vec3_origin);
-	gi.WriteByte(0xe0 + (rand() & 7));
+	gi.WriteByte(0xe0 + (randk() & 7));
 	gi.multicast(ent->s.origin, MULTICAST_PVS);
 }
 

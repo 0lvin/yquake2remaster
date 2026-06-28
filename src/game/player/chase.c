@@ -104,7 +104,7 @@ ChasecamRemove(edict_t *ent)
 	//Don't turn back on during intermission!
 	if (!level.intermissiontime)
 	{
-		ent->client->ps.gunindex = gi.modelindex(ent->client->pers.weapon->view_model);
+		ent->client->ps.gunindex = FirstPersonWeaponModel(ent->client->pers.weapon);
 	}
 
 	/* Make our invisible appearance the same model as the display entity
@@ -128,7 +128,6 @@ ChasecamTrack(edict_t *ent)
 	vec3_t spot1, spot2, dir;
 	vec3_t forward, right, up,angles;
 	int distance;
-	int tot;
 
 	ent->nextthink = level.time + 0.100;
 
@@ -198,6 +197,8 @@ ChasecamTrack(edict_t *ent)
 	/* if we DON'T hit anyting, do some freaky stuff  */
 	if (tr.fraction == 1.000)
 	{
+		int tot;
+
 		/* subtract the endpos camera position, from the startpos, the
 		 * player, and save in spot1. Normalize spot1 for a direction, and
 		 * make that direction the angles of the chasecam for copying to the

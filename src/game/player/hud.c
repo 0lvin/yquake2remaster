@@ -95,7 +95,7 @@ MoveClientToIntermission(edict_t *ent)
 }
 
 void
-BeginIntermission(edict_t *targ)
+BeginIntermission(const edict_t *targ)
 {
 	int i;
 	edict_t *ent;
@@ -158,7 +158,7 @@ BeginIntermission(edict_t *targ)
 				}
 
 				/* strip players of all keys between units */
-				for (n = 0; n < game.num_items; n++)
+				for (n = 0; n < itemlist_len; n++)
 				{
 					if (itemlist[n].flags & IT_KEY)
 					{
@@ -267,7 +267,7 @@ DeathmatchScoreboardMessage(edict_t *ent, edict_t *killer)
 	for (i = 0; i < game.maxclients; i++)
 	{
 		int k, j, score;
-		edict_t *cl_ent;
+		const edict_t *cl_ent;
 
 		cl_ent = g_edicts + 1 + i;
 
@@ -419,7 +419,8 @@ HelpComputerMessage(edict_t *ent)
 			"xv 0 yv 54 cstring2 \"%s\" " /* help 1 */
 			"xv 0 yv 110 cstring2 \"%s\" " /* help 2 */
 			"xv 50 yv 164 string2 \" %-9s %-8s %-9s\" "
-			"xv 50 yv 172 string2 \"%3i/%3i     %i/%i       %i/%i\" ",
+			"xv 50 yv 172 string2 \"%3i/%3i     %i/%i       %i/%i\" "
+			"%s", /* story */
 			sk,
 			level.level_name,
 			gi.LocalizationMessage(game.helpmessage1, NULL),
@@ -429,7 +430,8 @@ HelpComputerMessage(edict_t *ent)
 			gi.LocalizationUIMessage("$g_pc_secrets", "secrets"),
 			level.killed_monsters, level.total_monsters,
 			level.found_goals, level.total_goals,
-			level.found_secrets, level.total_secrets);
+			level.found_secrets, level.total_secrets,
+			level.story_active ? " story ": "");
 
 	gi.WriteByte(svc_layout);
 	gi.WriteString(string);
@@ -459,10 +461,29 @@ InventoryMessage(edict_t *ent)
 
 /* ======================================================================= */
 
+static void
+G_SetStats_SelectedItem(gclient_t *cl)
+{
+	const gitem_t *it;
+	int si;
+
+	si = cl->pers.selected_item;
+	it = GetItemByIndex(si);
+
+	if ((si <= 0) || (si >= itemlist_len))
+	{
+		si = -1;
+	}
+
+	cl->ps.stats[STAT_SELECTED_ITEM] = si;
+	cl->ps.stats[STAT_SELECTED_ICON] = (it && it->icon) ?
+		gi.imageindex(it->icon) : 0;
+}
+
 void
 G_SetStats(edict_t *ent)
 {
-	gitem_t *item;
+	const gitem_t *item;
 	int index, cells = 0;
 	int power_armor_type;
 
@@ -484,7 +505,7 @@ G_SetStats(edict_t *ent)
 	else
 	{
 		item = &itemlist[ent->client->ammo_index];
-		ent->client->ps.stats[STAT_AMMO_ICON] = gi.imageindex(item->icon);
+		ent->client->ps.stats[STAT_AMMO_ICON] = FirstPersonWeaponIcon(item);
 		ent->client->ps.stats[STAT_AMMO] =
 			ent->client->pers.inventory[ent->client->ammo_index];
 	}
@@ -519,7 +540,7 @@ G_SetStats(edict_t *ent)
 	else if (index)
 	{
 		item = GetItemByIndex(index);
-		ent->client->ps.stats[STAT_ARMOR_ICON] = gi.imageindex(item->icon);
+		ent->client->ps.stats[STAT_ARMOR_ICON] = FirstPersonWeaponIcon(item);
 		ent->client->ps.stats[STAT_ARMOR] = ent->client->pers.inventory[index];
 	}
 	else
@@ -616,17 +637,7 @@ G_SetStats(edict_t *ent)
 	}
 
 	/* selected item */
-	if (ent->client->pers.selected_item == -1)
-	{
-		ent->client->ps.stats[STAT_SELECTED_ICON] = 0;
-	}
-	else
-	{
-		ent->client->ps.stats[STAT_SELECTED_ICON] =
-			gi.imageindex(itemlist[ent->client->pers.selected_item].icon);
-	}
-
-	ent->client->ps.stats[STAT_SELECTED_ITEM] = ent->client->pers.selected_item;
+	G_SetStats_SelectedItem(ent->client);
 
 	/* layouts */
 	ent->client->ps.stats[STAT_LAYOUTS] = 0;
@@ -636,25 +647,34 @@ G_SetStats(edict_t *ent)
 		if ((ent->client->pers.health <= 0) || level.intermissiontime ||
 			ent->client->showscores)
 		{
-			ent->client->ps.stats[STAT_LAYOUTS] |= 1;
+			ent->client->ps.stats[STAT_LAYOUTS] |= LAYOUTS_LAYOUT;
 		}
 
 		if (ent->client->showinventory && (ent->client->pers.health > 0))
 		{
-			ent->client->ps.stats[STAT_LAYOUTS] |= 2;
+			ent->client->ps.stats[STAT_LAYOUTS] |= LAYOUTS_INVENTORY;
 		}
 	}
 	else
 	{
 		if (ent->client->showscores || ent->client->showhelp)
 		{
-			ent->client->ps.stats[STAT_LAYOUTS] |= 1;
+			ent->client->ps.stats[STAT_LAYOUTS] |= LAYOUTS_LAYOUT;
 		}
 
 		if (ent->client->showinventory && (ent->client->pers.health > 0))
 		{
-			ent->client->ps.stats[STAT_LAYOUTS] |= 2;
+			ent->client->ps.stats[STAT_LAYOUTS] |= LAYOUTS_INVENTORY;
 		}
+	}
+
+	if (level.story_active)
+	{
+		ent->client->ps.stats[STAT_LAYOUTS] |= LAYOUTS_HIDE_CROSSHAIR;
+	}
+	else
+	{
+		ent->client->ps.stats[STAT_LAYOUTS] &= ~LAYOUTS_HIDE_CROSSHAIR;
 	}
 
 	/* frags */
@@ -670,13 +690,13 @@ G_SetStats(edict_t *ent)
 			  (ent->client->chasetoggle)) &&
 			 ent->client->pers.weapon)
 	{
-		cvar_t *gun;
+		const cvar_t *gun;
 		gun = gi.cvar("cl_gun", "2", 0);
 
 		if (gun->value != 2)
 		{
-			ent->client->ps.stats[STAT_HELPICON] = gi.imageindex(
-					ent->client->pers.weapon->icon);
+			ent->client->ps.stats[STAT_HELPICON] = FirstPersonWeaponIcon(
+					ent->client->pers.weapon);
 		}
 		else
 		{
@@ -699,7 +719,7 @@ G_SetStats(edict_t *ent)
 }
 
 void
-G_CheckChaseStats(edict_t *ent)
+G_CheckChaseStats(const edict_t *ent)
 {
 	int i;
 
@@ -746,12 +766,12 @@ G_SetSpectatorStats(edict_t *ent)
 
 	if ((cl->pers.health <= 0) || level.intermissiontime || cl->showscores)
 	{
-		cl->ps.stats[STAT_LAYOUTS] |= 1;
+		cl->ps.stats[STAT_LAYOUTS] |= LAYOUTS_LAYOUT;
 	}
 
 	if (cl->showinventory && (cl->pers.health > 0))
 	{
-		cl->ps.stats[STAT_LAYOUTS] |= 2;
+		cl->ps.stats[STAT_LAYOUTS] |= LAYOUTS_INVENTORY;
 	}
 
 	if (cl->chase_target && cl->chase_target->inuse)

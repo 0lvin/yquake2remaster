@@ -39,8 +39,6 @@
 static int windsound;
 
 void trigger_push_active(edict_t *self);
-void hurt_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */);
 
 static void
 InitTrigger(edict_t *self)
@@ -83,7 +81,7 @@ multi_wait(edict_t *ent)
  * through a delay so wait for the
  * delay time before firing
  */
-void
+static void
 multi_trigger(edict_t *ent)
 {
 	if (!ent)
@@ -144,8 +142,8 @@ Use_Multi(edict_t *ent, edict_t *other /* unused */, edict_t *activator)
 }
 
 void
-Touch_Multi(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+Touch_Multi(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -614,8 +612,8 @@ SP_trigger_always(edict_t *ent)
  */
 
 void
-trigger_push_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_push_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -657,7 +655,7 @@ trigger_push_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
  *
  * "speed"		defaults to 1000
  */
-void
+static void
 trigger_effect(edict_t *self)
 {
 	vec3_t origin;
@@ -680,7 +678,7 @@ trigger_effect(edict_t *self)
 		gi.WriteByte(1);
 		gi.WritePosition(origin);
 		gi.WriteDir(vec3_origin);
-		gi.WriteByte(0x74 + (rand() & 7));
+		gi.WriteByte(0x74 + (randk() & 7));
 		gi.multicast(self->s.origin, MULTICAST_PVS);
 	}
 }
@@ -870,8 +868,8 @@ hurt_use(edict_t *self, edict_t *other /* unused */,
 }
 
 void
-hurt_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+hurt_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	int dflags;
 
@@ -990,8 +988,8 @@ trigger_gravity_use(edict_t *self, edict_t *other /* unused */, edict_t *activat
  * gravity for the level.
  */
 void
-trigger_gravity_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_gravity_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -1061,8 +1059,8 @@ SP_trigger_gravity(edict_t *self)
  */
 
 void
-trigger_monsterjump_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_monsterjump_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -1134,8 +1132,8 @@ SP_trigger_monsterjump(edict_t *self)
 #define SPAWNFLAG_FLASHLIGHT_CLIPPED 1
 
 void
-trigger_flashlight_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_flashlight_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!other->client)
 	{
@@ -1216,7 +1214,7 @@ SP_trigger_flashlight(edict_t *self)
 #define SPAWNFLAG_FOG_BLEND 16
 
 void
-trigger_fog_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */, csurface_t *surf /* unused */)
+trigger_fog_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */, const csurface_t *surf /* unused */)
 {
 	edict_t *fog_value_storage;
 
@@ -1466,8 +1464,8 @@ SP_trigger_fog(edict_t *self)
  * target: Fog density (.01 - .0001)
  */
 void
-trigger_fogdensity_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_fogdensity_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	float density;
 	int i;
@@ -1505,8 +1503,8 @@ SP_trigger_fogdensity(edict_t *self)
  * style: CD Track Id
  */
 void
-choose_cdtrack_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+choose_cdtrack_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self)
 	{
@@ -1535,8 +1533,8 @@ SP_choose_cdtrack(edict_t *self)
  * message: "Message (index in strings.txt)"
  */
 void
-trigger_mission_give_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_mission_give_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	const char *message;
 
@@ -1586,8 +1584,8 @@ SP_trigger_mission_give(edict_t *self)
  *  32: Take objective 2
  */
 void
-trigger_mission_take_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+trigger_mission_take_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self)
 	{
@@ -1628,11 +1626,10 @@ SP_trigger_mission_take(edict_t *self)
  * Replaced spawn points to map submodel position.
  */
 void
-misc_update_spawner_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+misc_update_spawner_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	edict_t	*spot = NULL;
-	int i;
 
 	if (!self || !other || !other->client)
 	{
@@ -1643,6 +1640,8 @@ misc_update_spawner_touch(edict_t *self, edict_t *other, cplane_t *plane /* unus
 
 	if (spot)
 	{
+		int i;
+
 		/* copy trigger position and angles to spawn point */
 		for (i = 0; i < 3; i++)
 		{

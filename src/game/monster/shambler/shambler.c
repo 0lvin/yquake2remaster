@@ -64,7 +64,7 @@ static vec3_t lightning_right_hand[] = {
 	{ 27, -11, 83 }
 };
 
-void
+static void
 shambler_lightning_update(edict_t *self)
 {
 	edict_t *lightning;
@@ -81,12 +81,12 @@ shambler_lightning_update(edict_t *self)
 	lightning->owner = self;
 
 	AngleVectors(self->s.angles, f, r, NULL);
-	G_ProjectSource(self->s.origin, lightning_left_hand[self->s.frame - FRAME_magic01], f, r, lightning->s.origin);
-	G_ProjectSource(self->s.origin, lightning_right_hand[self->s.frame - FRAME_magic01], f, r, lightning->s.old_origin);
+	M_ProjectFlashSource(self, lightning_left_hand[self->s.frame - FRAME_magic01], f, r, lightning->s.origin);
+	M_ProjectFlashSource(self, lightning_right_hand[self->s.frame - FRAME_magic01], f, r, lightning->s.old_origin);
 	gi.linkentity(lightning);
 }
 
-void
+static void
 shambler_windup(edict_t* self)
 {
 	gi.sound(self, CHAN_WEAPON, sound_windup, 1, ATTN_NORM, 0);
@@ -100,7 +100,7 @@ shambler_idle(edict_t* self)
 	gi.sound(self, CHAN_VOICE, sound_idle, 1, ATTN_IDLE, 0);
 }
 
-void
+static void
 shambler_maybe_idle(edict_t* self)
 {
 	if (random() > 0.8)
@@ -131,8 +131,7 @@ shambler_stand(edict_t* self)
 
 void shambler_walk(edict_t* self);
 
-static mframe_t shambler_frames_walk[] =
-{
+static mframe_t shambler_frames_walk[] = {
 	{ai_walk, 10, NULL}, /* FIXME: add footsteps? */
 	{ai_walk, 9, NULL},
 	{ai_walk, 9, NULL},
@@ -147,8 +146,7 @@ static mframe_t shambler_frames_walk[] =
 	{ai_walk, 5, NULL},
 };
 
-mmove_t shambler_move_walk =
-{
+mmove_t shambler_move_walk = {
 	FRAME_walk01,
 	FRAME_walk12,
 	shambler_frames_walk,
@@ -182,8 +180,7 @@ static mframe_t shambler_frames_run[] =
 	{ai_run, 20, shambler_maybe_idle},
 };
 
-mmove_t shambler_move_run =
-{
+mmove_t shambler_move_run = {
 	FRAME_run01,
 	FRAME_run06,
 	shambler_frames_run,
@@ -231,8 +228,7 @@ static mframe_t shambler_frames_pain[] = {
 	{ai_move, 0, NULL},
 };
 
-mmove_t shambler_move_pain =
-{
+mmove_t shambler_move_pain = {
 	FRAME_pain01,
 	FRAME_pain06,
 	shambler_frames_pain,
@@ -375,8 +371,7 @@ static mframe_t shambler_frames_magic[] = {
 	{ai_move, 0, NULL},
 };
 
-mmove_t shambler_attack_magic =
-{
+mmove_t shambler_attack_magic = {
 	FRAME_magic01,
 	FRAME_magic12,
 	shambler_frames_magic,
@@ -398,13 +393,13 @@ shambler_attack(edict_t* self)
 // melee
 //
 
-void
+static void
 shambler_melee1(edict_t* self)
 {
 	gi.sound(self, CHAN_WEAPON, sound_melee1, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 shambler_melee2(edict_t* self)
 {
 	gi.sound(self, CHAN_WEAPON, sound_melee2, 1, ATTN_NORM, 0);
@@ -466,8 +461,7 @@ static mframe_t shambler_frames_smash[] = {
 	{ai_charge, 4},
 };
 
-mmove_t shambler_attack_smash =
-{
+mmove_t shambler_attack_smash = {
 	FRAME_smash01,
 	FRAME_smash12,
 	shambler_frames_smash,
@@ -486,8 +480,7 @@ static mframe_t shambler_frames_swingl[] = {
 	{ai_charge, 8, sham_swingl9_step},
 };
 
-mmove_t shambler_attack_swingl =
-{
+mmove_t shambler_attack_swingl = {
 	FRAME_swingl01,
 	FRAME_swingl09,
 	shambler_frames_swingl,
@@ -506,8 +499,7 @@ static mframe_t shambler_frames_swingr[] = {
 	{ai_charge, 8, sham_swingr9_step},
 };
 
-mmove_t shambler_attack_swingr =
-{
+mmove_t shambler_attack_swingr = {
 	FRAME_swingr01,
 	FRAME_swingr09,
 	shambler_frames_swingr,
@@ -583,7 +575,7 @@ shambler_melee(edict_t* self)
 // death
 //
 
-void
+static void
 shambler_dead(edict_t* self)
 {
 	if (!self)
@@ -593,6 +585,7 @@ shambler_dead(edict_t* self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -618,8 +611,7 @@ static mframe_t shambler_frames_death[] = {
 	{ai_move, 0, NULL}, /* FIXME: thud? */
 };
 
-mmove_t shambler_move_death =
-{
+mmove_t shambler_move_death = {
 	FRAME_death01,
 	FRAME_death11,
 	shambler_frames_death,
@@ -628,7 +620,7 @@ mmove_t shambler_move_death =
 
 void
 shambler_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage, vec3_t point /* unused */)
+		int damage, const vec3_t point /* unused */)
 {
 	/* check for gib */
 	if (self->health <= self->gib_health)

@@ -16,6 +16,8 @@ concurrency:
 jobs:
   build_ubuntu_aarch64:
     runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:testing
     permissions:
       actions: read
       contents: read
@@ -28,11 +30,11 @@ jobs:
     steps:
     - name: Install build dependencies
       run: |
-        sudo apt update
-        sudo apt install libgl1-mesa-dev libsdl2-dev libopenal-dev libcurl4-openssl-dev \
-            libavformat-dev libswscale-dev libvulkan-dev build-essential snapd
+        apt update
+        apt install -y libgl1-mesa-dev libsdl2-dev libopenal-dev libcurl4-openssl-dev \
+            libavformat-dev libswscale-dev libvulkan-dev build-essential git cppcheck
     - name: Check out repository code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         submodules: 'true'
     - name: Build
@@ -40,12 +42,17 @@ jobs:
         # Public runners come with 4 CPUs.
         make WITH_SDL3=no -j4
         make WITH_SDL3=no -j4 ref_gles1
+        # Debug version
+        make WITH_SDL3=no DEBUG=1 -j4
+        make WITH_SDL3=no DEBUG=1 -j4 ref_gles1
     - name: Create testbuild package
       run: |
         # Create release directory tree
         mkdir -p publish/quake2-linux_aarch64-${{github.sha}}/misc/docs
+        mkdir -p publish/quake2-linux_aarch64-${{github.sha}}/debug
         # Copy release assets
         cp -r release/* publish/quake2-linux_aarch64-${{github.sha}}/
+        cp -r debug/* publish/quake2-linux_aarch64-${{github.sha}}/debug/
         # Copy misc assets
         cp -r stuff/yq2.cfg publish/quake2-linux_aarch64-${{github.sha}}/misc/yq2.cfg
         cp -r stuff/models publish/quake2-linux_aarch64-${{github.sha}}/misc
@@ -62,15 +69,14 @@ jobs:
         cp doc/080_contributing.md publish/quake2-linux_aarch64-${{github.sha}}/misc/docs/080_contributing.txt
         cp doc/090_filelists.md publish/quake2-linux_aarch64-${{github.sha}}/misc/docs/090_filelists.md
     - name: Upload testbuild package
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: quake2-linux_aarch64-${{github.sha}}
         path: publish/
         if-no-files-found: error
     - name: Run Cppcheck
       run: |
-        sudo snap install cppcheck --edge
-        /snap/bin/cppcheck -j 4 --enable=all --output-format=sarif \
+        cppcheck -j 4 --enable=all --output-format=sarif \
           --output-file=cppcheck_results.sarif --inconclusive --library=posix \
           -DYQ2OSTYPE=\"Linux\" src
     - name: Upload SARIF to GitHub Code Scanning

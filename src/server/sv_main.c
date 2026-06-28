@@ -93,20 +93,22 @@ SV_StatusString(void)
 	char player[1024];
 	static char status[MAX_MSGLEN - 16];
 	int i;
-	client_t *cl;
 	int statusLength;
-	int playerLength;
 
-	strcpy(status, Cvar_Serverinfo());
+	Q_strlcpy(status, Cvar_Serverinfo(), sizeof(status));
 	Q_strlcat(status, "\n", sizeof(status));
 	statusLength = (int)strlen(status);
 
 	for (i = 0; i < maxclients->value; i++)
 	{
+		static client_t *cl;
+
 		cl = &svs.clients[i];
 
 		if ((cl->state == cs_connected) || (cl->state == cs_spawned))
 		{
+			int playerLength;
+
 			Com_sprintf(player, sizeof(player), "%i %i \"%s\"\n",
 					CL_EDICT(cl)->client->ps.stats[STAT_FRAGS], cl->ping, cl->name);
 			playerLength = (int)strlen(player);
@@ -170,7 +172,6 @@ static void
 SV_GiveMsec(void)
 {
 	int i;
-	client_t *cl;
 
 	if (sv.framenum & 15)
 	{
@@ -179,6 +180,8 @@ SV_GiveMsec(void)
 
 	for (i = 0; i < maxclients->value; i++)
 	{
+		client_t *cl;
+
 		cl = &svs.clients[i];
 
 		if (cl->state == cs_free)
@@ -370,7 +373,7 @@ SV_RunGameFrame(void)
 int
 SV_Optimizations(void)
 {
-	cvar_t *cv;
+	const cvar_t *cv;
 
 	if (svs.gamemode <= 0 || svs.gamemode > 3)
 	{
@@ -380,7 +383,7 @@ SV_Optimizations(void)
 	cv = (svs.gamemode == GAMEMODE_SP) ?
 		sv_optimize_sp_loadtime : sv_optimize_mp_loadtime;
 
-	return cv ? cv->value : 0;
+	return cv ? ((int)cv->value & OPTIMIZE_MASK_ALL) : 0;
 }
 
 void
@@ -555,7 +558,7 @@ Master_Shutdown(void)
 void
 SV_UserinfoChanged(client_t *cl)
 {
-	char *val;
+	const char *val;
 	int i;
 
 	/* call prog code to allow overrides */
@@ -603,8 +606,8 @@ SV_Init(void)
 	SV_SendInitBuffers();
 	SV_InitOperatorCommands();
 
-	sv_optimize_sp_loadtime = Cvar_Get("sv_optimize_sp_loadtime", "15", 0);
-	sv_optimize_mp_loadtime = Cvar_Get("sv_optimize_mp_loadtime", "0", 0);
+	sv_optimize_sp_loadtime = Cvar_Get("sv_optimize_sp_loadtime", "31", 0);
+	sv_optimize_mp_loadtime = Cvar_Get("sv_optimize_mp_loadtime", "7", 0);
 
 	rcon_password = Cvar_Get("rcon_password", "", 0);
 	Cvar_Get("skill", "1", 0);
@@ -650,8 +653,8 @@ SV_Init(void)
  * outgoing message list, because the server is going
  * to totally exit after returning from this function.
  */
-void
-SV_FinalMessage(char *message, qboolean reconnect)
+static void
+SV_FinalMessage(const char *message, qboolean reconnect)
 {
 	int i;
 	client_t *cl;
@@ -675,11 +678,11 @@ SV_FinalMessage(char *message, qboolean reconnect)
 	 *     because this is called by SV_Shutdown() and the shut down server might have
 	 *     a different number of clients (e.g. 1 if it's single player), when maxclients
 	 *     has already been set to a higher value for multiplayer (e.g. 4 for coop)
-	 *     Luckily, svs.num_client_entities = maxclients->value * UPDATE_BACKUP * 64;
+	 *     Luckily, svs.num_client_entities = maxclients->value * UPDATE_BACKUP * MAX_PACKET_ENTITIES;
 	 *     with the maxclients value from when the current server was started (see SV_InitGame())
 	 *     so we can just calculate the right number of clients from that
 	 */
-	int numClients = svs.num_client_entities / ( UPDATE_BACKUP * 64 );
+	int numClients = svs.num_client_entities / ( UPDATE_BACKUP * MAX_PACKET_ENTITIES );
 	for (i = 0, cl = svs.clients; i < numClients; i++, cl++)
 	{
 		if (cl->state >= cs_connected)
@@ -717,7 +720,7 @@ SV_ClearBaselines(void)
  * before Sys_Quit or Sys_Error
  */
 void
-SV_Shutdown(char *finalmsg, qboolean reconnect)
+SV_Shutdown(const char *finalmsg, qboolean reconnect)
 {
 	if (svs.clients)
 	{

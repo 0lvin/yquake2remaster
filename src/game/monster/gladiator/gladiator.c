@@ -42,7 +42,7 @@ static int sound_sight;
 static int  sound_step;
 static int  sound_step2;
 
-void
+static void
 gladiator_footstep(edict_t *self)
 {
 	if (!g_monsterfootsteps->value)
@@ -99,7 +99,7 @@ gladiator_search(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_search, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 gladiator_cleaver_swing(edict_t *self)
 {
 	if (!self)
@@ -120,8 +120,7 @@ static mframe_t gladiator_frames_stand[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t gladiator_move_stand =
-{
+mmove_t gladiator_move_stand = {
 	FRAME_stand1,
 	FRAME_stand7,
 	gladiator_frames_stand,
@@ -158,8 +157,7 @@ static mframe_t gladiator_frames_walk[] = {
 	{ai_walk, 8, NULL}
 };
 
-mmove_t gladiator_move_walk =
-{
+mmove_t gladiator_move_walk = {
 	FRAME_walk1,
 	FRAME_walk16,
 	gladiator_frames_walk,
@@ -186,8 +184,7 @@ static mframe_t gladiator_frames_run[] = {
 	{ai_run, 13, gladiator_footstep}
 };
 
-mmove_t gladiator_move_run =
-{
+mmove_t gladiator_move_run = {
 	FRAME_run1,
 	FRAME_run6,
 	gladiator_frames_run,
@@ -212,7 +209,7 @@ gladiator_run(edict_t *self)
 	}
 }
 
-void
+static void
 GaldiatorMelee(edict_t *self)
 {
 	vec3_t aim;
@@ -254,8 +251,7 @@ static mframe_t gladiator_frames_attack_melee[] = {
 	{ai_charge, 0, NULL}
 };
 
-mmove_t gladiator_move_attack_melee =
-{
+mmove_t gladiator_move_attack_melee = {
 	FRAME_melee1,
 	FRAME_melee17,
 	gladiator_frames_attack_melee,
@@ -273,7 +269,7 @@ gladiator_melee(edict_t *self)
 	self->monsterinfo.currentmove = &gladiator_move_attack_melee;
 }
 
-void
+static void
 GladiatorGun(edict_t *self)
 {
 	vec3_t start;
@@ -286,7 +282,7 @@ GladiatorGun(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_GLADIATOR_RAILGUN_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_GLADIATOR_RAILGUN_1],
 			forward, right, start);
 
 	/* calc direction to where we targted */
@@ -308,8 +304,7 @@ static mframe_t gladiator_frames_attack_gun[] = {
 	{ai_charge, 0, NULL}
 };
 
-mmove_t gladiator_move_attack_gun =
-{
+mmove_t gladiator_move_attack_gun = {
 	FRAME_attack1,
 	FRAME_attack9,
 	gladiator_frames_attack_gun,
@@ -319,9 +314,6 @@ mmove_t gladiator_move_attack_gun =
 void
 gladiator_attack(edict_t *self)
 {
-	float range;
-	vec3_t v;
-
 	if (!self)
 	{
 		return;
@@ -333,6 +325,9 @@ gladiator_attack(edict_t *self)
 	*/
 	if (!(self->monsterinfo.aiflags & AI_STAND_GROUND))
 	{
+		float range;
+		vec3_t v;
+
 		VectorSubtract(self->s.origin, self->enemy->s.origin, v);
 		range = VectorLength(v);
 
@@ -358,8 +353,7 @@ static mframe_t gladiator_frames_pain[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t gladiator_move_pain =
-{
+mmove_t gladiator_move_pain = {
 	FRAME_pain1,
 	FRAME_pain6,
 	gladiator_frames_pain,
@@ -376,8 +370,7 @@ static mframe_t gladiator_frames_pain_air[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t gladiator_move_pain_air =
-{
+mmove_t gladiator_move_pain_air = {
 	FRAME_painup1,
 	FRAME_painup7,
 	gladiator_frames_pain_air,
@@ -435,7 +428,7 @@ gladiator_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 gladiator_dead(edict_t *self)
 {
 	if (!self)
@@ -445,6 +438,7 @@ gladiator_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -473,8 +467,7 @@ static mframe_t gladiator_frames_death[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t gladiator_move_death =
-{
+mmove_t gladiator_move_death = {
 	FRAME_death1,
 	FRAME_death22,
 	gladiator_frames_death,
@@ -484,10 +477,8 @@ mmove_t gladiator_move_death =
 void
 gladiator_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage /*unused */,
-		vec3_t point)
+		const vec3_t point)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -496,6 +487,8 @@ gladiator_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex(
 						"misc/udeath.wav"), 1, ATTN_NORM, 0);
 

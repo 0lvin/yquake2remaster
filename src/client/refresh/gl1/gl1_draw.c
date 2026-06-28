@@ -31,35 +31,60 @@ static float gl_font_size = 8.0;
 static int gl_font_height = 128;
 image_t *draw_chars = NULL;
 static image_t *draw_font = NULL;
-static image_t *draw_font_alt = NULL;
 static stbtt_bakedchar *draw_fontcodes = NULL;
 
-extern qboolean scrap_dirty;
 static qboolean draw_chars_has_alt;
-void Scrap_Upload(void);
 
 extern unsigned r_rawpalette[256];
 
 void R_LoadTTFFont(const char *ttffont, int vid_height, float *r_font_size,
 	int *r_font_height, stbtt_bakedchar **draw_fontcodes,
-	struct image_s **draw_font, struct image_s **draw_font_alt,
+	struct image_s **draw_font,
 	loadimage_t R_LoadPic);
 
 void
 Draw_InitLocal(void)
 {
 	R_LoadTTFFont(r_ttffont->string, vid.height, &gl_font_size, &gl_font_height,
-		&draw_fontcodes, &draw_font, &draw_font_alt, R_LoadPic);
+		&draw_fontcodes, &draw_font, R_LoadPic);
 
 	draw_chars = R_LoadConsoleChars((findimage_t)R_FindImage);
 	/* Heretic 2 uses more than 128 symbols in image */
-	draw_chars_has_alt = !(draw_chars && !strcmp(draw_chars->name, "pics/misc/conchars.m32"));
+	draw_chars_has_alt = (draw_chars && (
+		strcmp(draw_chars->name, "pics/misc/conchars.m8") &&
+		strcmp(draw_chars->name, "pics/misc/conchars.m32")));
 }
 
 void
 RDraw_FreeLocal(void)
 {
 	free(draw_fontcodes);
+}
+
+static void
+Scrap_Update(void)
+{
+	int texnum;
+
+	for (texnum = 0; texnum < MAX_SCRAPS; texnum++)
+	{
+		unsigned *scrap_texels;
+
+		scrap_texels = Scrap_Upload(texnum);
+		if (scrap_texels)
+		{
+			R_Bind(TEXNUM_SCRAPS + texnum);
+
+			if (!texnum)
+			{
+				/* nolerp textures*/
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			}
+
+			R_Upload32(scrap_texels, SCRAP_WIDTH, SCRAP_HEIGHT, false);
+		}
+	}
 }
 
 /*
@@ -94,10 +119,18 @@ RDraw_CharScaled(int x, int y, int num, float scale)
 
 	scaledSize = 8 * scale;
 
+	if (draw_chars->scrap)
+	{
+		Scrap_Update();
+	}
+
 	R_UpdateGLBuffer(buf_2d, draw_chars->texnum, 0, 0, 1);
 
 	R_Buffer2DQuad(x, y, x + scaledSize, y + scaledSize,
-		fcol, frow, fcol + size, frow + size);
+		draw_chars->sl + fcol * (draw_chars->sh - draw_chars->sl),
+		draw_chars->tl + frow * (draw_chars->th - draw_chars->tl),
+		draw_chars->sl + (fcol + size) * (draw_chars->sh - draw_chars->sl),
+		draw_chars->tl + (frow + size) * (draw_chars->th - draw_chars->tl));
 }
 
 void
@@ -107,7 +140,7 @@ RDraw_StringScaled(int x, int y, float scale, qboolean alt, const char *message)
 	{
 		unsigned value = R_NextUTF8Code(&message);
 
-		if (draw_fontcodes && draw_font && draw_font_alt)
+		if (draw_fontcodes && draw_font)
 		{
 			float font_scale;
 
@@ -121,13 +154,19 @@ RDraw_StringScaled(int x, int y, float scale, qboolean alt, const char *message)
 				stbtt_GetBakedQuad(draw_fontcodes, gl_font_height, gl_font_height,
 					value - 32, &xf, &yf, &q, 1);
 
+				if (alt)
+				{
+					q.t0 += 0.5;
+					q.t1 += 0.5;
+				}
+
 				xdiff = (8 - xf / font_scale) / 2;
 				if (xdiff < 0)
 				{
 					xdiff = 0;
 				}
 
-				R_UpdateGLBuffer(buf_2d, alt ? draw_font_alt->texnum : draw_font->texnum, 0, 0, 1);
+				R_UpdateGLBuffer(buf_2d, draw_font->texnum, 0, 0, 1);
 
 				R_Buffer2DQuad(
 					(float)(x + (xdiff + q.x0 / font_scale) * scale),
@@ -190,13 +229,13 @@ RDraw_StretchPic(int x, int y, int w, int h, const char *pic)
 
 	if (!gl)
 	{
-		Com_Printf("Can't find pic: %s\n", pic);
+		Com_Printf("%s(): Can't find pic: %s\n", __func__, pic);
 		return;
 	}
 
-	if (scrap_dirty)
+	if (gl->scrap)
 	{
-		Scrap_Upload();
+		Scrap_Update();
 	}
 
 	R_UpdateGLBuffer(buf_2d, gl->texnum, 0, 0, 1);
@@ -225,17 +264,22 @@ RDraw_PicScaled(int x, int y, const char *pic, float factor, const char *alttext
 		return;
 	}
 
-	if (scrap_dirty)
+	if (gl->scrap)
 	{
-		Scrap_Upload();
+		Scrap_Update();
 	}
 
-	if (gl->texnum == TEXNUM_SCRAPS)
+	if (gl->texnum >= TEXNUM_SCRAPS && gl->texnum < TEXNUM_IMAGES)
 	{
-		R_UpdateGLBuffer(buf_2d, TEXNUM_SCRAPS, 0, 0, 1);
+		R_UpdateGLBuffer(buf_2d, gl->texnum, 0, 0, 1);
 		R_Buffer2DQuad(x, y, x + gl->width * factor, y + gl->height * factor,
 			gl->sl, gl->tl, gl->sh, gl->th);
 		return;
+	}
+
+	if (gl->scrap)
+	{
+		Scrap_Update();
 	}
 
 	R_Bind(gl->texnum);
@@ -265,6 +309,67 @@ RDraw_PicScaled(int x, int y, const char *pic, float factor, const char *alttext
 	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 }
 
+void
+RDraw_PicScaledCol(int x, int y, const char *pic, float factor, const vec3_t color,
+	const char *alttext)
+{
+	image_t *gl;
+
+	gl = R_FindPic(pic, (findimage_t)R_FindImage);
+
+	if (!gl)
+	{
+		if (alttext && alttext[0])
+		{
+			/* Show alttext if provided */
+			RDraw_StringScaled(x, y, factor, false, alttext);
+			return;
+		}
+
+		Com_Printf("Can't find pic: %s\n", pic);
+		return;
+	}
+
+	if (gl->scrap)
+	{
+		Scrap_Update();
+	}
+
+	R_ApplyGLBuffer();
+
+	R_TexEnv(GL_MODULATE);
+	glColor4f(color[0], color[1], color[2], 1);
+
+	R_Bind(gl->texnum);
+
+	GLfloat vtx[] = {
+		x, y,
+		x + gl->width * factor, y,
+		x + gl->width * factor, y + gl->height * factor,
+		x, y + gl->height * factor
+	};
+
+	GLfloat tex[] = {
+		gl->sl, gl->tl,
+		gl->sh, gl->tl,
+		gl->sh, gl->th,
+		gl->sl, gl->th
+	};
+
+	glEnableClientState( GL_VERTEX_ARRAY );
+	glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+
+	glVertexPointer( 2, GL_FLOAT, 0, vtx );
+	glTexCoordPointer( 2, GL_FLOAT, 0, tex );
+	glDrawArrays( GL_TRIANGLE_FAN, 0, 4 );
+
+	glDisableClientState( GL_VERTEX_ARRAY );
+	glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+
+	glColor4f(1, 1, 1, 1);
+	R_TexEnv(GL_REPLACE);
+}
+
 /*
  * This repeats a 64*64 tile graphic to fill
  * the screen around a sized down
@@ -279,8 +384,13 @@ RDraw_TileClear(int x, int y, int w, int h, const char *pic)
 
 	if (!image)
 	{
-		Com_Printf("Can't find pic: %s\n", pic);
+		Com_Printf("%s(): Can't find pic: %s\n", __func__, pic);
 		return;
+	}
+
+	if (image->scrap)
+	{
+		Scrap_Update();
 	}
 
 	R_UpdateGLBuffer(buf_2d, image->texnum, 0, 0, 1);
@@ -504,12 +614,12 @@ RDraw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *dat
 	}
 	else
 	{
-		unsigned char image8[256 * 256];
+		byte image8[256 * 256];
 		int trows = 256;
 
 		for (i = 0; i < trows; i++)
 		{
-			unsigned char *dest;
+			byte *dest;
 			const byte *source;
 
 			row = (int)(i * hscale);

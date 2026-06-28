@@ -47,16 +47,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeve
 	switch (msgSeverity)
 	{
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-		Com_Printf("VK_INFO: %s %s\n", callbackData->pMessage, msgToString(msgType));
+		Com_Printf("%s VK_INFO: %s %s\n",
+			__func__, callbackData->pMessage, msgToString(msgType));
 		break;
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-		Com_Printf("VK_VERBOSE: %s %s\n", callbackData->pMessage, msgToString(msgType));
+		Com_Printf("%s VK_VERBOSE: %s %s\n",
+			__func__, callbackData->pMessage, msgToString(msgType));
 		break;
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-		Com_Printf("VK_WARNING: %s %s\n", callbackData->pMessage, msgToString(msgType));
+		Com_Printf("%s VK_WARNING: %s %s\n",
+			__func__, callbackData->pMessage, msgToString(msgType));
 		break;
 	default:
-		Com_Printf("VK_ERROR: %s %s\n", callbackData->pMessage, msgToString(msgType));
+		Com_Printf("%s VK_ERROR: %s %s\n",
+			__func__, callbackData->pMessage, msgToString(msgType));
 		assert(!"Vulkan error occured!");
 	}
 	return VK_FALSE;
@@ -65,31 +69,37 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeve
 static VkDebugReportCallbackEXT validationLayerCallback = VK_NULL_HANDLE;
 
 // validation layer callback function (VK_EXT_debug_report)
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallbackReport(VkDebugReportFlagsEXT flags,
-                                                          VkDebugReportObjectTypeEXT objType,
-                                                          uint64_t obj, size_t location, int32_t code,
-                                                          const char *layerPrefix, const char *msg,
-                                                          void* userData)
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+debugCallbackReport(VkDebugReportFlagsEXT flags,
+	VkDebugReportObjectTypeEXT objType,
+	uint64_t obj, size_t location, int32_t code,
+	const char *layerPrefix, const char *msg,
+	void* userData)
 {
-    switch (flags)
-    {
-	case VK_DEBUG_REPORT_INFORMATION_BIT_EXT:
-		Com_Printf("VK_INFO: %s %s\n", layerPrefix, msg);
-        break;
-	case VK_DEBUG_REPORT_DEBUG_BIT_EXT:
-		Com_Printf("VK_DEBUG: %s %s\n", layerPrefix, msg);
-        break;
-	case VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT:
-		Com_Printf("VK_PERFORMANCE: %s %s\n", layerPrefix, msg);
-        break;
-	case VK_DEBUG_REPORT_WARNING_BIT_EXT:
-		Com_Printf("VK_WARNING: %s %s\n", layerPrefix, msg);
-        break;
-        default:
-		Com_Printf("VK_ERROR: %s %s\n", layerPrefix, msg);
-        break;
-    }
-    return VK_FALSE;
+	switch (flags)
+	{
+		case VK_DEBUG_REPORT_INFORMATION_BIT_EXT:
+			Com_Printf("%s VK_INFO: %s %s\n",
+				__func__, layerPrefix, msg);
+			break;
+		case VK_DEBUG_REPORT_DEBUG_BIT_EXT:
+			Com_Printf("%s VK_DEBUG: %s %s\n",
+				__func__, layerPrefix, msg);
+			break;
+		case VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT:
+			Com_Printf("%s VK_PERFORMANCE: %s %s\n",
+				__func__, layerPrefix, msg);
+			break;
+		case VK_DEBUG_REPORT_WARNING_BIT_EXT:
+			Com_Printf("%s VK_WARNING: %s %s\n",
+				__func__, layerPrefix, msg);
+			break;
+		default:
+			Com_Printf("%s VK_ERROR: %s %s\n",
+				__func__, layerPrefix, msg);
+			break;
+	}
+	return VK_FALSE;
 }
 
 void QVk_CreateValidationLayers()

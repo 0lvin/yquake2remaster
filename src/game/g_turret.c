@@ -28,7 +28,7 @@
 #include "header/local.h"
 
 void infantry_die(edict_t *self, edict_t *inflictor, edict_t *attacker,
-		int damage, vec3_t point);
+		int damage, const vec3_t point);
 void infantry_stand(edict_t *self);
 void monster_use(edict_t *self, edict_t *other, edict_t *activator);
 
@@ -116,7 +116,7 @@ turret_blocked(edict_t *self, edict_t *other)
  * "maxyaw"	max acceptable yaw angle   : default 360
  */
 
-void
+static void
 turret_breach_fire(edict_t *self)
 {
 	vec3_t f, r, u;
@@ -419,7 +419,7 @@ SP_turret_base(edict_t *self)
  */
 void
 turret_driver_die(edict_t *self, edict_t *inflictor, edict_t *attacker,
-		int damage, vec3_t point)
+		int damage, const vec3_t point)
 {
 	edict_t *ent;
 
@@ -634,7 +634,6 @@ turret_brain_think(edict_t *self)
 	vec3_t dir;
 	vec3_t endpos;
 	float reaction_time;
-	trace_t trace;
 
 	if (!self)
 	{
@@ -675,6 +674,8 @@ turret_brain_think(edict_t *self)
 	}
 	else
 	{
+		trace_t trace;
+
 		VectorAdd(self->enemy->absmax, self->enemy->absmin, endpos);
 		VectorScale(endpos, 0.5, endpos);
 

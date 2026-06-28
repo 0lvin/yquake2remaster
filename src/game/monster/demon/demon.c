@@ -40,8 +40,8 @@ static mframe_t demon_frames_run [] =
 	{ai_run, 15, NULL},
 	{ai_run, 36, NULL}
 };
-mmove_t demon_move_run =
-{
+
+mmove_t demon_move_run = {
 	FRAME_run1,
 	FRAME_run6,
 	demon_frames_run,
@@ -83,7 +83,7 @@ check_demon_jump(edict_t *self)
 };
 
 void
-demon_jump_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+demon_jump_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (self->health < 1)
 		return;
@@ -149,8 +149,8 @@ static mframe_t demon_frames_jump [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t demon_move_jump =
-{
+
+mmove_t demon_move_jump = {
 	FRAME_leap1,
 	FRAME_leap12,
 	demon_frames_jump,
@@ -207,8 +207,8 @@ static mframe_t demon_frames_melee [] =
 	{ai_charge, 4, NULL},
 	{ai_charge, 4, NULL}
 };
-mmove_t demon_move_melee =
-{
+
+mmove_t demon_move_melee = {
 	FRAME_attacka1,
 	FRAME_attacka15,
 	demon_frames_melee,
@@ -253,7 +253,7 @@ demon_pain(edict_t *self, edict_t *other, float kick, int damage)
 	monster_dynamic_pain(self, other, kick, damage);
 }
 
-void
+static void
 demon_dead(edict_t *self)
 {
 	VectorSet(self->mins, -32, -32, -24);
@@ -276,8 +276,8 @@ static mframe_t demon_frames_die [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t demon_move_die =
-{
+
+mmove_t demon_move_die = {
 	FRAME_death1,
 	FRAME_death9,
 	demon_frames_die,
@@ -285,24 +285,34 @@ mmove_t demon_move_die =
 };
 
 void
-demon_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+demon_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)
+		{
 			ThrowGib(self, "models/objects/gibs/bone/tris.md2", damage, GIB_ORGANIC);
+		}
+
 		for (n = 0; n < 4; n++)
+		{
 			ThrowGib(self, NULL, damage, GIB_ORGANIC);
+		}
+
 		ThrowHead(self, NULL, damage, GIB_ORGANIC);
 		self->deadflag = DEAD_DEAD;
 		return;
 	}
+
 	if (self->deadflag == DEAD_DEAD)
+	{
 		return;
+	}
+
 	gi.sound(self, CHAN_VOICE, sound_death, 1, ATTN_NORM, 0);
 
 	self->deadflag = DEAD_DEAD;

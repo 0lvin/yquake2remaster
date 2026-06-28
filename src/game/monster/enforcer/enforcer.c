@@ -45,8 +45,7 @@ static mframe_t enforcer_frames_run [] =
 	{ai_run, 7, NULL},
 	{ai_run, 11, NULL}
 };
-mmove_t enforcer_move_run =
-{
+mmove_t enforcer_move_run = {
 	FRAME_run1,
 	FRAME_run8,
 	enforcer_frames_run,
@@ -60,7 +59,7 @@ enforcer_run(edict_t *self)
 }
 
 void
-enfbolt_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+enfbolt_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (other == self->owner)
 	{
@@ -148,7 +147,7 @@ enforcer_fire_bolt(edict_t *self)
 	vec3_t	offset = {30, 8.5, 16};
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 	VectorCopy(self->enemy->s.origin, vec);
 	vec[2] += self->enemy->viewheight;
 
@@ -168,8 +167,7 @@ static mframe_t enforcer_frames_attack2 [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t enforcer_move_attack2 =
-{
+mmove_t enforcer_move_attack2 = {
 	FRAME_attack5,
 	FRAME_attack10,
 	enforcer_frames_attack2,
@@ -196,8 +194,7 @@ static mframe_t enforcer_frames_attack1 [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL}
 };
-mmove_t enforcer_move_attack1 =
-{
+mmove_t enforcer_move_attack1 = {
 	FRAME_attack1,
 	FRAME_attack8,
 	enforcer_frames_attack1,
@@ -246,8 +243,7 @@ static mframe_t enforcer_frames_pain1 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_pain1 =
-{
+mmove_t enforcer_move_pain1 = {
 	FRAME_paina1,
 	FRAME_paina4,
 	enforcer_frames_pain1,
@@ -264,8 +260,7 @@ static mframe_t enforcer_frames_pain2 [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_pain2 =
-{
+mmove_t enforcer_move_pain2 = {
 	FRAME_painb1,
 	FRAME_painb5,
 	enforcer_frames_pain2,
@@ -285,8 +280,7 @@ static mframe_t enforcer_frames_pain3 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_pain3 =
-{
+mmove_t enforcer_move_pain3 = {
 	FRAME_painc1,
 	FRAME_painc8,
 	enforcer_frames_pain3,
@@ -320,8 +314,7 @@ static mframe_t enforcer_frames_pain4 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_pain4 =
-{
+mmove_t enforcer_move_pain4 = {
 	FRAME_paind1,
 	FRAME_paind19,
 	enforcer_frames_pain4,
@@ -384,6 +377,7 @@ enforcer_dead(edict_t *self)
 {
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -408,8 +402,7 @@ static mframe_t enforcer_frames_death1 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_death1 =
-{
+mmove_t enforcer_move_death1 = {
 	FRAME_death1,
 	FRAME_death14,
 	enforcer_frames_death1,
@@ -433,8 +426,7 @@ static mframe_t enforcer_frames_death2 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t enforcer_move_death2 =
-{
+mmove_t enforcer_move_death2 = {
 	FRAME_fdeath1,
 	FRAME_fdeath11,
 	enforcer_frames_death2,
@@ -443,33 +435,47 @@ mmove_t enforcer_move_death2 =
 
 // Death
 void
-enforcer_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+enforcer_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)
+		{
 			ThrowGib(self, "models/objects/gibs/bone/tris.md2", damage, GIB_ORGANIC);
+		}
+
 		for (n = 0; n < 4; n++)
+		{
 			ThrowGib(self, NULL, damage, GIB_ORGANIC);
+		}
+
 		ThrowHead(self, NULL, damage, GIB_ORGANIC);
 		self->deadflag = DEAD_DEAD;
 		return;
 	}
+
 	if (self->deadflag == DEAD_DEAD)
+	{
 		return;
+	}
+
 	gi.sound(self, CHAN_VOICE, sound_death, 1, ATTN_NORM, 0);
 
 	self->deadflag = DEAD_DEAD;
 	self->takedamage = DAMAGE_YES;
 
 	if (random() < 0.5)
+	{
 		self->monsterinfo.currentmove = &enforcer_move_death1;
+	}
 	else
+	{
 		self->monsterinfo.currentmove = &enforcer_move_death2;
+	}
 }
 
 /*

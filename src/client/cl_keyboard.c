@@ -222,7 +222,7 @@ static char *gamepadbtns[] =
 	"BTN_NORTH",
 	"BTN_BACK",
 	"BTN_GUIDE",
-	"BTN_START",
+	"",	// START
 	"STICK_LEFT",
 	"STICK_RIGHT",
 	"SHOULDR_LEFT",
@@ -251,7 +251,7 @@ static char *gamepadbtns[] =
 	"BTN_NORTH_ALT",
 	"BTN_BACK_ALT",
 	"BTN_GUIDE_ALT",
-	"BTN_START_ALT",
+	"",	// START ALT
 	"STICK_LEFT_ALT",
 	"STICK_RIGHT_ALT",
 	"SHOULDR_LEFT_ALT",
@@ -275,8 +275,6 @@ static char *gamepadbtns[] =
 	"TRIG_RIGHT_ALT"
 };
 
-#define NUM_GAMEPAD_BTNS (sizeof gamepadbtns / sizeof gamepadbtns[0])
-
 static char *gpbtns_face[] =
 {
 	// Xbox
@@ -284,9 +282,9 @@ static char *gpbtns_face[] =
 	"B",
 	"X",
 	"Y",
-	"VIEW",
+	"VIEW",	// BACK
 	"XBOX",
-	"MENU",
+	"",	// MENU / START
 	"LS",
 	"RS",
 	"LB",
@@ -296,9 +294,9 @@ static char *gpbtns_face[] =
 	"CIRCLE",
 	"SQUARE",
 	"TRIANGLE",
-	"CREATE",
+	"CREATE",	// SELECT
 	"PS",
-	"OPTIONS",
+	"",	// OPTIONS / START
 	"L3",
 	"R3",
 	"L1",
@@ -310,7 +308,7 @@ static char *gpbtns_face[] =
 	"X",
 	"-",
 	"HOME",
-	"+",
+	"",	// "+"
 	"L stick",
 	"R stick",
 	"L btn",
@@ -820,8 +818,9 @@ Key_Message(int key)
  * the K_* names are matched up.
  */
 static int
-Key_StringToKeynum(char *str)
+Key_StringToKeynum(const char *str)
 {
+	static const int num_gamepad_btns = ARRLEN(gamepadbtns);
 	keyname_t *kn;
 	int i;
 
@@ -832,7 +831,7 @@ Key_StringToKeynum(char *str)
 
 	if (!str[1])
 	{
-		return str[0];
+		return (unsigned char)str[0];
 	}
 
 	for (kn = keynames; kn->name; kn++)
@@ -843,7 +842,7 @@ Key_StringToKeynum(char *str)
 		}
 	}
 
-	for (i = 0; i < NUM_GAMEPAD_BTNS; i++)
+	for (i = 0; i < num_gamepad_btns; i++)
 	{
 		if (!Q_stricmp(str, gamepadbtns[i]))
 		{
@@ -862,7 +861,6 @@ char *
 Key_KeynumToString(int keynum)
 {
 	keyname_t *kn;
-	static char tinystr[2] = {0};
 
 	if (keynum == -1)
 	{
@@ -871,6 +869,8 @@ Key_KeynumToString(int keynum)
 
 	if ((keynum > 32) && (keynum < 127) && keynum != ';' && keynum != '"' && keynum != '\'' && keynum != '$')
 	{
+		static char tinystr[2] = {0};
+
 		/* printable ASCII, except for special cases that have special meanings
 		   in configs like quotes or ; (separates commands) or $ (used to expand
 		   cvars to their values in macros/commands) and thus need escaping */
@@ -938,7 +938,7 @@ exit_sdl:
 }
 
 void
-Key_SetBinding(int keynum, char *binding)
+Key_SetBinding(int keynum, const char *binding)
 {
 	char *new;
 	int l;
@@ -1345,7 +1345,6 @@ Key_Event(int key, qboolean down, qboolean special)
 {
 	char cmd[1024];
 	char *kb;
-	cvar_t *fullscreen;
 	unsigned int time = Sys_Milliseconds();
 
 	// evil hack for the joystick key altselector, which turns K_BTN_x into K_BTN_x_ALT
@@ -1394,6 +1393,8 @@ Key_Event(int key, qboolean down, qboolean special)
 	/* Fullscreen switch through Alt + Return */
 	if (down && keydown[K_ALT] && key == K_ENTER)
 	{
+		const cvar_t *fullscreen;
+
 		fullscreen = Cvar_Get("vid_fullscreen", "0", CVAR_ARCHIVE);
 
 		if (!fullscreen->value)

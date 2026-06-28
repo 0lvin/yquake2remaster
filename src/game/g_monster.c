@@ -33,7 +33,7 @@ void monster_start_go(edict_t *self);
 /* Monster weapons */
 
 static void
-monster_muzzleflash2(edict_t *self, vec3_t start, int flashtype)
+monster_muzzleflash2(const edict_t *self, vec3_t start, int flashtype)
 {
 	gi.WriteByte(svc_muzzleflash2);
 	gi.WriteShort(self - g_edicts);
@@ -254,7 +254,6 @@ dabeam_hit(edict_t *self)
 void
 monster_dabeam(edict_t *self)
 {
-	vec3_t last_movedir;
 	vec3_t point;
 
 	if (!self)
@@ -280,6 +279,8 @@ monster_dabeam(edict_t *self)
 
 	if (self->enemy)
 	{
+		vec3_t last_movedir;
+
 		VectorCopy(self->movedir, last_movedir);
 		VectorMA(self->enemy->absmin, 0.5, self->enemy->size, point);
 
@@ -369,6 +370,27 @@ monster_fire_bfg(edict_t *self, vec3_t start, vec3_t aimdir,
 	fire_bfg(self, start, aimdir, damage, speed, damage_radius);
 
 	monster_muzzleflash2(self, start, flashtype);
+}
+
+/* Scale fire source to right place by scale */
+void
+M_ProjectFlashSource(const edict_t *self, const vec3_t offset, const vec3_t forward,
+	const vec3_t right, vec3_t result)
+{
+	vec3_t scaled_offset;
+	size_t i;
+
+	VectorCopy(offset, scaled_offset);
+
+	for (i = 0; i < 3; i++)
+	{
+		if (self->rrs.scale[i] > 0)
+		{
+			scaled_offset[i] *= self->rrs.scale[i];
+		}
+	}
+
+	return G_ProjectSource(self->s.origin, scaled_offset, forward, right, result);
 }
 
 /* ================================================================== */
@@ -471,10 +493,21 @@ M_CheckGround(edict_t *ent)
 			ent, MASK_MONSTERSOLID);
 
 	/* check steepness */
-	if ((trace.plane.normal[2] < 0.7) && !trace.startsolid)
+	if (ent->gravityVector[2] < 0) /* normal gravity */
 	{
-		ent->groundentity = NULL;
-		return;
+		if ((trace.plane.normal[2] < 0.7) && !trace.startsolid)
+		{
+			ent->groundentity = NULL;
+			return;
+		}
+	}
+	else /* inverted gravity */
+	{
+		if ((trace.plane.normal[2] > -0.7) && !trace.startsolid)
+		{
+			ent->groundentity = NULL;
+			return;
+		}
 	}
 
 	if (!trace.startsolid && !trace.allsolid)
@@ -505,13 +538,13 @@ M_CatagorizePosition(edict_t *ent)
 
 	if (!(cont & MASK_WATER))
 	{
-		ent->waterlevel = 0;
+		ent->waterlevel = WATER_NONE;
 		ent->watertype = 0;
 		return;
 	}
 
 	ent->watertype = cont;
-	ent->waterlevel = 1;
+	ent->waterlevel = WATER_FEET;
 	point[2] += 26;
 	cont = gi.pointcontents(point);
 
@@ -520,21 +553,19 @@ M_CatagorizePosition(edict_t *ent)
 		return;
 	}
 
-	ent->waterlevel = 2;
+	ent->waterlevel = WATER_WAIST;
 	point[2] += 22;
 	cont = gi.pointcontents(point);
 
 	if (cont & MASK_WATER)
 	{
-		ent->waterlevel = 3;
+		ent->waterlevel = WATER_UNDER;
 	}
 }
 
 void
 M_WorldEffects(edict_t *ent)
 {
-	int dmg;
-
 	if (!ent)
 	{
 		return;
@@ -544,7 +575,7 @@ M_WorldEffects(edict_t *ent)
 	{
 		if (!(ent->flags & FL_SWIM))
 		{
-			if (ent->waterlevel < 3)
+			if (ent->waterlevel < WATER_UNDER)
 			{
 				ent->air_finished = level.time + 12;
 			}
@@ -553,6 +584,8 @@ M_WorldEffects(edict_t *ent)
 				/* drown! */
 				if (ent->pain_debounce_time < level.time)
 				{
+					int dmg;
+
 					dmg = 2 + 2 * floor(level.time - ent->air_finished);
 
 					if (dmg > 15)
@@ -568,7 +601,7 @@ M_WorldEffects(edict_t *ent)
 		}
 		else
 		{
-			if (ent->waterlevel > 0)
+			if (ent->waterlevel > WATER_NONE)
 			{
 				ent->air_finished = level.time + 9;
 			}
@@ -577,6 +610,8 @@ M_WorldEffects(edict_t *ent)
 				/* suffocate! */
 				if (ent->pain_debounce_time < level.time)
 				{
+					int dmg;
+
 					dmg = 2 + 2 * floor(level.time - ent->air_finished);
 
 					if (dmg > 15)
@@ -592,7 +627,7 @@ M_WorldEffects(edict_t *ent)
 		}
 	}
 
-	if (ent->waterlevel == 0)
+	if (ent->waterlevel == WATER_NONE)
 	{
 		if (ent->flags & FL_INWATER)
 		{
@@ -786,28 +821,35 @@ M_GetModelIndex(edict_t *self)
 
 	if (modelindex == CUSTOM_PLAYER_MODEL)
 	{
-		char skinname[MAX_QPATH], modelname[MAX_QPATH];
-		char *s;
-
-		/* get selected player model from skin */
-		Q_strlcpy(skinname, Info_ValueForKey(
-			self->client->pers.userinfo, "skin"), sizeof(skinname));
-
-		s = skinname;
-
-		while(*s)
+		if (self->client)
 		{
-			if (*s == '/')
-			{
-				*s = 0;
-				break;
-			}
-			s++;
-		}
+			char skinname[MAX_QPATH], modelname[MAX_QPATH];
+			char *s;
 
-		Com_sprintf(modelname, sizeof(modelname), "players/%s/tris.md2",
-			skinname);
-		modelindex = gi.modelindex(modelname);
+			/* get selected player model from skin */
+			Q_strlcpy(skinname, Info_ValueForKey(
+				self->client->pers.userinfo, "skin"), sizeof(skinname));
+
+			s = skinname;
+
+			while(*s)
+			{
+				if (*s == '/')
+				{
+					*s = 0;
+					break;
+				}
+				s++;
+			}
+
+			Com_sprintf(modelname, sizeof(modelname), "players/%s/tris.md2",
+				skinname);
+			modelindex = gi.modelindex(modelname);
+		}
+		else
+		{
+			modelindex = gi.modelindex("players/male/tris.md2");
+		}
 	}
 
 	return modelindex;
@@ -964,7 +1006,7 @@ M_FixStuckMonster(edict_t *self)
 		return;
 	}
 
-	FixEntityPosition(self);
+	FixEntityPosition(self->mins, self->maxs, self, self->s.origin, MASK_SOLID);
 
 	tr = gi.trace(self->s.origin, self->mins, self->maxs, self->s.origin, self, MASK_SOLID);
 
@@ -1007,7 +1049,7 @@ M_SetAnimGroupFrame(edict_t *self, const char *name, qboolean fixpos)
 	}
 }
 
-void
+static void
 M_SetAnimGroupMMoveInt(edict_t *self, mmove_t *mmove, const char *name, int select)
 {
 	int ofs_frames, num_frames, base_numframe;
@@ -1148,6 +1190,22 @@ M_MoveFrame(edict_t *self)
 
 				/* regrab move, endfunc is very likely to change it */
 				move = self->monsterinfo.currentmove;
+
+				/* we need to recompute as endfunc may have swapped to a move with a different frame range */
+				if (move)
+				{
+					firstframe = move->firstframe;
+					lastframe = move->lastframe;
+
+					reverse = false;
+
+					if (lastframe < firstframe)
+					{
+						reverse = true;
+						firstframe = move->lastframe;
+						lastframe = move->firstframe;
+					}
+				}
 
 				/* check for death */
 				if (self->svflags & SVF_DEADMONSTER)
@@ -1417,6 +1475,26 @@ monster_dynamic_attack(edict_t *self)
 }
 
 void
+monster_sync_scale_mins_maxs(edict_t *self)
+{
+	size_t i;
+
+	if (!self)
+	{
+		return;
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		if (self->rrs.scale[i] > 0 && self->rrs.scale[i] != 1.0)
+		{
+			self->mins[i] *= self->rrs.scale[i];
+			self->maxs[i] *= self->rrs.scale[i];
+		}
+	}
+}
+
+void
 monster_dynamic_dead(edict_t *self)
 {
 	if (!self)
@@ -1432,14 +1510,14 @@ monster_dynamic_dead(edict_t *self)
 
 void
 monster_dynamic_die_noanim(edict_t *self, edict_t *inflictor, edict_t *attacker,
-	int damage, vec3_t point)
+	int damage, const vec3_t point)
 {
 	monster_dynamic_dead(self);
 }
 
 void
 monster_dynamic_die(edict_t *self, edict_t *inflictor, edict_t *attacker,
-	int damage, vec3_t point)
+	int damage, const vec3_t point)
 {
 	if (!self)
 	{
@@ -1483,7 +1561,7 @@ monster_dynamic_melee(edict_t *self)
 
 void
 monster_dynamic_dodge(edict_t *self, edict_t *attacker, float eta,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -1764,15 +1842,14 @@ monster_triggered_spawn(edict_t *self)
 
 	if (strcmp(self->classname, "monster_fixbot") == 0)
 	{
-		if (self->spawnflags & 16 || self->spawnflags & 8 || self->spawnflags &
-			4)
+		if (self->spawnflags & (SPAWNFLAG_FIXBOT_LANDING | SPAWNFLAG_FIXBOT_TAKEOFF | SPAWNFLAG_FIXBOT_FIXIT))
 		{
 			self->enemy = NULL;
 			return;
 		}
 	}
 
-	if (self->enemy && !(self->spawnflags & 1) &&
+	if (self->enemy && !(self->spawnflags & SPAWNFLAG_MONSTER_AMBUSH) &&
 		!(self->enemy->flags & FL_NOTARGET))
 	{
 		if (!(self->enemy->flags & FL_DISGUISED))
@@ -1809,9 +1886,29 @@ monster_triggered_spawn_use(edict_t *self, edict_t *other /* unused */, edict_t 
 	}
 
 	self->use = monster_use;
+
+	if (self->spawnflags & SPAWNFLAG_MONSTER_SCENIC)
+	{
+		int i;
+
+		M_droptofloor(self);
+
+		self->nextthink = 0;
+		self->think(self);
+
+		if (self->spawnflags & SPAWNFLAG_MONSTER_AMBUSH)
+		{
+			monster_use(self, other, activator);
+		}
+
+		for (i = 0; i < 30; i++)
+		{
+			self->think(self);
+		}
+	}
 }
 
-void
+static void
 monster_triggered_start(edict_t *self)
 {
 	if (!self)
@@ -1862,11 +1959,34 @@ monster_death_use(edict_t *self)
 
 /* ================================================================== */
 
+static float
+monster_get_scale(edict_t *self)
+{
+	float scale;
+	int i;
+
+	scale = 0.0;
+
+	for (i = 0; i < 3; i++)
+	{
+		if (!self->rrs.scale[i])
+		{
+			/* fix empty scale */
+			self->rrs.scale[i] = 1.0f;
+		}
+
+		scale += self->rrs.scale[i];
+	}
+
+	scale /= 3.0;
+
+	return scale;
+}
+
 static qboolean
 monster_start(edict_t *self)
 {
 	float scale;
-	int i;
 
 	if (!self)
 	{
@@ -1879,23 +1999,24 @@ monster_start(edict_t *self)
 		return false;
 	}
 
-	if ((self->spawnflags & 4) && !(self->monsterinfo.aiflags & AI_GOOD_GUY))
+	if ((self->spawnflags & SPAWNFLAG_MONSTER_FUBAR) && !(self->monsterinfo.aiflags & AI_GOOD_GUY))
 	{
-		self->spawnflags &= ~4;
-		self->spawnflags |= 1;
+		self->spawnflags &= ~SPAWNFLAG_MONSTER_FUBAR;
+		self->spawnflags |= SPAWNFLAG_MONSTER_AMBUSH;
 	}
 
-	if ((self->spawnflags & 2) && !self->targetname)
+	if ((self->spawnflags & SPAWNFLAG_MONSTER_TRIGGER_SPAWN) && !self->targetname)
 	{
 		if (g_fix_triggered->value)
 		{
-			self->spawnflags &= ~2;
+			self->spawnflags &= ~SPAWNFLAG_MONSTER_TRIGGER_SPAWN;
 		}
 
 		gi.dprintf ("triggered %s at %s has no targetname\n", self->classname, vtos (self->s.origin));
 	}
 
 	if ((!(self->monsterinfo.aiflags & AI_GOOD_GUY)) &&
+		!(self->spawnflags & SPAWNFLAG_MONSTER_DEAD) &&
 		(!(self->monsterinfo.aiflags & AI_DO_NOT_COUNT)))
 	{
 		level.total_monsters++;
@@ -1930,34 +2051,15 @@ monster_start(edict_t *self)
 		VectorSet(self->rrs.scale, scale, scale, scale);
 	}
 
-	scale = 0;
-
-	for (i = 0; i < 3; i++)
-	{
-		if (!self->rrs.scale[i])
-		{
-			/* fix empty scale */
-			self->rrs.scale[i] = 1.0f;
-		}
-
-		scale += self->rrs.scale[i];
-	}
-
-	scale /= 3;
+	scale = monster_get_scale(self);
 
 	/* non default scale */
 	if (scale != 1.0)
 	{
-		int i;
-
 		self->monsterinfo.scale *= scale;
 		self->mass *= scale;
 
-		for (i = 0; i < 3; i++)
-		{
-			self->mins[i] *= self->rrs.scale[i];
-			self->maxs[i] *= self->rrs.scale[i];
-		}
+		monster_sync_scale_mins_maxs(self);
 	}
 
 	VectorCopy(self->s.origin, self->s.old_origin);
@@ -2003,7 +2105,7 @@ monster_start(edict_t *self)
 void
 monster_start_go(edict_t *self)
 {
-	vec3_t v;
+	qboolean spawn_dead;
 
 	if (!self)
 	{
@@ -2063,7 +2165,7 @@ monster_start_go(edict_t *self)
 		{
 			if (strcmp(target->classname, "point_combat") != 0)
 			{
-				gi.dprintf( "%s at (%i %i %i) has a bad combattarget %s : %s at (%i %i %i)\n",
+				gi.dprintf("%s at (%i %i %i) has a bad combattarget %s : %s at (%i %i %i)\n",
 						self->classname, (int)self->s.origin[0], (int)self->s.origin[1],
 						(int)self->s.origin[2], self->combattarget, target->classname,
 						(int)target->s.origin[0], (int)target->s.origin[1],
@@ -2071,6 +2173,9 @@ monster_start_go(edict_t *self)
 			}
 		}
 	}
+
+	/* allow spawning dead */
+	spawn_dead = self->spawnflags & SPAWNFLAG_MONSTER_DEAD;
 
 	if (self->target)
 	{
@@ -2081,31 +2186,138 @@ monster_start_go(edict_t *self)
 			gi.dprintf("%s can't find target %s at %s\n", self->classname,
 					self->target, vtos(self->s.origin));
 			self->target = NULL;
-			self->monsterinfo.pausetime = 100000000;
-			self->monsterinfo.stand(self);
+			self->monsterinfo.pausetime = HOLD_FOREVER;
+			if (!spawn_dead)
+			{
+				self->monsterinfo.stand(self);
+			}
 		}
 		else if (strcmp(self->movetarget->classname, "path_corner") == 0)
 		{
+			vec3_t v;
+
 			VectorSubtract(self->goalentity->s.origin, self->s.origin, v);
 			self->ideal_yaw = self->s.angles[YAW] = vectoyaw(v);
-			self->monsterinfo.walk(self);
+			if (!spawn_dead)
+			{
+				self->monsterinfo.walk(self);
+			}
+
 			self->target = NULL;
 		}
 		else
 		{
 			self->goalentity = self->movetarget = NULL;
-			self->monsterinfo.pausetime = 100000000;
-			self->monsterinfo.stand(self);
+			self->monsterinfo.pausetime = HOLD_FOREVER;
+			if (!spawn_dead)
+			{
+				self->monsterinfo.stand(self);
+			}
 		}
 	}
 	else
 	{
-		self->monsterinfo.pausetime = 100000000;
-		self->monsterinfo.stand(self);
+		self->monsterinfo.pausetime = HOLD_FOREVER;
+		if (!spawn_dead)
+		{
+			self->monsterinfo.stand(self);
+		}
 	}
 
-	self->think = monster_think;
-	self->nextthink = level.time + FRAMETIME;
+	if (spawn_dead)
+	{
+		int lastframe = 0;
+		mmove_t *move;
+		vec3_t f;
+
+		/* to spawn dead, we'll mimick them dying naturally */
+		self->health = 0;
+
+		VectorCopy(self->s.origin, f);
+
+		if (self->die)
+		{
+			self->die(self, self, self, 0, vec3_origin);
+		}
+
+		if (!self->inuse)
+		{
+			return;
+		}
+
+		move = self->monsterinfo.currentmove;
+		if (move)
+		{
+			int firstframe, i;
+
+			firstframe = move->firstframe;
+			lastframe = move->lastframe;
+
+			if (lastframe < firstframe)
+			{
+				firstframe = move->lastframe;
+				lastframe = move->firstframe;
+			}
+
+			/* static move */
+			for (i = firstframe; i < lastframe; i++)
+			{
+				self->s.frame = i;
+
+				if (move->frame[i - firstframe].thinkfunc)
+				{
+					move->frame[i - firstframe].thinkfunc(self);
+				}
+
+				if (!self->inuse)
+				{
+					return;
+				}
+			}
+
+			if (move->endfunc)
+			{
+				move->endfunc(self);
+			}
+		}
+		else if (self->monsterinfo.action)
+		{
+			int firstframe;
+
+			firstframe = self->monsterinfo.firstframe;
+
+			if (self->monsterinfo.numframes > 0)
+			{
+				lastframe = firstframe + self->monsterinfo.numframes - 1;
+			}
+			else
+			{
+				lastframe = firstframe - self->monsterinfo.numframes - 1;
+			}
+		}
+
+		if (!self->inuse)
+		{
+			return;
+		}
+
+		if (self->monsterinfo.dead_frame)
+		{
+			self->s.frame = self->monsterinfo.dead_frame;
+		}
+		else
+		{
+			self->s.frame = lastframe;
+		}
+
+		VectorCopy(f, self->s.origin);
+		gi.linkentity(self);
+	}
+	else
+	{
+		self->think = monster_think;
+		self->nextthink = level.time + FRAMETIME;
+	}
 }
 
 void
@@ -2116,7 +2328,7 @@ walkmonster_start_go(edict_t *self)
 		return;
 	}
 
-	if (!(self->spawnflags & 2) && (level.time < 1))
+	if (!(self->spawnflags & SPAWNFLAG_MONSTER_TRIGGER_SPAWN) && (level.time < 1))
 	{
 		M_droptofloor(self);
 
@@ -2140,7 +2352,7 @@ walkmonster_start_go(edict_t *self)
 		self->viewheight = 25;
 	}
 
-	if (self->spawnflags & 2)
+	if (self->spawnflags & SPAWNFLAG_MONSTER_TRIGGER_SPAWN)
 	{
 		monster_triggered_start(self);
 	}
@@ -2185,7 +2397,7 @@ flymonster_start_go(edict_t *self)
 		self->viewheight = 25;
 	}
 
-	if (self->spawnflags & 2)
+	if (self->spawnflags & SPAWNFLAG_MONSTER_TRIGGER_SPAWN)
 	{
 		monster_triggered_start(self);
 	}
@@ -2226,7 +2438,7 @@ swimmonster_start_go(edict_t *self)
 		self->viewheight = 10;
 	}
 
-	if (self->spawnflags & 2)
+	if (self->spawnflags & SPAWNFLAG_MONSTER_TRIGGER_SPAWN)
 	{
 		monster_triggered_start(self);
 	}
@@ -2307,7 +2519,7 @@ stationarymonster_triggered_spawn_use(edict_t *self, edict_t *other /* unused */
 	self->use = monster_use;
 }
 
-void
+static void
 stationarymonster_triggered_start(edict_t *self)
 {
 	if (!self)

@@ -49,10 +49,8 @@ void turret_ready_gun(edict_t *self);
 void turret_run(edict_t *self);
 void turret_attack(edict_t *self);
 
-extern void Move_Calc(edict_t *ent, vec3_t dest, void (*func)(edict_t *));
-
-mmove_t turret_move_fire;
-mmove_t turret_move_fire_blind;
+extern mmove_t turret_move_fire;
+extern mmove_t turret_move_fire_blind;
 
 void
 TurretAim(edict_t *self)
@@ -457,13 +455,11 @@ turret_run(edict_t *self)
 	}
 }
 
-void
+static void
 TurretFire(edict_t *self)
 {
-	vec3_t forward;
-	vec3_t start, end, dir;
-	float time, dist, chance;
-	trace_t trace;
+	vec3_t forward, dir;
+	float chance;
 	int rocketSpeed = 0;
 
 	if (!self)
@@ -520,6 +516,10 @@ TurretFire(edict_t *self)
 
 	if (visible(self, self->enemy))
 	{
+		vec3_t start, end;
+		trace_t trace;
+		float dist;
+
 		VectorCopy(self->s.origin, start);
 		VectorCopy(self->enemy->s.origin, end);
 
@@ -546,6 +546,8 @@ TurretFire(edict_t *self)
 
 			if (chance < 0.8)
 			{
+				float time;
+
 				/* lead the target.... */
 				time = dist / 1000;
 				VectorMA(end, time, self->enemy->velocity, end);
@@ -580,7 +582,7 @@ TurretFire(edict_t *self)
 	}
 }
 
-void
+static void
 TurretFireBlind(edict_t *self)
 {
 	vec3_t forward;
@@ -683,8 +685,6 @@ mmove_t turret_move_fire_blind = {
 void
 turret_attack(edict_t *self)
 {
-	float r, chance;
-
 	if (!self)
 	{
 		return;
@@ -701,6 +701,8 @@ turret_attack(edict_t *self)
 	}
 	else
 	{
+		float r, chance;
+
 		/* setup shot probabilities */
 		if (self->monsterinfo.blind_fire_delay < 1.0)
 		{
@@ -739,11 +741,10 @@ turret_attack(edict_t *self)
 
 void
 turret_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	vec3_t forward;
 	vec3_t start;
-	edict_t *base;
 
 	if (!self)
 	{
@@ -765,6 +766,8 @@ turret_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* 
 
 	if (self->teamchain)
 	{
+		edict_t *base;
+
 		base = self->teamchain;
 		base->solid = SOLID_BBOX;
 		base->takedamage = DAMAGE_NO;
@@ -787,7 +790,7 @@ turret_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* 
 	G_FreeEdict(self);
 }
 
-void
+static void
 turret_wall_spawn(edict_t *turret)
 {
 	edict_t *ent;
@@ -984,9 +987,7 @@ turret_activate(edict_t *self, edict_t *other, edict_t *activator)
 qboolean
 turret_checkattack(edict_t *self)
 {
-	vec3_t spot1, spot2;
 	float chance, nexttime;
-	trace_t tr;
 
 	if (!self)
 	{
@@ -995,6 +996,9 @@ turret_checkattack(edict_t *self)
 
 	if (self->enemy->health > 0)
 	{
+		vec3_t spot1, spot2;
+		trace_t tr;
+
 		/* see if any entities are in the way of the shot */
 		VectorCopy(self->s.origin, spot1);
 		spot1[2] += self->viewheight;

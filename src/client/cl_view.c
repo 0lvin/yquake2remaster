@@ -36,6 +36,9 @@ cvar_t *crosshair_3d;
 cvar_t *crosshair_3d_glow;
 
 cvar_t *crosshair_scale;
+cvar_t *crosshair_color_r;
+cvar_t *crosshair_color_g;
+cvar_t *crosshair_color_b;
 cvar_t *cl_testparticles;
 cvar_t *cl_testentities;
 cvar_t *cl_testlights;
@@ -72,10 +75,12 @@ V_ClearScene(void)
 }
 
 void
-V_AddEntity(entity_t *ent)
+V_AddEntity(const entity_t *ent)
 {
 	if (r_numentities >= MAX_ENTITIES)
 	{
+		Com_DPrintf("%s: game sends more than expected %d entities\n",
+			__func__, MAX_ENTITIES);
 		return;
 	}
 
@@ -89,6 +94,8 @@ V_AddParticle(vec3_t org, unsigned int color, float alpha)
 
 	if (r_numparticles >= MAX_PARTICLES)
 	{
+		Com_DPrintf("%s: game sends more than expected %d particles\n",
+			__func__, MAX_PARTICLES);
 		return;
 	}
 
@@ -105,6 +112,8 @@ V_AddLight(vec3_t org, float intensity, float r, float g, float b)
 
 	if (r_numdlights >= MAX_DLIGHTS)
 	{
+		Com_DPrintf("%s: game sends more than expected %d dlights\n",
+			__func__, MAX_DLIGHTS);
 		return;
 	}
 
@@ -169,6 +178,8 @@ V_AddLightShadow(cl_shadow_light_t *light)
 
 	if (r_numdlights >= MAX_DLIGHTS)
 	{
+		Com_DPrintf("%s: game sends more than expected %d dlights\n",
+			__func__, MAX_DLIGHTS);
 		return;
 	}
 
@@ -227,14 +238,16 @@ V_AddLightStyle(int style, float r, float g, float b)
 static void
 V_TestParticles(void)
 {
-	particle_t *p;
-	int i, j;
-	float d, r, u;
+	int i;
 
 	r_numparticles = MAX_PARTICLES;
 
 	for (i = 0; i < r_numparticles; i++)
 	{
+		float d, r, u;
+		particle_t *p;
+		int j;
+
 		d = i * 0.25f;
 		r = 4 * ((i & 7) - 3.5f);
 		u = 4 * (((i >> 3) & 7) - 3.5f);
@@ -258,15 +271,17 @@ V_TestParticles(void)
 static void
 V_TestEntities(void)
 {
-	int i, j;
-	float f, r;
-	entity_t *ent;
+	int i;
 
 	r_numentities = 32;
 	memset(r_entities, 0, sizeof(r_entities));
 
 	for (i = 0; i < r_numentities; i++)
 	{
+		entity_t *ent;
+		float f, r;
+		int j;
+
 		ent = &r_entities[i];
 
 		r = 64.0f * ((float)(i % 4) - 1.5f);
@@ -400,11 +415,22 @@ void
 CL_SetSky(void)
 {
 	float rotate = 0;
-	int autorotate = 1;
-	vec3_t axis;
+	int count, autorotate = 1;
+	vec3_t axis = {0};
 
-	sscanf(cl.configstrings[CS_SKYROTATE], "%f %d", &rotate, &autorotate);
-	sscanf(cl.configstrings[CS_SKYAXIS], "%f %f %f", &axis[0], &axis[1], &axis[2]);
+	count = sscanf(cl.configstrings[CS_SKYROTATE], "%f %d", &rotate, &autorotate);
+	if (count <= 0)
+	{
+		Com_DPrintf("%s: Unexpected rotate %s\n", __func__, cl.configstrings[CS_SKYROTATE]);
+	}
+
+	count = sscanf(cl.configstrings[CS_SKYAXIS], "%f %f %f", &axis[0], &axis[1], &axis[2]);
+	if (count != 3)
+	{
+		Com_DPrintf("%s: Unexpected axis %s\n", __func__, cl.configstrings[CS_SKYAXIS]);
+		VectorClear(axis);
+	}
+
 	R_SetSky(cl.configstrings[CS_SKY], rotate, autorotate, axis);
 }
 
@@ -415,9 +441,10 @@ void
 CL_PrepRefresh(void)
 {
 	char mapname[MAX_QPATH];
+	size_t mapnamelen;
 	int i;
 
-	if (!cl.configstrings[CS_MODELS + 1][0])
+	if (strncmp(cl.configstrings[CS_MODELS + 1], "maps/", 5) != 0)
 	{
 		return;
 	}
@@ -428,12 +455,20 @@ CL_PrepRefresh(void)
 
 	/* let the refresher load the map */
 	Q_strlcpy(mapname, cl.configstrings[CS_MODELS + 1] + 5, sizeof(mapname)); /* skip "maps/" */
-	mapname[strlen(mapname) - 4] = 0; /* cut off ".bsp" */
+	mapnamelen = strlen(mapname);
 
 	/* register models, pics, and skins */
-	Com_Printf("Map: %s\n", mapname);
+	Com_Printf("Map: %s", mapname);
+	if (mapnamelen < 4)
+	{
+		Com_Printf(" is invalid\n");
+		return;
+	}
+
+	mapname[mapnamelen - 4] = 0; /* cut off ".bsp" */
+
 	SCR_UpdateScreen();
-	CL_PrintInSameLine("Map is loading...");
+	CL_PrintInSameLine("\nMap is loading...");
 	R_BeginRegistration(mapname);
 
 	/* precache status bar pics */
@@ -622,15 +657,15 @@ entitycmpfnc(const entity_t *a, const entity_t *b)
 static void
 V_Render3dCrosshair(void)
 {
-	trace_t crosshair_trace;
-	vec3_t end;
-
 	crosshair_3d = Cvar_Get("crosshair_3d", "0", CVAR_ARCHIVE);
 	crosshair_3d_glow = Cvar_Get("crosshair_3d_glow", "0", CVAR_ARCHIVE);
 
+	if(crosshair_3d->value || crosshair_3d_glow->value)
+	{
+		trace_t crosshair_trace;
+		vec3_t end;
 
-	if(crosshair_3d->value || crosshair_3d_glow->value){
-		VectorMA(cl.refdef.vieworg, 8192, cl.v_forward,end);
+		VectorMA(cl.refdef.vieworg, 8192, cl.v_forward, end);
 		crosshair_trace = CL_PMTrace(cl.refdef.vieworg, vec3_origin, vec3_origin, end);
 
 		if(crosshair_3d_glow->value){
@@ -849,6 +884,9 @@ V_Init(void)
 
 	crosshair = Cvar_Get("crosshair", "0", CVAR_ARCHIVE);
 	crosshair_scale = Cvar_Get("crosshair_scale", "-1", CVAR_ARCHIVE);
+	crosshair_color_r = Cvar_Get("crosshair_color_r", "1", CVAR_ARCHIVE);
+	crosshair_color_g = Cvar_Get("crosshair_color_g", "1", CVAR_ARCHIVE);
+	crosshair_color_b = Cvar_Get("crosshair_color_b", "1", CVAR_ARCHIVE);
 	cl_testblend = Cvar_Get("cl_testblend", "0", 0);
 	cl_testparticles = Cvar_Get("cl_testparticles", "0", 0);
 	cl_testentities = Cvar_Get("cl_testentities", "0", 0);

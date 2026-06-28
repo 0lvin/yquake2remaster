@@ -68,7 +68,7 @@ G_ProjectSource2(const vec3_t point, const vec3_t distance, const vec3_t forward
 edict_t *
 G_Find(edict_t *from, int fieldofs, const char *match)
 {
-	char *s;
+	const char *s;
 
 	if (!match)
 	{
@@ -112,7 +112,7 @@ G_Find(edict_t *from, int fieldofs, const char *match)
  * within a spherical area
  */
 edict_t *
-findradius(edict_t *from, vec3_t org, float rad)
+findradius(edict_t *from, const vec3_t org, float rad)
 {
 	vec3_t eorg;
 	int j;
@@ -144,64 +144,7 @@ findradius(edict_t *from, vec3_t org, float rad)
 					   (from->mins[j] + from->maxs[j]) * 0.5);
 		}
 
-		if (VectorLength(eorg) > rad)
-		{
-			continue;
-		}
-
-		return from;
-	}
-
-	return NULL;
-}
-
-/*
- * Returns entities that have origins within a spherical area
- */
-edict_t *
-findradius2(edict_t *from, vec3_t org, float rad)
-{
-	/* rad must be positive */
-	vec3_t eorg;
-	int j;
-
-	if (!from)
-	{
-		from = g_edicts;
-	}
-	else
-	{
-		from++;
-	}
-
-	for ( ; from < &g_edicts[globals.num_edicts]; from++)
-	{
-		if (!from->inuse)
-		{
-			continue;
-		}
-
-		if (from->solid == SOLID_NOT)
-		{
-			continue;
-		}
-
-		if (!from->takedamage)
-		{
-			continue;
-		}
-
-		if (!(from->svflags & SVF_DAMAGEABLE))
-		{
-			continue;
-		}
-
-		for (j = 0; j < 3; j++)
-		{
-			eorg[j] = org[j] - (from->s.origin[j] + (from->mins[j] + from->maxs[j]) * 0.5);
-		}
-
-		if (VectorLength(eorg) > rad)
+		if (VectorLengthSquared(eorg) > rad * rad)
 		{
 			continue;
 		}
@@ -223,7 +166,7 @@ findradius2(edict_t *from, vec3_t org, float rad)
  * returned if the end of the list is reached.
  */
 edict_t *
-G_PickTarget(char *targetname)
+G_PickTarget(const char *targetname)
 {
 	edict_t *ent = NULL;
 	int num_choices = 0;
@@ -380,7 +323,8 @@ G_UseTargets(edict_t *ent, edict_t *activator)
 
 			/* correct killcounter if a living monster gets killtargeted */
 			if ((t->monsterinfo.checkattack || strcmp (t->classname, "turret_driver") == 0) &&
-				!(t->monsterinfo.aiflags & (AI_GOOD_GUY|AI_DO_NOT_COUNT)) && t->deadflag != DEAD_DEAD)
+				!(t->monsterinfo.aiflags & (AI_GOOD_GUY | AI_DO_NOT_COUNT)) &&
+				t->deadflag != DEAD_DEAD && !(t->spawnflags & SPAWNFLAG_MONSTER_DEAD))
 			{
 				level.killed_monsters++;
 			}
@@ -435,7 +379,7 @@ G_UseTargets(edict_t *ent, edict_t *activator)
  * This is just a convenience function
  * for making temporary vectors for function calls
  */
-float *
+const float *
 tv(float x, float y, float z)
 {
 	static int index;
@@ -459,8 +403,8 @@ tv(float x, float y, float z)
  * This is just a convenience function
  * for printing vectors
  */
-char *
-vtos(vec3_t v)
+const char *
+vtos(const vec3_t v)
 {
 	static int index;
 	static char str[8][32];
@@ -572,16 +516,15 @@ vectoyaw2(vec3_t vec)
 }
 
 void
-vectoangles(vec3_t value1, vec3_t angles)
+vectoangles(const vec3_t value, vec3_t angles)
 {
-	float forward;
 	float yaw, pitch;
 
-	if ((value1[1] == 0) && (value1[0] == 0))
+	if ((value[1] == 0) && (value[0] == 0))
 	{
 		yaw = 0;
 
-		if (value1[2] > 0)
+		if (value[2] > 0)
 		{
 			pitch = 90;
 		}
@@ -592,11 +535,13 @@ vectoangles(vec3_t value1, vec3_t angles)
 	}
 	else
 	{
-		if (value1[0])
+		float forward;
+
+		if (value[0])
 		{
-			yaw = (int)(atan2(value1[1], value1[0]) * 180 / M_PI);
+			yaw = (int)(atan2(value[1], value[0]) * 180 / M_PI);
 		}
-		else if (value1[1] > 0)
+		else if (value[1] > 0)
 		{
 			yaw = 90;
 		}
@@ -610,8 +555,8 @@ vectoangles(vec3_t value1, vec3_t angles)
 			yaw += 360;
 		}
 
-		forward = sqrt(value1[0] * value1[0] + value1[1] * value1[1]);
-		pitch = (int)(atan2(value1[2], forward) * 180 / M_PI);
+		forward = sqrt(value[0] * value[0] + value[1] * value[1]);
+		pitch = (int)(atan2(value[2], forward) * 180 / M_PI);
 
 		if (pitch < 0)
 		{
@@ -625,16 +570,15 @@ vectoangles(vec3_t value1, vec3_t angles)
 }
 
 void
-vectoangles2(vec3_t value1, vec3_t angles)
+vectoangles2(vec3_t value, vec3_t angles)
 {
-	float forward;
 	float yaw, pitch;
 
-	if ((value1[1] == 0) && (value1[0] == 0))
+	if ((value[1] == 0) && (value[0] == 0))
 	{
 		yaw = 0;
 
-		if (value1[2] > 0)
+		if (value[2] > 0)
 		{
 			pitch = 90;
 		}
@@ -645,11 +589,13 @@ vectoangles2(vec3_t value1, vec3_t angles)
 	}
 	else
 	{
-		if (value1[0])
+		float forward;
+
+		if (value[0])
 		{
-			yaw = (atan2(value1[1], value1[0]) * 180 / M_PI);
+			yaw = (atan2(value[1], value[0]) * 180 / M_PI);
 		}
-		else if (value1[1] > 0)
+		else if (value[1] > 0)
 		{
 			yaw = 90;
 		}
@@ -663,8 +609,8 @@ vectoangles2(vec3_t value1, vec3_t angles)
 			yaw += 360;
 		}
 
-		forward = sqrt(value1[0] * value1[0] + value1[1] * value1[1]);
-		pitch = (atan2(value1[2], forward) * 180 / M_PI);
+		forward = sqrt(value[0] * value[0] + value[1] * value[1]);
+		pitch = (atan2(value[2], forward) * 180 / M_PI);
 
 		if (pitch < 0)
 		{
@@ -678,7 +624,7 @@ vectoangles2(vec3_t value1, vec3_t angles)
 }
 
 char *
-G_CopyString(char *in)
+G_CopyString(const char *in, unsigned short tag)
 {
 	char *out;
 
@@ -687,7 +633,7 @@ G_CopyString(char *in)
 		return NULL;
 	}
 
-	out = gi.TagMalloc(strlen(in) + 1, TAG_LEVEL);
+	out = gi.TagMalloc(strlen(in) + 1, tag);
 	strcpy(out, in);
 	return out;
 }
@@ -821,7 +767,7 @@ void
 G_TouchTriggers(edict_t *ent)
 {
 	int i, num;
-	edict_t *touch[MAX_EDICTS], *hit;
+	edict_t *touch[MAX_EDICTS];
 
 	if (!ent)
 	{
@@ -841,6 +787,8 @@ G_TouchTriggers(edict_t *ent)
 	   list removed before we get to it (killtriggered) */
 	for (i = 0; i < num; i++)
 	{
+		edict_t *hit;
+
 		hit = touch[i];
 
 		if (!hit->inuse)
@@ -867,7 +815,7 @@ void
 G_TouchSolids(edict_t *ent)
 {
 	int i, num;
-	edict_t *touch[MAX_EDICTS], *hit;
+	edict_t *touch[MAX_EDICTS];
 
 	if (!ent)
 	{
@@ -881,6 +829,8 @@ G_TouchSolids(edict_t *ent)
 	   list removed before we get to it (killtriggered) */
 	for (i = 0; i < num; i++)
 	{
+		edict_t *hit;
+
 		hit = touch[i];
 
 		if (!hit->inuse)
@@ -916,8 +866,6 @@ G_TouchSolids(edict_t *ent)
 qboolean
 KillBox(edict_t *ent)
 {
-	trace_t tr;
-
 	if (!ent)
 	{
 		return false;
@@ -925,6 +873,8 @@ KillBox(edict_t *ent)
 
 	while (1)
 	{
+		trace_t tr;
+
 		tr = gi.trace(ent->s.origin, ent->mins, ent->maxs, ent->s.origin,
 				NULL, MASK_PLAYERSOLID);
 

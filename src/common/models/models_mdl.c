@@ -314,6 +314,13 @@ Mod_LoadModel_MDL(const char *mod_name, const void *buffer, int modfilelen)
 					int index;
 
 					index = LittleLong(triangles[i].vertex[j]);
+				
+					if (index < 0 || index >= num_xyz)
+					{
+						Com_Printf("%s: model %s invalid vertex index %d", __func__, mod_name, index);
+						return NULL;
+					}
+
 					pouttri[i].index_xyz[j] = index;
 					pouttri[i].index_st[j] = index * 2;
 
@@ -365,8 +372,8 @@ Mod_LoadModel_MDL(const char *mod_name, const void *buffer, int modfilelen)
 
 			for (k = 0; k < frames_skip; k ++)
 			{
+				const dtrivertx_t *pinvertx;
 				dxtrivertx_t* poutvertx;
-				dtrivertx_t *pinvertx;
 				daliasframe_t *frame;
 				int j;
 

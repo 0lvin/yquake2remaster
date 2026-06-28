@@ -218,6 +218,42 @@ static const char* fragmentSrc2D = MULTILINE_STRING(
 		}
 );
 
+// like fragmentSrc2D, but also multiplies by color uniform for tinting (e.g. crosshair color)
+static const char* fragmentSrc2Dtinted = MULTILINE_STRING(
+
+		in vec2 passTexCoord;
+
+		// for UBO shared between all shaders (incl. 2D)
+		layout (std140) uniform uniCommon
+		{
+			float gamma;
+			float intensity;
+			float intensity2D; // for HUD, menu etc
+
+			vec4 color;
+		};
+
+		uniform sampler2D tex;
+
+		out vec4 outColor;
+
+		void main()
+		{
+			vec4 texel = texture(tex, passTexCoord);
+
+			if(texel.a <= 0.666)
+				discard;
+
+			// apply color tint
+			texel.rgb *= color.rgb;
+
+			// apply gamma correction and intensity
+			texel.rgb *= intensity2D;
+			outColor.rgb = pow(texel.rgb, vec3(gamma));
+			outColor.a = texel.a;
+		}
+);
+
 static const char* fragmentSrc2Dpostprocess = MULTILINE_STRING(
 		in vec2 passTexCoord;
 
@@ -276,12 +312,9 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 		{
 			vec2 uv = passTexCoord;
 
-			// warping based on vkquake2
-			// here uv is always between 0 and 1 so ignore all that scrWidth and gl_FragCoord stuff
-			//float sx = pc.scale - abs(pc.scrWidth  / 2.0 - gl_FragCoord.x) * 2.0 / pc.scrWidth;
-			//float sy = pc.scale - abs(pc.scrHeight / 2.0 - gl_FragCoord.y) * 2.0 / pc.scrHeight;
-			float sx = 1.0 - abs(0.5-uv.x)*2.0;
-			float sy = 1.0 - abs(0.5-uv.y)*2.0;
+			// warping based on ref_vk
+			float sx = 1.0 - abs(0.5 - uv.x) * 2.0;
+			float sy = 1.0 - abs(0.5 - uv.y) * 2.0;
 			float xShift = 2.0 * time + uv.y * PI * 10.0;
 			float yShift = 2.0 * time + uv.x * PI * 10.0;
 			vec2 distortion = vec2(sin(xShift) * sx, sin(yShift) * sy) * 0.00666;
@@ -292,9 +325,9 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 			// no gamma or intensity here, it has been applied before
 			// (this is just for postprocessing)
 			vec4 res = texture(tex, uv);
+
 			// apply the v_blend, usually blended as a colored quad with:
-			// glBlendEquation(GL_FUNC_ADD); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a)*res.rgb;
+			res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a) * res.rgb;
 			outColor =  res;
 		}
 );
@@ -357,6 +390,11 @@ static const char* vertexCommon3D = MULTILINE_STRING(
 			mat4 transProjView;
 			mat4 transModel;
 
+			/* Fog parameters */
+			vec4 fogColor; // RGB + density in .w
+			vec4 heightfog_start; // RGB + start distance in .w
+			vec4 heightfog_end; // RGB + end distance in .w
+
 			float sscroll; // for SURF_FLOWING
 			float tscroll; // for SURF_FLOWING
 			float time;
@@ -364,7 +402,13 @@ static const char* vertexCommon3D = MULTILINE_STRING(
 			float overbrightbits;
 			float particleFadeFactor;
 			float lightScaleForTurb; // surfaces with SURF_DRAWTURB (water, lava) don't have lightmaps, use this instead
-			float _pad_1; // AMDs legacy windows driver needs this, otherwise uni3D has wrong size, round up to 16 bytes?
+
+			float heightfog_density;
+			float heightfog_falloff;
+			// AMDs legacy windows driver needs this, otherwise uni3D has wrong non std140 size, round up to 16 bytes?
+			float _std140_pad1;
+			float _std140_pad2;
+			float _std140_pad3;
 		};
 );
 
@@ -389,6 +433,11 @@ static const char* fragmentCommon3D = MULTILINE_STRING(
 			mat4 transProjView;
 			mat4 transModel;
 
+			/* Fog parameters */
+			vec4 fogColor; // RGB + density in .w
+			vec4 heightfog_start; // RGB + start distance in .w
+			vec4 heightfog_end; // RGB + end distance in .w
+
 			float sscroll; // for SURF_FLOWING
 			float tscroll; // for SURF_FLOWING
 			float time;
@@ -396,7 +445,13 @@ static const char* fragmentCommon3D = MULTILINE_STRING(
 			float overbrightbits;
 			float particleFadeFactor;
 			float lightScaleForTurb; // surfaces with SURF_DRAWTURB (water, lava) don't have lightmaps, use this instead
-			float _pad_1; // AMDs legacy windows driver needs this, otherwise uni3D has wrong size, round up to 16 bytes?
+
+			float heightfog_density;
+			float heightfog_falloff;
+			// AMDs legacy windows driver needs this, otherwise uni3D has wrong non std140 size, round up to 16 bytes?
+			float _std140_pad1;
+			float _std140_pad2;
+			float _std140_pad3;
 		};
 );
 
@@ -482,6 +537,15 @@ static const char* fragmentSrc3D = MULTILINE_STRING(
 			texel.rgb *= intensity;
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
+
+			// Apply global fog if enabled (density > 0)
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d)); // quadratic exponential falloff
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
 		}
 );
 
@@ -506,6 +570,15 @@ static const char* fragmentSrc3Dwater = MULTILINE_STRING(
 			texel.rgb *= intensity * lightScaleForTurb;
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
+
+			// Apply global fog if enabled (density > 0)
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d)); // quadratic exponential falloff
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
 		}
 );
 
@@ -591,6 +664,15 @@ static const char* fragmentSrc3Dlm = MULTILINE_STRING(
 			lmTex.rgb *= overbrightbits;
 			outColor = lmTex*texel;
 			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
 
 			outColor.a = 1.0; // lightmaps aren't used with translucent surfaces
 		}
@@ -682,6 +764,15 @@ static const char* fragmentSrc3DlmNoColor = MULTILINE_STRING(
 			outColor = lmTex*texel;
 			outColor.rgb = pow(outColor.rgb, vec3(gamma)); // apply gamma correction to result
 
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = 1; // lightmaps aren't used with translucent surfaces
 		}
 );
@@ -697,6 +788,16 @@ static const char* fragmentSrc3Dcolor = MULTILINE_STRING(
 			// apply gamma correction and intensity
 			// texel.rgb *= intensity; TODO: use intensity here? (this is used for beams)
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -716,6 +817,16 @@ static const char* fragmentSrc3Dsky = MULTILINE_STRING(
 			// apply gamma correction
 			// texel.rgb *= intensity; // TODO: really no intensity for sky?
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -733,6 +844,16 @@ static const char* fragmentSrc3Dsprite = MULTILINE_STRING(
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -753,6 +874,16 @@ static const char* fragmentSrc3DspriteAlpha = MULTILINE_STRING(
 			// apply gamma correction and intensity
 			texel.rgb *= intensity;
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a*alpha; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -800,6 +931,16 @@ static const char* fragmentSrcAlias = MULTILINE_STRING(
 			texel *= min(vec4(1.5), passColor);
 
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -818,6 +959,16 @@ static const char* fragmentSrcAliasColor = MULTILINE_STRING(
 			// texel.rgb *= intensity; // TODO: color-only rendering probably shouldn't use intensity?
 			texel.a *= alpha; // is alpha even used here?
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = texel.a; // I think alpha shouldn't be modified by gamma and intensity
 		}
 );
@@ -859,6 +1010,15 @@ static const char* fragmentSrcParticles = MULTILINE_STRING(
 			//texel.rgb *= intensity; TODO: intensity? Probably not?
 			outColor.rgb = pow(texel.rgb, vec3(gamma));
 
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			// I want the particles to fade out towards the edge, the following seems to look nice
 			texel.a *= min(1.0, particleFadeFactor*(1.0 - distSquared));
 
@@ -879,6 +1039,16 @@ static const char* fragmentSrcParticlesSquare = MULTILINE_STRING(
 			// uniCommon is referenced so hopefully Intels Ivy Bridge HD4000 GPU driver
 			// for Windows stops shitting itself (see https://github.com/yquake2/yquake2/issues/391)
 			outColor.rgb = pow(passColor.rgb, vec3(gamma));
+
+			// Apply fog if enabled
+			if (fogColor.w > 0.0)
+			{
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float d = fogColor.w * depth;
+				float fogFactor = 1.0 - exp(-(d * d));
+				outColor.rgb = mix(outColor.rgb, fogColor.rgb, fogFactor);
+			}
+
 			outColor.a = passColor.a;
 		}
 );
@@ -1191,6 +1361,13 @@ static qboolean createShaders(void)
 		Com_Printf("WARNING: Failed to create shader program for textured 2D rendering!\n");
 		return false;
 	}
+
+	if (!initShader2D(&gl3state.si2Dtinted, vertexSrc2D, fragmentSrc2Dtinted))
+	{
+		Com_Printf("WARNING: Failed to create shader program for tinted 2D rendering!\n");
+		return false;
+	}
+
 	if (!initShader2D(&gl3state.si2Dcolor, vertexSrc2Dcolor, fragmentSrc2Dcolor))
 	{
 		Com_Printf("WARNING: Failed to create shader program for color-only 2D rendering!\n");

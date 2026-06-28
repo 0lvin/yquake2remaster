@@ -47,8 +47,7 @@ static mframe_t dog_frames_run [] =
 	{ai_run, 64, NULL},
 	{ai_run, 32, dog_leap}
 };
-mmove_t dog_move_run =
-{
+mmove_t dog_move_run = {
 	FRAME_run1,
 	FRAME_run12,
 	dog_frames_run,
@@ -62,7 +61,7 @@ dog_run(edict_t *self)
 }
 
 void
-dog_leap_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+dog_leap_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (self->health < 1)
 	{
@@ -121,8 +120,7 @@ static mframe_t dog_frames_leap [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t dog_move_leap =
-{
+mmove_t dog_move_leap = {
 	FRAME_leap1,
 	FRAME_leap9,
 	dog_frames_leap,
@@ -156,8 +154,7 @@ static mframe_t dog_frames_melee [] =
 	{ai_charge, 10, NULL},
 	{ai_charge, 10,	NULL}
 };
-mmove_t dog_move_melee =
-{
+mmove_t dog_move_melee = {
 	FRAME_attack1,
 	FRAME_attack8,
 	dog_frames_melee,
@@ -200,8 +197,7 @@ static mframe_t dog_frames_pain1 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t dog_move_pain1 =
-{
+mmove_t dog_move_pain1 = {
 	FRAME_pain1,
 	FRAME_pain6,
 	dog_frames_pain1,
@@ -231,8 +227,7 @@ static mframe_t dog_frames_pain2 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t dog_move_pain2 =
-{
+mmove_t dog_move_pain2 = {
 	FRAME_painb1,
 	FRAME_painb16,
 	dog_frames_pain2,
@@ -253,7 +248,7 @@ dog_pain(edict_t *self, edict_t *other /* unused */,
 	gi.sound(self, CHAN_VOICE, sound_pain, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 dog_dead(edict_t *self)
 {
 	VectorSet(self->mins, -32, -32, -24);
@@ -276,8 +271,7 @@ static mframe_t dog_frames_die1 [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t dog_move_die1 =
-{
+mmove_t dog_move_die1 = {
 	FRAME_death1,
 	FRAME_death9,
 	dog_frames_die1,
@@ -299,8 +293,7 @@ static mframe_t dog_frames_die2 [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t dog_move_die2 =
-{
+mmove_t dog_move_die2 = {
 	FRAME_deathb1,
 	FRAME_deathb9,
 	dog_frames_die2,
@@ -308,12 +301,12 @@ mmove_t dog_move_die2 =
 };
 
 void
-dog_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+dog_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

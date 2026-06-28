@@ -74,13 +74,14 @@ static void
 PM_ClipVelocity(vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 {
 	float backoff;
-	float change;
 	int i;
 
 	backoff = DotProduct(in, normal) * overbounce;
 
 	for (i = 0; i < 3; i++)
 	{
+		float change;
+
 		change = normal[i] * backoff;
 		out[i] = in[i] - change;
 
@@ -119,7 +120,6 @@ PM_StepSlideMove_(void)
 		vec3_t end, dir;
 		trace_t trace;
 		int i, j;
-		float d;
 
 		for (i = 0; i < 3; i++)
 		{
@@ -195,6 +195,8 @@ PM_StepSlideMove_(void)
 		}
 		else
 		{
+			float d;
+
 			/* go along the crease */
 			if (numplanes != 2)
 			{
@@ -290,7 +292,7 @@ static void
 PM_Friction(void)
 {
 	float *vel;
-	float speed, newspeed, control;
+	float speed, newspeed;
 	float drop;
 
 	vel = pml.velocity;
@@ -310,6 +312,8 @@ PM_Friction(void)
 	if ((pm->groundentity && pml.groundsurface &&
 		 !(pml.groundsurface->flags & SURF_SLICK)) || (pml.ladder))
 	{
+		float control;
+
 		control = speed < pm_stopspeed ? pm_stopspeed : speed;
 		drop += control * pm_friction * pml.frametime;
 	}
@@ -491,7 +495,7 @@ PM_AddCurrents(vec3_t wishvel)
 
 		s = pm_waterspeed;
 
-		if ((pm->waterlevel == 1) && (pm->groundentity))
+		if ((pm->waterlevel == WATER_FEET) && (pm->groundentity))
 		{
 			s /= 2;
 		}
@@ -689,7 +693,6 @@ PM_CatagorizePosition(void)
 {
 	vec3_t point;
 	int cont;
-	trace_t trace;
 	float sample1;
 	float sample2;
 
@@ -708,6 +711,8 @@ PM_CatagorizePosition(void)
 	}
 	else
 	{
+		trace_t trace;
+
 		trace = pm->trace(pml.origin, pm->mins, pm->maxs, point);
 		pml.groundplane = trace.plane;
 		pml.groundsurface = trace.surface;
@@ -761,7 +766,7 @@ PM_CatagorizePosition(void)
 	}
 
 	/* get waterlevel, accounting for ducking */
-	pm->waterlevel = 0;
+	pm->waterlevel = WATER_NONE;
 	pm->watertype = 0;
 
 	sample2 = pm->viewheight - pm->mins[2];
@@ -773,19 +778,19 @@ PM_CatagorizePosition(void)
 	if (cont & MASK_WATER)
 	{
 		pm->watertype = cont;
-		pm->waterlevel = 1;
+		pm->waterlevel = WATER_FEET;
 		point[2] = pml.origin[2] + pm->mins[2] + sample1;
 		cont = pm->pointcontents(point);
 
 		if (cont & MASK_WATER)
 		{
-			pm->waterlevel = 2;
+			pm->waterlevel = WATER_WAIST;
 			point[2] = pml.origin[2] + pm->mins[2] + sample2;
 			cont = pm->pointcontents(point);
 
 			if (cont & MASK_WATER)
 			{
-				pm->waterlevel = 3;
+				pm->waterlevel = WATER_UNDER;
 			}
 		}
 	}
@@ -818,7 +823,7 @@ PM_CheckJump(void)
 		return;
 	}
 
-	if (pm->waterlevel >= 2)
+	if (pm->waterlevel >= WATER_WAIST)
 	{
 		/* swimming, not jumping */
 		pm->groundentity = NULL;
@@ -890,7 +895,7 @@ PM_CheckSpecialMovement(void)
 	}
 
 	/* check for water jump */
-	if (pm->waterlevel != 2)
+	if (pm->waterlevel != WATER_WAIST)
 	{
 		return;
 	}
@@ -923,15 +928,13 @@ PM_CheckSpecialMovement(void)
 static void
 PM_FlyMove(qboolean doclip)
 {
-	float speed, drop, friction, control, newspeed;
+	float speed;
 	float currentspeed, addspeed, accelspeed;
 	int i;
 	vec3_t wishvel;
 	float fmove, smove;
 	vec3_t wishdir;
 	float wishspeed;
-	vec3_t end;
-	trace_t trace;
 
 	pm->viewheight = 22;
 
@@ -944,6 +947,8 @@ PM_FlyMove(qboolean doclip)
 	}
 	else
 	{
+		float drop, friction, control, newspeed;
+
 		drop = 0;
 
 		friction = pm_friction * 1.5f; /* extra friction */
@@ -1009,6 +1014,9 @@ PM_FlyMove(qboolean doclip)
 
 	if (doclip)
 	{
+		trace_t trace;
+		vec3_t end;
+
 		for (i = 0; i < 3; i++)
 		{
 			end[i] = pml.origin[i] + pml.frametime * pml.velocity[i];
@@ -1031,8 +1039,8 @@ PM_FlyMove(qboolean doclip)
 static void
 PM_CheckDuck(void)
 {
-	vec3_t mins = {-16, -16, -24}, maxs = {16, 16, 32};
-	trace_t trace;
+	static const vec3_t mins = {-16, -16, -24}; /* PLAYER_MINS */
+	static const vec3_t maxs = {16, 16, 32}; /* PLAYER_MAXS */
 	int i;
 
 	for (i = 0; i < 3; i++)
@@ -1071,6 +1079,8 @@ PM_CheckDuck(void)
 		/* stand up if possible */
 		if (pm->s.pm_flags & PMF_DUCKED)
 		{
+			trace_t trace;
+
 			/* try to stand up */
 			trace = pm->trace(pml.origin, pm->mins, pm->maxs, pml.origin);
 
@@ -1310,14 +1320,14 @@ PM_CalculateWaterLevelForDemo(void)
 	point[1] = pml.origin[1];
 	point[2] = pml.origin[2] + pm->viewheight;
 
-	pm->waterlevel = 0;
+	pm->waterlevel = WATER_NONE;
 	pm->watertype = 0;
 
 	cont = pm->pointcontents(point);
 
 	if ((cont & MASK_WATER) != 0)
 	{
-		pm->waterlevel = 3;
+		pm->waterlevel = WATER_UNDER;
 		pm->watertype = cont;
 	}
 }
@@ -1327,7 +1337,7 @@ PM_UpdateUnderwaterSfx()
 {
 	static int underwater;
 
-	if ((pm->waterlevel == 3) && !underwater)
+	if ((pm->waterlevel == WATER_UNDER) && !underwater)
 	{
 		underwater = 1;
 		snd_is_underwater = 1;
@@ -1337,7 +1347,7 @@ PM_UpdateUnderwaterSfx()
 #endif
 	}
 
-	if ((pm->waterlevel < 3) && underwater)
+	if ((pm->waterlevel < WATER_UNDER) && underwater)
 	{
 		underwater = 0;
 		snd_is_underwater = 0;
@@ -1361,7 +1371,7 @@ Pmove_(void)
 	pm->viewheight = 0;
 	pm->groundentity = 0;
 	pm->watertype = 0;
-	pm->waterlevel = 0;
+	pm->waterlevel = WATER_NONE;
 
 	/* convert origin and velocity to float values */
 	pml.origin[0] = pml.current_origin[0] * 0.125f;
@@ -1472,7 +1482,7 @@ Pmove_(void)
 
 		PM_Friction();
 
-		if (pm->waterlevel >= 2)
+		if (pm->waterlevel >= WATER_WAIST)
 		{
 			PM_WaterMove();
 		}

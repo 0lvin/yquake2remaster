@@ -181,6 +181,10 @@ SockadrToNetadr(struct sockaddr_storage *s, netadr_t *a)
 			a->scope_id = s6->sin6_scope_id;
 		}
 	}
+	else
+	{
+		memset(a, 0, sizeof(*a));
+	}
 }
 
 qboolean
@@ -385,19 +389,17 @@ NET_AdrToString(netadr_t a)
 static qboolean
 NET_StringToSockaddr(const char *s, struct sockaddr_storage *sadr)
 {
-	char copy[128];
-	char *addrs, *space;
-	char *ports = NULL;
+	const char *addrs, *ports = NULL;
+	char copy[128], *space;
 	int err;
 	struct addrinfo hints;
 	struct addrinfo *resultp;
 
-	memset(sadr, 0, sizeof(*sadr));
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_family = PF_UNSPEC;
 
-	strcpy(copy, s);
+	Q_strlcpy(copy, s, sizeof(copy));
 	addrs = space = copy;
 
 	if (*addrs == '[')
@@ -521,7 +523,7 @@ NET_GetLoopPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 }
 
 static void
-NET_SendLoopPacket(netsrc_t sock, int length, void *data, netadr_t to)
+NET_SendLoopPacket(netsrc_t sock, int length, const void *data, netadr_t to)
 {
 	int i;
 	loopback_t *loop;
@@ -573,6 +575,7 @@ NET_GetPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 		}
 
 		fromlen = sizeof(from);
+		memset(&from, 0, fromlen);
 		ret = recvfrom(net_socket, (char *)net_message->data,
 				net_message->maxsize, 0, (struct sockaddr *)&from,
 				&fromlen);
@@ -625,7 +628,7 @@ NET_GetPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 /* ============================================================================= */
 
 void
-NET_SendPacket(netsrc_t sock, int length, void *data, netadr_t to)
+NET_SendPacket(netsrc_t sock, int length, const void *data, netadr_t to)
 {
 	int ret;
 	struct sockaddr_storage addr;
@@ -803,7 +806,8 @@ NET_SendPacket(netsrc_t sock, int length, void *data, netadr_t to)
 static int
 NET_IPSocket(char *net_interface, int port, netsrc_t type, int family)
 {
-	char Buf[BUFSIZ], *Host, *Service;
+	const char *Host, *Service;
+	char Buf[BUFSIZ];
 	int newsocket, Error;
 	struct sockaddr_storage ss;
 	struct addrinfo hints, *res, *ai;
@@ -841,6 +845,8 @@ NET_IPSocket(char *net_interface, int port, netsrc_t type, int family)
 
 	if ((Error = getaddrinfo(Host, Service, &hints, &res)))
 	{
+		Com_Printf("%s ERROR: getaddrinfo: %s\n",
+				__func__, gai_strerror(Error));
 		return 0;
 	}
 
@@ -856,6 +862,7 @@ NET_IPSocket(char *net_interface, int port, netsrc_t type, int family)
 		if (ioctlsocket(newsocket, FIONBIO, &t) == -1)
 		{
 			Com_Printf("%s: ioctl FIONBIO: %s\n", __func__, strerror(errno));
+			closesocket(newsocket);
 			continue;
 		}
 
@@ -864,6 +871,7 @@ NET_IPSocket(char *net_interface, int port, netsrc_t type, int family)
 		{
 			printf("%s: setsockopt(SO_REUSEADDR) failed: %u\n",
 					__func__, WSAGetLastError());
+			closesocket(newsocket);
 			continue;
 		}
 
@@ -875,6 +883,8 @@ NET_IPSocket(char *net_interface, int port, netsrc_t type, int family)
 			{
 				Com_Printf("ERROR: %s: setsockopt SO_BROADCAST:%s\n",
 						__func__, strerror(errno));
+				closesocket(newsocket);
+				freeaddrinfo(res);
 				return 0;
 			}
 		}
@@ -973,11 +983,11 @@ NET_OpenIP(void)
 {
 	cvar_t *ip;
 	int port;
-	int dedicated;
+	int dedicated_val;
 
 	ip = Cvar_Get("ip", "localhost", CVAR_NOSET);
 
-	dedicated = Cvar_VariableValue("dedicated");
+	dedicated_val = Cvar_VariableValue("dedicated");
 
 	if (!ip_sockets[NS_SERVER])
 	{
@@ -1006,7 +1016,7 @@ NET_OpenIP(void)
 	}
 
 	/* dedicated servers don't need client ports */
-	if (dedicated)
+	if (dedicated_val)
 	{
 		return;
 	}
@@ -1106,9 +1116,9 @@ static void
 NET_OpenIPX(void)
 {
 	int port;
-	int dedicated;
+	int dedicated_val;
 
-	dedicated = Cvar_VariableValue("dedicated");
+	dedicated_val = Cvar_VariableValue("dedicated");
 
 	if (!ipx_sockets[NS_SERVER])
 	{
@@ -1128,7 +1138,7 @@ NET_OpenIPX(void)
 	}
 
 	/* dedicated servers don't need client ports */
-	if (dedicated)
+	if (dedicated_val)
 	{
 		return;
 	}
@@ -1222,7 +1232,6 @@ NET_Sleep(int msec)
 {
 	struct timeval timeout;
 	fd_set fdset;
-	extern cvar_t *dedicated;
 	int i;
 
 	if (!dedicated || !dedicated->value)
@@ -1231,28 +1240,20 @@ NET_Sleep(int msec)
 	}
 
 	FD_ZERO(&fdset);
-	i = 0;
 
 	if (ip6_sockets[NS_SERVER])
 	{
 		FD_SET(ip6_sockets[NS_SERVER], &fdset); /* network socket */
-		i = ip6_sockets[NS_SERVER];
 	}
 
 	if (ip_sockets[NS_SERVER])
 	{
 		FD_SET(ip_sockets[NS_SERVER], &fdset); /* network socket */
-		i = ip_sockets[NS_SERVER];
 	}
 
 	if (ipx_sockets[NS_SERVER])
 	{
 		FD_SET(ipx_sockets[NS_SERVER], &fdset); /* network socket */
-
-		if (ipx_sockets[NS_SERVER] > i)
-		{
-			i = ipx_sockets[NS_SERVER];
-		}
 	}
 
 	timeout.tv_sec = msec / 1000;

@@ -52,7 +52,7 @@ R_EntityRotate (vec3_t vec)
 {
 	vec3_t	tvec;
 
-	VectorCopy (vec, tvec);
+	VectorCopy(vec, tvec);
 	vec[0] = DotProduct (entity_rotation[0], tvec);
 	vec[1] = DotProduct (entity_rotation[1], tvec);
 	vec[2] = DotProduct (entity_rotation[2], tvec);
@@ -151,7 +151,6 @@ R_RecursiveClipBPoly(entity_t *currententity, bedge_t *pedges, mnode_t *pnode, m
 	int		i, side, lastside;
 	cplane_t	*splitplane, tplane;
 	mvertex_t	*pvert, *plastvert, *ptvert;
-	mnode_t		*pn;
 	mvertex_t	*prevclipvert = NULL;
 
 	psideedges[0] = psideedges[1] = NULL;
@@ -272,6 +271,8 @@ R_RecursiveClipBPoly(entity_t *currententity, bedge_t *pedges, mnode_t *pnode, m
 	{
 		if (psideedges[i])
 		{
+			mnode_t *pn;
+
 			// draw if we've reached a non-solid leaf, done if all that's left is a
 			// solid leaf, and continue down the tree if it's not a leaf
 			pn = pnode->children[i];
@@ -621,15 +622,15 @@ R_RenderWorld (entity_t *currententity)
 {
 	const model_t *currentmodel = r_worldmodel;
 
-	if (!r_drawworld->value)
+	if ((!r_drawworld->value) || (r_newrefdef.rdflags & RDF_NOWORLDMODEL))
+	{
 		return;
-	if ( r_newrefdef.rdflags & RDF_NOWORLDMODEL )
-		return;
+	}
 
 	// auto cycle the world frame for texture animation
-	currententity->frame = (int)(r_newrefdef.time*2);
+	currententity->frame = (int)(r_newrefdef.time * 2);
 
-	VectorCopy (r_origin, modelorg);
+	VectorCopy(r_origin, modelorg);
 	r_pcurrentvertbase = currentmodel->vertexes;
 
 	R_RecursiveWorldNode (currententity, currentmodel, currentmodel->nodes, ALIAS_XY_CLIP_MASK, false);

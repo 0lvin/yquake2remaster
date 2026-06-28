@@ -58,18 +58,6 @@
 
 #include "../../files/HandmadeMath.h"
 
-#if 0 // only use this for development ..
-#define STUB_ONCE(msg) do { \
-		static int show=1; \
-		if(show) { \
-			show = 0; \
-			Com_Printf("STUB: %s() %s\n", __FUNCTION__, msg); \
-		} \
-	} while(0);
-#else // .. so make this a no-op in released code
-#define STUB_ONCE(msg)
-#endif
-
 // a wrapper around glVertexAttribPointer() to stay sane
 // (caller doesn't have to cast to GLintptr and then void*)
 static inline void
@@ -158,6 +146,11 @@ typedef struct
 	hmm_mat4 transProjViewMat4; // gl3state.projMat3D * gl3state.viewMat3D - so we don't have to do this in the shader
 	hmm_mat4 transModelMat4;
 
+	/* Fog parameters for exponential and height-based fog */
+	hmm_vec4 fogColor; // RGB color + density in .w (for exponential: density/64)
+	hmm_vec4 heightfog_start; // RGB color + distance in .w
+	hmm_vec4 heightfog_end; // RGB color + distance in .w
+
 	GLfloat sscroll; // for SURF_FLOWING
 	GLfloat tscroll; // for SURF_FLOWING
 	GLfloat time; // for warping surfaces like water & possibly other things
@@ -166,7 +159,13 @@ typedef struct
 	GLfloat particleFadeFactor; // gl3_particle_fade_factor, higher => less fading out towards edges
 
 	GLfloat lightScaleForTurb; // surfaces with SURF_DRAWTURB (water, lava) don't have lightmaps, use this instead
-	GLfloat _padding; // again, some padding to ensure this has right size, round up to 16 bytes?
+
+	GLfloat heightfog_density;
+	GLfloat heightfog_falloff;
+	// again, some padding to ensure this has right std140 size, round up to 16 bytes?
+	GLfloat _padding1;
+	GLfloat _padding2;
+	GLfloat _padding3;
 } gl3Uni3D_t;
 
 extern const hmm_mat4 gl3_identityMat4;
@@ -189,8 +188,6 @@ typedef struct
 enum {
 	// width and height used to be 128, so now we should be able to get the same lightmap data
 	// that used 32 lightmaps before into one, so 4 lightmaps should be enough
-	BLOCK_WIDTH = 1024,
-	BLOCK_HEIGHT = 1024,
 	MAX_LIGHTMAPS = 16,
 	MAX_LIGHTMAPS_PER_SURFACE = MAXLIGHTMAPS // 4
 };
@@ -229,6 +226,7 @@ typedef struct
 
 	// NOTE: make sure si2D is always the first shaderInfo (or adapt GL3_ShutdownShaders())
 	gl3ShaderInfo_t si2D;      // shader for rendering 2D with textures
+	gl3ShaderInfo_t si2Dtinted; // shader for rendering 2D with textures and color tinting
 	gl3ShaderInfo_t si2Dcolor; // shader for rendering 2D with flat colors
 	gl3ShaderInfo_t si2DpostProcess; // shader to render postprocess FBO, when *not* underwater
 	gl3ShaderInfo_t si2DpostProcessWater; // shader to apply water-warp postprocess effect
@@ -276,10 +274,7 @@ typedef struct
 extern gl3config_t gl3config;
 extern gl3state_t gl3state;
 
-extern int gl3_visframecount; /* bumped when going to a new PVS */
 extern int gl3_framecount; /* used for dlight push checking */
-
-extern int gl3_viewcluster, gl3_viewcluster2, gl3_oldviewcluster, gl3_oldviewcluster2;
 
 extern int c_brush_polys, c_alias_polys;
 
@@ -295,19 +290,16 @@ typedef struct image_s
 	char name[MAX_QPATH];               /* game path, including extension */
 	imagetype_t type;
 	int width, height;                  /* source image */
-	//int upload_width, upload_height;    /* after power of two and picmip */
+	int upload_width, upload_height;    /* after power of two and picmip */
 	int registration_sequence;          /* 0 = free */
 	struct msurface_s *texturechain;    /* for sort-by-texture world drawing */
 	GLuint texnum;                      /* gl texture binding */
 	float sl, tl, sh, th;               /* 0,0 - 1,1 unless part of the scrap */
-	// qboolean scrap; // currently unused
+	qboolean scrap;
 	qboolean has_alpha;
 	qboolean is_lava; // DG: added for lava brightness hack
 
 } gl3image_t;
-
-// include this down here so it can use gl3image_t
-#include "model.h"
 
 typedef struct
 {
@@ -322,7 +314,14 @@ typedef struct
 	byte lightmap_buffers[MAX_LIGHTMAPS_PER_SURFACE][4 * BLOCK_WIDTH * BLOCK_HEIGHT];
 } gl3lightmapstate_t;
 
-extern gl3model_t *gl3_worldmodel;
+// used for vertex array elements when drawing models
+typedef struct gl3_alias_vtx_s {
+	GLfloat pos[3];
+	GLfloat texCoord[2];
+	GLfloat color[4];
+} gl3_alias_vtx_t;
+
+extern model_t *gl3_worldmodel;
 
 extern float gl3depthmin, gl3depthmax;
 
@@ -405,7 +404,6 @@ extern void GL3_BeginRegistration(const char *model);
 extern struct model_s * GL3_RegisterModel(const char *name);
 extern void GL3_EndRegistration(void);
 extern void GL3_Mod_Modellist_f(void);
-extern const byte* GL3_Mod_ClusterPVS(int cluster, const gl3model_t *model);
 
 // gl3_draw.c
 extern void GL3_Draw_InitLocal(void);
@@ -414,6 +412,8 @@ extern gl3image_t * GL3_Draw_FindPic(const char *name);
 extern void GL3_Draw_GetPicSize(int *w, int *h, const char *pic);
 
 extern void GL3_Draw_PicScaled(int x, int y, const char *pic, float factor, const char *alttext);
+extern void GL3_Draw_PicScaledCol(int x, int y, const char *pic, float factor, const vec3_t color,
+	const char *alttext);
 extern void GL3_Draw_StretchPic(int x, int y, int w, int h, const char *pic);
 extern void GL3_Draw_CharScaled(int x, int y, int num, float scale);
 extern void GL3_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *message);
@@ -437,10 +437,11 @@ GL3_SelectTMU(GLenum tmu)
 	}
 }
 
-extern void GL3_TextureMode(char *string);
+extern void GL3_TextureMode(const char *string);
+extern void GL3_Scrap_Upload(void);
 extern void GL3_Bind(GLuint texnum);
 extern void GL3_BindLightmap(int lightmapnum);
-extern gl3image_t *GL3_LoadPic(char *name, byte *pic, int width, int realwidth,
+extern gl3image_t *GL3_LoadPic(const char *name, byte *pic, int width, int realwidth,
                                int height, int realheight, size_t data_size,
                                imagetype_t type, int bits);
 extern gl3image_t *GL3_FindImage(const char *name, imagetype_t type);
@@ -461,8 +462,8 @@ extern void GL3_BuildLightMap(msurface_t *surf, int offsetInLMbuf, int stride);
 extern void LM_InitBlock(void);
 extern void LM_UploadBlock(void);
 extern qboolean LM_AllocBlock(int w, int h, int *x, int *y);
-extern void LM_CreateLightmapsPoligon(gl3model_t *currentmodel, msurface_t *fa);
-extern void LM_BeginBuildingLightmaps(gl3model_t *m);
+extern void LM_CreateLightmapsPoligon(model_t *currentmodel, msurface_t *fa);
+extern void LM_BeginBuildingLightmaps(model_t *m);
 extern void LM_EndBuildingLightmaps(void);
 
 // gl3_warp.c
@@ -477,16 +478,14 @@ extern void RE_AddSkySurface(msurface_t *fa);
 // gl3_surf.c
 extern void GL3_SurfInit(void);
 extern void GL3_SurfShutdown(void);
-extern void GL3_DrawGLPoly(msurface_t *fa);
-extern void GL3_DrawGLFlowingPoly(msurface_t *fa);
 extern void GL3_DrawTriangleOutlines(void);
 extern void GL3_DrawAlphaSurfaces(void);
-extern void GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel);
+extern void GL3_DrawBrushModel(entity_t *e, model_t *currentmodel);
 extern void GL3_DrawWorld(void);
 extern void GL3_MarkLeaves(void);
 
 // gl3_mesh.c
-extern void GL3_DrawAliasModel(entity_t *e);
+extern void GL3_DrawAliasModel(entity_t *currententity);
 extern void GL3_ResetShadowAliasModels(void);
 extern void GL3_DrawAliasShadows(void);
 extern void GL3_ShutdownMeshes(void);
@@ -505,7 +504,6 @@ extern void GL3_UpdateUBOLights(void);
 
 extern cvar_t *gl_version_override;
 extern cvar_t *gl_nobind;
-extern cvar_t *gl_zfix;
 extern cvar_t *gl3_intensity;
 extern cvar_t *gl3_intensity_2D;
 extern cvar_t *gl_texturemode;

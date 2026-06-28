@@ -38,7 +38,8 @@
 #define OBJ_STOPMOVE   8
 
 void
-destructible_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+destructible_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage,
+	const vec3_t point)
 {
 	vec3_t org;
 
@@ -186,7 +187,14 @@ SP_obj_material(edict_t *self)
 
 	if (!(self->spawnflags & OBJ_STOPMOVE))
 	{
-		self->movetype = MOVETYPE_STOP;
+		self->movetype = MOVETYPE_STEP;
+		self->solid = SOLID_BBOX;
+
+		/* make it pushable like a barrel */
+		self->touch = barrel_touch;
+		self->monsterinfo.aiflags |= AI_NOSTEP;
+		self->think = M_droptofloor;
+		self->nextthink = level.time + FRAMETIME;
 	}
 	else
 	{

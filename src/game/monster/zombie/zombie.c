@@ -60,8 +60,7 @@ static mframe_t zombie_frames_run[] =
 	{ai_run, 8, NULL}
 };
 
-mmove_t zombie_move_run =
-{
+mmove_t zombie_move_run = {
 	FRAME_run1,
 	FRAME_run18,
 	zombie_frames_run,
@@ -82,32 +81,38 @@ zombie_sight(edict_t *self, edict_t *other /* unused */)
 }
 
 void
-zombie_touch(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+zombie_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	G_FreeEdict(ent);
+	G_FreeEdict(self);
 }
 
 void
-zombie_gib_touch(edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+zombie_gib_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
-	if (other == ent->owner)
+	if (other == self->owner)
+	{
 		return;
+	}
+
 	if (surf && (surf->flags & SURF_SKY))
 	{
-		G_FreeEdict(ent);
+		G_FreeEdict(self);
 		return;
 	}
+
 	if (other->takedamage)
 	{
-		gi.sound(ent, CHAN_WEAPON, sound_hit, 1, ATTN_NORM, 0);
-		T_Damage(other, ent, ent->owner, ent->s.origin, ent->s.origin, vec3_origin, ent->dmg, ent->dmg, 0, 0);
-		G_FreeEdict(ent);
+		gi.sound(self, CHAN_WEAPON, sound_hit, 1, ATTN_NORM, 0);
+		T_Damage(other, self, self->owner, self->s.origin, self->s.origin,
+			vec3_origin, self->dmg, self->dmg, 0, 0);
+		G_FreeEdict(self);
 		return;
 	}
-	gi.sound(ent, CHAN_WEAPON, sound_miss, 1, ATTN_NORM, 0);
-	VectorSet(ent->avelocity, 0, 0, 0);
-	VectorSet(ent->velocity, 0, 0, 0);
-	ent->touch = zombie_touch;
+
+	gi.sound(self, CHAN_WEAPON, sound_miss, 1, ATTN_NORM, 0);
+	VectorSet(self->avelocity, 0, 0, 0);
+	VectorSet(self->velocity, 0, 0, 0);
+	self->touch = zombie_touch;
 }
 
 static void
@@ -158,7 +163,7 @@ zombie_fire_gib_step(edict_t *self)
 	vec3_t offset = {16, 0, 8};
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 	VectorCopy(forward, aim);
 
 	fire_zombie_gib(self, start, aim, 10, 600);
@@ -184,8 +189,8 @@ static mframe_t zombie_frames_attack1 [] =
 
 	{ai_charge, 0, zombie_fire_gib_step}
 };
-mmove_t zombie_move_attack1 =
-{
+
+mmove_t zombie_move_attack1 = {
 	FRAME_atta1,
 	FRAME_atta13,
 	zombie_frames_attack1,
@@ -213,8 +218,8 @@ static mframe_t zombie_frames_attack2 [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, zombie_fire_gib_step}
 };
-mmove_t zombie_move_attack2 =
-{
+
+mmove_t zombie_move_attack2 = {
 	FRAME_attb1,
 	FRAME_attb14,
 	zombie_frames_attack2,
@@ -239,8 +244,8 @@ static mframe_t zombie_frames_attack3 [] =
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, zombie_fire_gib_step},
 };
-mmove_t zombie_move_attack3 =
-{
+
+mmove_t zombie_move_attack3 = {
 	FRAME_attc1,
 	FRAME_attc12,
 	zombie_frames_attack3,
@@ -293,8 +298,8 @@ static mframe_t zombie_frames_get_up [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t zombie_move_get_up =
-{
+
+mmove_t zombie_move_get_up = {
 	FRAME_paine12,
 	FRAME_paine30,
 	zombie_frames_get_up,
@@ -347,8 +352,7 @@ static mframe_t zombie_frames_get_up_attempt [] =
 	{ai_move, 0, zombie_get_up_attempt}
 };
 
-mmove_t zombie_move_get_up_attempt =
-{
+mmove_t zombie_move_get_up_attempt = {
 	FRAME_paine12,
 	FRAME_paine12,
 	zombie_frames_get_up_attempt,
@@ -401,8 +405,8 @@ static mframe_t zombie_frames_pain1 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t zombie_move_pain1 =
-{
+
+mmove_t zombie_move_pain1 = {
 	FRAME_paina1,
 	FRAME_paina12,
 	zombie_frames_pain1,
@@ -447,8 +451,8 @@ static mframe_t zombie_frames_pain2 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t zombie_move_pain2 =
-{
+
+mmove_t zombie_move_pain2 = {
 	FRAME_painb1,
 	FRAME_painb28,
 	zombie_frames_pain2,
@@ -481,8 +485,8 @@ static mframe_t zombie_frames_pain3 [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t zombie_move_pain3 =
-{
+
+mmove_t zombie_move_pain3 = {
 	FRAME_painc1,
 	FRAME_painc18,
 	zombie_frames_pain3,
@@ -509,8 +513,8 @@ static mframe_t zombie_frames_pain4 [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t zombie_move_pain4 =
-{
+
+mmove_t zombie_move_pain4 = {
 	FRAME_paind1,
 	FRAME_paind13,
 	zombie_frames_pain4,
@@ -534,8 +538,8 @@ static mframe_t zombie_frames_fall_start [] =
 	{ai_move, 0, zombie_hit_floor},
 	{ai_move, 0, zombie_down}
 };
-mmove_t zombie_move_fall_start =
-{
+
+mmove_t zombie_move_fall_start = {
 	FRAME_paine1,
 	FRAME_paine11,
 	zombie_frames_fall_start,
@@ -610,7 +614,7 @@ zombie_pain(edict_t *self, edict_t *other, float kick, int damage)
 
 // Death
 void
-zombie_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+zombie_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
 	int n;
 

@@ -38,7 +38,11 @@ GetLittleShort(void)
 {
 	short val = 0;
 
+	if (iff_end - data_p < 2)
+		return -1;
+
 	val = *data_p;
+
 	val = val + (*(data_p + 1) << 8);
 	data_p += 2;
 	return val;
@@ -49,6 +53,9 @@ GetLittleLong(void)
 {
 	int val = 0;
 
+	if (iff_end - data_p < 4)
+		return -1;
+
 	val = *data_p;
 	val = val + (*(data_p + 1) << 8);
 	val = val + (*(data_p + 2) << 16);
@@ -58,12 +65,11 @@ GetLittleLong(void)
 }
 
 static void
-FindNextChunk(char *name)
+FindNextChunk(const char *name)
 {
 	while (1)
 	{
 		data_p = last_chunk;
-		data_p += 4;
 
 		if (data_p >= iff_end)
 		{
@@ -71,9 +77,10 @@ FindNextChunk(char *name)
 			return;
 		}
 
+		data_p += 4;
 		iff_chunk_len = GetLittleLong();
 
-		if (iff_chunk_len < 0)
+		if (iff_chunk_len < 0 || iff_chunk_len > iff_end - data_p)
 		{
 			data_p = NULL;
 			return;
@@ -90,7 +97,7 @@ FindNextChunk(char *name)
 }
 
 static void
-FindChunk(char *name)
+FindChunk(const char *name)
 {
 	last_chunk = iff_data;
 	FindNextChunk(name);
@@ -116,7 +123,8 @@ GetWavinfo(char *name, byte *wav, int wavlength)
 	/* find "RIFF" chunk */
 	FindChunk("RIFF");
 
-	if (!(data_p && !strncmp((const char *)data_p + 8, "WAVE", 4)))
+	if (!data_p || iff_end - data_p < 12 ||
+            strncmp((const char *)data_p + 8, "WAVE", 4))
 	{
 		Com_Printf("Missing RIFF/WAVE chunks\n");
 		return info;
@@ -147,10 +155,17 @@ GetWavinfo(char *name, byte *wav, int wavlength)
 	data_p += 4 + 2;
 	info.width = GetLittleShort() / 8;
 
+	/* wBitPerSample assumes it's not an uncommon value such as < 8 bits */
+	if (info.width <= 0)
+	{
+		Com_Printf("Invalid bits per sample");
+		return info;
+	}
+
 	/* get cue chunk */
 	FindChunk("cue ");
 
-	if (data_p)
+	if (data_p && iff_end - data_p >= 36)
 	{
 		data_p += 32;
 		info.loopstart = GetLittleLong();

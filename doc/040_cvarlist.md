@@ -63,9 +63,9 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
   enable/disable optimizations that speed up level load times (or more
   accurately, client connection).
   sp stands for singleplayer and mp for multiplayer, respectively.
-  The sp version is enabled by default (value 15) while multiplayer
-  is 0.
-  The cvar value is a bitmask for 4 optimization features:
+  The sp version is fully enabled by default (value 31) while
+  multiplayer enables a subset (value 7).
+  The cvar value is a bitmask for 5 optimization features:
 
   - **1: Message utilization**: When the server sends the client
     configstrings and other data during the connection process, the
@@ -92,10 +92,17 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
     configstring packets by 1. The saving would be bigger in
     multiplayer due to the added networking latency, and mods with
     longer HUD code would also benefit more from this.
+  - **16: Baselines head-start**: When the server is sending the
+    last configstrings data packet, it adds the first baselines
+    command at the end and leaves any remaining space
+    in the packet unused. When this optimization is enabled,
+    the server will try to use that space for the first few
+    entity baselines. In some levels this can avoid an extra
+    roundtrip of client-server packets.
 
   Simply add these flag values together to get the cvar value you want.
   For example, sendrate + reconnect = 2 + 4 = 6.
-  Set to 15 for all optimizations, or 0 to disable them entirely.
+  Set to 31 for all optimizations, or 0 to disable them entirely.
 
 * **cl_maxfps**: The approximate framerate for client/server ("packet")
   frames if *cl_async* is `1`. If set to `-1` (the default), the engine
@@ -328,8 +335,6 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
 
 * **game**: current game value, mod name and directory.
 
-* **gametype**: replace menu to different mod type without change mod name in game variable.
-
 * **maptype**: convert surface map flags from different game on load:
   * 0: Quake2,
   * 1: Heretic2,
@@ -352,6 +357,10 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
    reasons several OpenAL libraries are available and Quake II picks the
    wrong one. The given value is the name of the library, for example
    `libopenal.so.1`.
+
+* **al_hrtf**: Enable OpenAL HRTF (Head-Related Transfer Function) for
+  accurate 3D positional audio over headphones. Set to `1` to enable,
+  requires `snd_restart`. Only supported with OpenAL Soft 1.17+.
 
 * **ogg_enable**: Enable Ogg/Vorbis music playback.
 
@@ -448,6 +457,12 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
   smaller. The special value `-1` (default) sets the optimal scaling
   factor for the current resolution. All cvars are set through the
   scaling slider in the video menu.
+
+* **crosshair_color_r** / **crosshair_color_g** / **crosshair_color_b**:
+  Set the red, green and blue color components of the crosshair. Each
+  value is a float between `0` and `1`. Defaults to `1` for all three
+  components (white / no tint). Can also be set through the crosshair
+  color option in the options menu.
 
 * **r_customheight** / **r_customwidth**: Specifies a custom resolution,
   the windows will be *r_customheight* pixels high and *r_customwidth*
@@ -560,12 +575,12 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
 
 * **r_ttffont**: Use `ttf` font for game messages.
 
-## Graphics (GL renderers only)
-
-* **gl_zfix**: Sometimes two or even more surfaces overlap and flicker.
+* **r_zfix**: Sometimes two or even more surfaces overlap and flicker.
   If this cvar is set to `1` the renderer inserts a small gap between
   the overlapping surfaces to mitigate the flickering. This may make
   things better or worse, depending on the map.
+
+## Graphics (GL renderers only)
 
 * **gl_polyblend**: Toggles the palette blending effect, a.k.a. the
   "flash" you see when getting injured or picking up an item. In GL1 is
@@ -698,12 +713,6 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
 * **in_initjoy**: Chooses the preferred gamepad to initialize, starting
   with `1` (default); `0` disables gamepad usage. Can only be set from
   command line.
-
-* **joy_escbutton**: Defines which button is used in the gamepad as
-  the `Esc` key, to pull the main menu and 'cancel' / 'go back' on its
-  options. Valid values are `0` = Start / Menu / Plus (default), `1` =
-  Back / Select / Minus, or `2` = Guide / Home / PS. Requires a game
-  restart, or gamepad replug, when changed.
 
 * **joy_labels**: Defines style of button labels in binding menus. Note
   that binding through console only uses the SDL nomenclature (`0`).

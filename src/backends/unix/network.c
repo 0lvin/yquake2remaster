@@ -68,7 +68,7 @@ int ip6_sockets[2];
 int ipx_sockets[2];
 char *multicast_interface = NULL;
 
-static int NET_Socket(char *net_interface, int port, netsrc_t type, int family);
+static int NET_Socket(const char *net_interface, int port, netsrc_t type, int family);
 static const char *NET_ErrorString(void);
 
 static void
@@ -181,6 +181,10 @@ SockadrToNetadr(struct sockaddr_storage *s, netadr_t *a)
 			a->type = NA_IP6;
 			a->scope_id = s6->sin6_scope_id;
 		}
+	}
+	else
+	{
+		memset(a, 0, sizeof(*a));
 	}
 }
 
@@ -372,9 +376,8 @@ NET_AdrToString(netadr_t a)
 static qboolean
 NET_StringToSockaddr(const char *s, struct sockaddr_storage *sadr)
 {
-	char copy[128];
-	char *addrs, *space;
-	char *ports = NULL;
+	const char *addrs, *ports = NULL;
+	char copy[128], *space;
 	int err;
 	struct addrinfo hints;
 	struct addrinfo *resultp;
@@ -498,7 +501,7 @@ NET_GetLoopPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 }
 
 static void
-NET_SendLoopPacket(netsrc_t sock, int length, void *data, netadr_t to)
+NET_SendLoopPacket(netsrc_t sock, int length, const void *data, netadr_t to)
 {
 	int i;
 	loopback_t *loop;
@@ -548,6 +551,7 @@ NET_GetPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 		}
 
 		fromlen = sizeof(from);
+		memset(&from, 0, fromlen);
 		ret = recvfrom(net_socket, net_message->data, net_message->maxsize,
 				0, (struct sockaddr *)&from, &fromlen);
 
@@ -581,7 +585,7 @@ NET_GetPacket(netsrc_t sock, netadr_t *net_from, sizebuf_t *net_message)
 }
 
 void
-NET_SendPacket(netsrc_t sock, int length, void *data, netadr_t to)
+NET_SendPacket(netsrc_t sock, int length, const void *data, netadr_t to)
 {
 	int ret;
 	struct sockaddr_storage addr;
@@ -737,7 +741,7 @@ NET_SendPacket(netsrc_t sock, int length, void *data, netadr_t to)
 static void
 NET_OpenIP(void)
 {
-	cvar_t *port, *ip;
+	const cvar_t *port, *ip;
 
 	port = Cvar_Get("port", va("%i", PORT_SERVER), CVAR_NOSET);
 	ip = Cvar_Get("ip", "localhost", CVAR_NOSET);
@@ -809,9 +813,10 @@ NET_Config(qboolean multiplayer)
 /* =================================================================== */
 
 static int
-NET_Socket(char *net_interface, int port, netsrc_t type, int family)
+NET_Socket(const char *net_interface, int port, netsrc_t type, int family)
 {
-	char Buf[BUFSIZ], *Host, *Service;
+	const char *Host, *Service;
+	char Buf[BUFSIZ];
 	int newsocket = -1;
 	int Error = 0;
 	struct sockaddr_storage ss;
@@ -999,7 +1004,6 @@ NET_Sleep(int msec)
 {
 	struct timeval timeout;
 	fd_set fdset;
-	extern cvar_t *dedicated;
 	extern qboolean stdin_active;
 
 	if ((!ip_sockets[NS_SERVER] &&

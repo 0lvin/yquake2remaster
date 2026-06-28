@@ -25,6 +25,7 @@
  */
 
 #include "header/server.h"
+#include <limits.h>
 
 #ifndef DEDICATED_ONLY
 void SCR_DebugGraph(float value, int color);
@@ -36,7 +37,7 @@ game_export_t *ge;
  * Sends the contents of the mutlicast buffer to a single client
  */
 static void
-PF_Unicast(edict_t *ent, qboolean reliable)
+PF_Unicast(const edict_t *ent, qboolean reliable)
 {
 	int p;
 	client_t *client;
@@ -54,6 +55,12 @@ PF_Unicast(edict_t *ent, qboolean reliable)
 	}
 
 	client = svs.clients + (p - 1);
+
+	if (client->state <= cs_zombie)
+	{
+		SZ_Clear(&sv.multicast);
+		return;
+	}
 
 	if (reliable)
 	{
@@ -88,7 +95,7 @@ PF_dprintf(const char *fmt, ...)
  * Print to a single client
  */
 static void
-PF_cprintf(edict_t *ent, int level, const char *fmt, ...)
+PF_cprintf(const edict_t *ent, int level, const char *fmt, ...)
 {
 	char msg[1024];
 	va_list argptr;
@@ -125,7 +132,7 @@ PF_cprintf(edict_t *ent, int level, const char *fmt, ...)
  * centerprint to a single client
  */
 static void
-PF_centerprintf(edict_t *ent, const char *fmt, ...)
+PF_centerprintf(const edict_t *ent, const char *fmt, ...)
 {
 	char msg[1024];
 	va_list argptr;
@@ -383,7 +390,7 @@ PF_WriteDir(const vec3_t dir)
 static void
 PF_WriteAngle(float f)
 {
-	MSG_WriteAngle(&sv.multicast, f);
+	MSG_WriteAngle(&sv.multicast, f, SV_GetRecomendedProtocol());
 }
 
 /*
@@ -463,7 +470,7 @@ PF_inPHS(vec3_t p1, vec3_t p2)
 }
 
 static void
-PF_StartSound(edict_t *entity, int channel, int sound_num,
+PF_StartSound(const edict_t *entity, int channel, int sound_num,
 		float volume, float attenuation, float timeofs)
 {
 	if (!entity)
@@ -510,6 +517,41 @@ SV_ShutdownGameProgs(void)
 /*
  * Init the game subsystem for a new map
  */
+static void *
+GI_TagMalloc(int size, int tag)
+{
+	if (size < 0)
+	{
+		Com_Error(ERR_FATAL, "%s: size < 0: %i\n",
+			__func__, size);
+		return NULL;
+	}
+
+	if ((tag > USHRT_MAX) || (tag < 0))
+	{
+		Com_Printf("%s: tag outside [0, 65535]: %i\n",
+			__func__, tag);
+
+		tag = 0;
+	}
+
+	return Z_TagMalloc(size, (unsigned short)tag);
+}
+
+static void
+GI_FreeTags(int tag)
+{
+	if ((tag > USHRT_MAX) || (tag <= 0))
+	{
+		Com_Printf("%s: tag outside [1, 65535]: %i\n",
+			__func__, tag);
+
+		return;
+	}
+
+	Z_FreeTags((unsigned short)tag);
+}
+
 void
 SV_InitGameProgs(void)
 {
@@ -560,9 +602,9 @@ SV_InitGameProgs(void)
 	import.WriteDir = PF_WriteDir;
 	import.WriteAngle = PF_WriteAngle;
 
-	import.TagMalloc = Z_TagMalloc;
+	import.TagMalloc = GI_TagMalloc;
 	import.TagFree = Z_Free;
-	import.FreeTags = Z_FreeTags;
+	import.FreeTags = GI_FreeTags;
 
 	import.cvar = Cvar_Get;
 	import.cvar_set = Cvar_Set;

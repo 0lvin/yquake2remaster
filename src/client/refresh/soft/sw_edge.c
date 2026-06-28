@@ -57,8 +57,8 @@ static int	miplevel;
 
 float	scale_for_mip;
 
-static void R_GenerateSpans (void);
-static void R_GenerateSpansBackward (void);
+static void R_GenerateSpans(void);
+static void R_GenerateSpansBackward(void);
 
 static void R_TrailingEdge (surf_t *surf, const edge_t *edge);
 
@@ -76,7 +76,7 @@ R_BeginEdgeFrame
 ==============
 */
 void
-R_BeginEdgeFrame (void)
+R_BeginEdgeFrame(void)
 {
 	surfaces[1].spans = NULL;	// no background spans yet
 	surfaces[1].flags = SURF_DRAWBACKGROUND;
@@ -230,7 +230,7 @@ R_CleanupSpan
 ==============
 */
 static void
-R_CleanupSpan (void)
+R_CleanupSpan(void)
 {
 	surf_t		*surf;
 
@@ -526,21 +526,22 @@ R_GenerateSpans
 ==============
 */
 static void
-R_GenerateSpans (void)
+R_GenerateSpans(void)
 {
-	edge_t			*edge;
-	surf_t			*surf;
+	edge_t *edge;
 
 	// clear active surfaces to just the background surface
 	surfaces[1].next = surfaces[1].prev = &surfaces[1];
 	surfaces[1].last_u = edge_head_u_shift20;
 
-	// generate spans
-	for (edge=edge_head.next ; edge != &edge_tail; edge=edge->next)
+	/* generate spans */
+	for (edge = edge_head.next; edge != &edge_tail; edge=edge->next)
 	{
 		if (edge->surfs[0])
 		{
-			// it has a left surface, so a surface is going away for this span
+			surf_t *surf;
+
+			/* it has a left surface, so a surface is going away for this span */
 			surf = &surfaces[edge->surfs[0]];
 
 			R_TrailingEdge (surf, edge);
@@ -561,7 +562,7 @@ R_GenerateSpansBackward
 ==============
 */
 static void
-R_GenerateSpansBackward (void)
+R_GenerateSpansBackward(void)
 {
 	edge_t			*edge;
 
@@ -896,11 +897,11 @@ D_TurbulentSurf(surf_t *s)
 		// FIXME: we don't want to do this every time!
 		// TODO: speed up
 		//
-		VectorCopy (world_transformed_modelorg,
+		VectorCopy(world_transformed_modelorg,
 					transformed_modelorg);
-		VectorCopy (base_vpn, vpn);
-		VectorCopy (base_vup, vup);
-		VectorCopy (base_vright, vright);
+		VectorCopy(base_vpn, vpn);
+		VectorCopy(base_vup, vup);
+		VectorCopy(base_vright, vright);
 		R_TransformFrustum ();
 	}
 }
@@ -985,11 +986,11 @@ D_SolidSurf (entity_t *currententity, surf_t *s)
 		// FIXME: we don't want to do this every time!
 		// TODO: speed up
 		//
-		VectorCopy (world_transformed_modelorg,
+		VectorCopy(world_transformed_modelorg,
 					transformed_modelorg);
-		VectorCopy (base_vpn, vpn);
-		VectorCopy (base_vup, vup);
-		VectorCopy (base_vright, vright);
+		VectorCopy(base_vpn, vpn);
+		VectorCopy(base_vup, vup);
+		VectorCopy(base_vright, vright);
 		R_TransformFrustum ();
 	}
 }
@@ -1034,7 +1035,7 @@ D_DrawSurfaces(entity_t *currententity, const surf_t *surface)
 {
 	VectorSubtract (r_origin, vec3_origin, modelorg);
 	TransformVector (modelorg, transformed_modelorg);
-	VectorCopy (transformed_modelorg, world_transformed_modelorg);
+	VectorCopy(transformed_modelorg, world_transformed_modelorg);
 
 	if (!sw_drawflat->value)
 	{

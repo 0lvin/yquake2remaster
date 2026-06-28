@@ -36,28 +36,22 @@ static int sound_punch_hit1;
 static int sound_punch_hit2;
 static int sound_idle;
 
-int stalker_do_pounce(edict_t *self, vec3_t dest);
+static int stalker_do_pounce(edict_t *self, vec3_t dest);
 void stalker_stand(edict_t *self);
 void stalker_run(edict_t *self);
 void stalker_walk(edict_t *self);
-void stalker_jump(edict_t *self);
-void stalker_dodge_jump(edict_t *self);
-void stalker_swing_check_l(edict_t *self);
-void stalker_swing_check_r(edict_t *self);
-void stalker_swing_attack(edict_t *self);
-void stalker_jump_straightup(edict_t *self);
-void stalker_jump_wait_land(edict_t *self);
-void stalker_false_death(edict_t *self);
-void stalker_false_death_start(edict_t *self);
+static void stalker_jump_straightup(edict_t *self);
+static void stalker_jump(edict_t *self);
+static void stalker_dodge_jump(edict_t *self);
+static void stalker_jump_wait_land(edict_t *self);
+static void stalker_false_death(edict_t *self);
+static void stalker_false_death_start(edict_t *self);
 
 #define STALKER_ON_CEILING(ent) (ent->gravityVector[2] > 0 ? 1 : 0)
 
-#define PI 3.14159
-#define RAD2DEG(x) (x * (float)180.0 / (float)PI)
-#define DEG2RAD(x) (x * (float)PI / (float)180.0)
+#define RAD2DEG(x) (x * 180.0 / M_PI)
+#define DEG2RAD(x) (x * M_PI / 180.0)
 #define FAUX_GRAVITY 800.0
-
-extern qboolean SV_PointCloseEnough(edict_t *ent, vec3_t goal, float dist);
 
 static qboolean
 stalker_ok_to_transition(edict_t *self)
@@ -203,7 +197,7 @@ stalker_sight(edict_t *self, edict_t *other /* unused */)
 	gi.sound(self, CHAN_WEAPON, sound_sight, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 stalker_idle_noise(edict_t *self)
 {
 	if (!self)
@@ -421,7 +415,7 @@ mmove_t stalker_move_false_death_end = {
 	stalker_run
 };
 
-void
+static void
 stalker_reactivate(edict_t *self)
 {
 	if (!self)
@@ -433,7 +427,7 @@ stalker_reactivate(edict_t *self)
 	self->monsterinfo.currentmove = &stalker_move_false_death_end;
 }
 
-void
+static void
 stalker_heal(edict_t *self)
 {
 	if (!self)
@@ -487,7 +481,7 @@ mmove_t stalker_move_false_death = {
 	stalker_false_death
 };
 
-void
+static void
 stalker_false_death(edict_t *self)
 {
 	if (!self)
@@ -518,7 +512,7 @@ mmove_t stalker_move_false_death_start = {
 	stalker_false_death
 };
 
-void
+static void
 stalker_false_death_start(edict_t *self)
 {
 	if (!self)
@@ -623,12 +617,12 @@ stalker_pain(edict_t *self, edict_t *other /* unused */, float kick, int damage)
 	}
 }
 
-void
+static void
 stalker_shoot_attack(edict_t *self)
 {
 	vec3_t offset, start, f, r, dir;
 	vec3_t end;
-	float time, dist;
+	float dist;
 	trace_t trace;
 
 	if (!self)
@@ -658,12 +652,14 @@ stalker_shoot_attack(edict_t *self)
 
 	AngleVectors(self->s.angles, f, r, NULL);
 	VectorSet(offset, 24, 0, 6);
-	G_ProjectSource(self->s.origin, offset, f, r, start);
+	M_ProjectFlashSource(self, offset, f, r, start);
 
 	VectorSubtract(self->enemy->s.origin, start, dir);
 
 	if (random() < (0.20 + 0.1 * skill->value))
 	{
+		float time;
+
 		dist = VectorLength(dir);
 		time = dist / 1000;
 		VectorMA(self->enemy->s.origin, time, self->enemy->velocity, end);
@@ -682,7 +678,7 @@ stalker_shoot_attack(edict_t *self)
 	}
 }
 
-void
+static void
 stalker_shoot_attack2(edict_t *self)
 {
 	if (!self)
@@ -741,7 +737,7 @@ stalker_attack_ranged(edict_t *self)
 	self->monsterinfo.currentmove = &stalker_move_shoot;
 }
 
-void
+static void
 stalker_swing_attack(edict_t *self)
 {
 	vec3_t aim;
@@ -753,7 +749,7 @@ stalker_swing_attack(edict_t *self)
 
 	VectorSet(aim, MELEE_DISTANCE, 0, 0);
 
-	if (fire_hit(self, aim, (5 + (rand() % 5)), 50))
+	if (fire_hit(self, aim, (5 + (randk() % 5)), 50))
 	{
 		if (self->s.frame < FRAME_attack08)
 		{
@@ -826,8 +822,7 @@ static void
 calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 {
 	float distV, distH;
-	float one, cosU;
-	float l, U;
+	float one;
 	vec3_t dist;
 
 	VectorSubtract(end, start, dist);
@@ -841,6 +836,8 @@ calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 
 	if (distV)
 	{
+		float U, cosU, l;
+
 		l = (float)sqrt(distH * distH + distV * distV);
 		U = (float)atan(distV / distH);
 
@@ -862,7 +859,7 @@ calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 			angles[2] = 1.0;
 		}
 
-		angles[1] = (float)PI - angles[0];
+		angles[1] = M_PI - angles[0];
 
 		if (isnan(angles[1]))
 		{
@@ -874,6 +871,8 @@ calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 	}
 	else
 	{
+		float l;
+
 		l = (float)sqrt(distH * distH + distV * distV);
 
 		angles[2] = 0.0;
@@ -887,7 +886,7 @@ calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 			angles[2] = 1.0;
 		}
 
-		angles[1] = (float)PI - angles[0];
+		angles[1] = M_PI - angles[0];
 
 		if (isnan(angles[1]))
 		{
@@ -899,8 +898,8 @@ calcJumpAngle(vec3_t start, vec3_t end, float velocity, vec3_t angles)
 	}
 }
 
-int
-stalker_check_lz(edict_t *self, edict_t *target, vec3_t dest)
+static int
+stalker_check_lz(edict_t *self, const edict_t *target, vec3_t dest)
 {
 	vec3_t jumpLZ;
 
@@ -957,7 +956,7 @@ stalker_check_lz(edict_t *self, edict_t *target, vec3_t dest)
 	return true;
 }
 
-int
+static int
 stalker_do_pounce(edict_t *self, vec3_t dest)
 {
 	vec3_t forward, right;
@@ -1117,7 +1116,7 @@ mmove_t stalker_move_jump_straightup = {
 	stalker_run
 };
 
-void
+static void
 stalker_dodge_jump(edict_t *self)
 {
 	if (!self)
@@ -1129,7 +1128,7 @@ stalker_dodge_jump(edict_t *self)
 }
 
 void
-stalker_dodge(edict_t *self, edict_t *attacker, float eta, trace_t *tr /* unused */)
+stalker_dodge(edict_t *self, edict_t *attacker, float eta, trace_t *trace /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -1157,7 +1156,7 @@ stalker_dodge(edict_t *self, edict_t *attacker, float eta, trace_t *tr /* unused
 	stalker_dodge_jump(self);
 }
 
-void
+static void
 stalker_jump_down(edict_t *self)
 {
 	vec3_t forward, up;
@@ -1174,7 +1173,7 @@ stalker_jump_down(edict_t *self)
 	VectorMA(self->velocity, 300, up, self->velocity);
 }
 
-void
+static void
 stalker_jump_up(edict_t *self)
 {
 	vec3_t forward, up;
@@ -1191,7 +1190,7 @@ stalker_jump_up(edict_t *self)
 	VectorMA(self->velocity, 450, up, self->velocity);
 }
 
-void
+static void
 stalker_jump_wait_land(edict_t *self)
 {
 	if (!self)
@@ -1260,7 +1259,7 @@ mmove_t stalker_move_jump_down = {
 	stalker_run
 };
 
-void
+static void
 stalker_jump(edict_t *self)
 {
 	if (!self)
@@ -1345,7 +1344,7 @@ stalker_blocked(edict_t *self, float dist)
 	return false;
 }
 
-void
+static void
 stalker_dead(edict_t *self)
 {
 	if (!self)
@@ -1355,6 +1354,7 @@ stalker_dead(edict_t *self)
 
 	VectorSet(self->mins, -28, -28, -18);
 	VectorSet(self->maxs, 28, 28, -4);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -1381,10 +1381,8 @@ mmove_t stalker_move_death = {
 
 void
 stalker_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage, vec3_t point /* unused */)
+		int damage, const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -1398,6 +1396,8 @@ stalker_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /*
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

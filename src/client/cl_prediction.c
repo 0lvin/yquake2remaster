@@ -32,7 +32,6 @@ CL_CheckPredictionError(void)
 {
 	int frame;
 	int delta[3];
-	int i;
 	int len;
 
 	if (!cl_predict->value ||
@@ -60,6 +59,8 @@ CL_CheckPredictionError(void)
 	}
 	else
 	{
+		size_t i;
+
 		if (cl_showmiss->value && (delta[0] || delta[1] || delta[2]))
 		{
 			Com_Printf("prediction miss on %i: %i\n", cl.frame.serverframe,
@@ -85,12 +86,11 @@ CL_ClipMoveToEntities(vec3_t start, vec3_t mins, vec3_t maxs,
 
 	for (i = 0; i < cl.frame.num_entities; i++)
 	{
-		int x, zd, zu;
 		trace_t trace;
 		int headnode;
 		float *angles;
 		int num;
-		cmodel_t *cmodel;
+		const cmodel_t *cmodel;
 		vec3_t bmins, bmaxs;
 		entity_xstate_t *ent;
 
@@ -122,6 +122,8 @@ CL_ClipMoveToEntities(vec3_t start, vec3_t mins, vec3_t maxs,
 		}
 		else
 		{
+			int x, zd, zu;
+
 			/* encoded bbox */
 			x = 8 * (ent->solid & 31);
 			zd = 8 * ((ent->solid >> 5) & 31);
@@ -183,7 +185,7 @@ CL_PMTrace(vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 }
 
 int
-CL_PMpointcontents(vec3_t point)
+CL_PMpointcontents(const vec3_t point)
 {
 	int i;
 	int contents;
@@ -194,7 +196,7 @@ CL_PMpointcontents(vec3_t point)
 	{
 		entity_xstate_t *ent;
 		int num;
-		cmodel_t *cmodel;
+		const cmodel_t *cmodel;
 
 		num = (cl.frame.parse_entities + i) & (MAX_PARSE_ENTITIES - 1);
 		ent = &cl_parse_entities[num];
@@ -225,9 +227,7 @@ void
 CL_PredictMovement(void)
 {
 	int ack, current, origin[3];
-	usercmd_t *cmd;
 	pmove_t pm;
-	int i;
 	int step;
 	vec3_t tmp;
 
@@ -244,6 +244,8 @@ CL_PredictMovement(void)
 	if (!cl_predict->value ||
 		(cl.frame.playerstate.pmove.pm_flags & PMF_NO_PREDICTION))
 	{
+		int i;
+
 		/* just set angles */
 		for (i = 0; i < 3; i++)
 		{
@@ -285,13 +287,15 @@ CL_PredictMovement(void)
 		if (slash_pos)
 		{
 			const dmdxframegroup_t * frames;
-			int num, i;
+			int num;
 
 			memcpy(slash_pos + 1, "tris.md2", sizeof("tris.md2"));
 
 			frames = Mod_GetModelInfo(model_name, &num, NULL, NULL);
 			if (frames && num)
 			{
+				int i;
+
 				for (i = 0; i < num; i++)
 				{
 					if (!strcmp(frames[i].name, "stand") ||
@@ -312,6 +316,7 @@ CL_PredictMovement(void)
 	/* run frames */
 	while (++ack <= current)
 	{
+		const usercmd_t *cmd;
 		int frame;
 
 		frame = ack & (CMD_BACKUP - 1);

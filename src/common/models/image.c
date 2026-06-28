@@ -24,6 +24,7 @@
  * =======================================================================
  */
 #include "../header/common.h"
+#include "models.h"
 
 #define PCX_IDENT ((0x05 << 8) + 0x0a)
 
@@ -131,7 +132,7 @@ fixQuitScreen(byte* px)
 }
 
 static const byte *
-PCX_RLE_Decode(byte *pix, byte *pix_max, const byte *raw, const byte *raw_max,
+PCX_RLE_Decode(byte *pix, const byte *pix_max, const byte *raw, const byte *raw_max,
 	int bytes_per_line, qboolean *image_issues)
 {
 	int x;
@@ -187,7 +188,7 @@ PCX_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palett
 	int *width, int *height, int *bitsPerPixel)
 {
 	const pcx_t *pcx;
-	int full_size;
+	size_t full_size;
 	int pcx_width, pcx_height, bytes_per_line;
 	qboolean image_issues = false;
 	byte *out, *pix;
@@ -221,18 +222,24 @@ PCX_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palett
 		(pcx_width <= 0) ||
 		(pcx_height <= 0) ||
 		(bytes_per_line <= 0) ||
-		(pcx->color_planes <= 0) ||
-		(pcx->bits_per_pixel <= 0))
+		(pcx->color_planes == 0) ||
+		(pcx->bits_per_pixel == 0))
 	{
 		Com_Printf("%s: Bad pcx file %s: version: %d:%d, encoding: %d\n",
 			__func__, name, pcx->manufacturer, pcx->version, pcx->encoding);
 		return;
 	}
 
-	full_size = (pcx_height + 1) * (pcx_width + 1);
+	full_size = (size_t)(pcx_height + 1) * (pcx_width + 1);
 	if ((pcx->color_planes == 3 || pcx->color_planes == 4)
 		&& pcx->bits_per_pixel == 8)
 	{
+		if (full_size > SIZE_MAX / 4)
+		{
+			Com_Printf("%s: %s dimensions overflow\n", __func__, name);
+			return;
+		}
+
 		full_size *= 4;
 		*bitsPerPixel = 32;
 	}
@@ -311,6 +318,7 @@ PCX_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palett
 			{
 				Com_Printf("%s: Can't allocate for %s\n", __func__, name);
 				free(out);
+				*pic = NULL;
 				return;
 			}
 
@@ -361,6 +369,7 @@ PCX_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palett
 			{
 				Com_Printf("%s: Can't allocate for %s\n", __func__, name);
 				free(out);
+				*pic = NULL;
 				return;
 			}
 
@@ -552,7 +561,7 @@ SWL_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palett
 static void
 M32_Decode(const char *name, const byte *raw, int len, byte **pic, int *width, int *height)
 {
-	m32tex_t *mt;
+	const m32tex_t *mt;
 	int ofs;
 
 	mt = (m32tex_t *)raw;
@@ -596,7 +605,7 @@ static void
 M8_Decode(const char *name, const byte *raw, int len, byte **pic, byte **palette,
 	int *width, int *height)
 {
-	m8tex_t *mt;
+	const m8tex_t *mt;
 	int ofs;
 
 	mt = (m8tex_t *)raw;
@@ -685,7 +694,7 @@ static void
 LoadWalDKM(const char *name, const byte *raw, int len, byte **pic, byte **palette,
 	int *width, int *height)
 {
-	dkmtex_t *mt;
+	const dkmtex_t *mt;
 	int ofs;
 
 	mt = (dkmtex_t *)raw;
@@ -749,7 +758,8 @@ static void
 LMP_Decode(const char *name, const byte *raw, int len, byte **pic,
 	int *width, int *height)
 {
-	unsigned lmp_width = 0, lmp_height = 0, lmp_size = 0;
+	unsigned lmp_width = 0, lmp_height = 0;
+	size_t lmp_size = 0;
 	if (len < (sizeof(int) * 3))
 	{
 		/* looks too small */
@@ -833,7 +843,7 @@ Mod_RawDecodeImageWithPalette(const char *filename, const byte *raw, int len,
 		PCX_Decode(filename, raw, len, pic, palette, width, height, bitsPerPixel);
 
 		if(*pic && width && height
-			&& *width == 319 && *height == 239 && *bitsPerPixel == 8
+			&& *width == 320 && *height == 240 && *bitsPerPixel == 8
 			&& Q_strcasecmp(filename, "pics/quit.pcx") == 0
 			&& Com_BlockChecksum(raw, len) == 3329419434u)
 		{
@@ -897,6 +907,18 @@ Mod_RawDecodeImageWithPalette(const char *filename, const byte *raw, int len,
 	}
 }
 
+typedef struct
+{
+	char *old;
+	char *new;
+} img_replacement_t;
+
+/* Replacement of ReRelease images */
+static const img_replacement_t img_replacements[] = {
+	{"pics/ctfsb1.pcx", "pics/tag4.pcx"},
+	{"pics/ctfsb2.pcx", "pics/tag5.pcx"}
+};
+
 /*
  * Load only static images without animation support
  */
@@ -911,6 +933,22 @@ Mod_LoadImageWithPalette(const char *filename, byte **pic, byte **palette,
 
 	/* load the file */
 	len = FS_LoadFile(filename, (void **)&raw);
+	if (!raw || len <= 0)
+	{
+		size_t i;
+
+		/* Replace to other one if load failed */
+		for (i = 0; i < ARRLEN(img_replacements); i++)
+		{
+			if (!strcmp(filename, img_replacements[i].old))
+			{
+				Com_DPrintf("%s: tring to replace %s to %s.\n",
+					__func__, filename, img_replacements[i].new);
+				len = FS_LoadFile(img_replacements[i].new, (void **)&raw);
+				break;
+			}
+		}
+	}
 
 	if (!raw || len <= 0)
 	{

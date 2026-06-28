@@ -33,6 +33,7 @@
 
 #include "../../ref_shared.h"
 #include "qgl.h"
+#include "../../files/lightmap.h"
 
 #ifdef YQ2_GL1_GLES
 #define REF_VERSION "Yamagi Quake II OpenGL ES1 Refresher"
@@ -45,16 +46,10 @@
 #endif
 #endif
 
-#define MAX_LIGHTMAPS 256
 #define MAX_LIGHTMAP_COPIES 3	// Meant for tile / deferred rendering platforms
-#define MAX_SCRAPS 1
 #define TEXNUM_LIGHTMAPS 1024
 #define TEXNUM_SCRAPS (TEXNUM_LIGHTMAPS + MAX_LIGHTMAPS * MAX_LIGHTMAP_COPIES)
 #define TEXNUM_IMAGES (TEXNUM_SCRAPS + MAX_SCRAPS)
-#define BLOCK_WIDTH 1024
-#define BLOCK_HEIGHT 1024
-#define SCRAP_WIDTH (BLOCK_WIDTH * 2)
-#define SCRAP_HEIGHT (BLOCK_HEIGHT * 2)
 #define MAX_TEXTURE_UNITS 2
 #define GL_LIGHTMAP_FORMAT GL_RGBA
 
@@ -130,8 +125,6 @@ typedef struct	//	832k aprox.
 	float	alpha;
 } glbuffer_t;
 
-#include "model.h"
-
 extern glbuffer_t gl_buf;
 extern float gldepthmin, gldepthmax;
 
@@ -140,7 +133,6 @@ extern int numgltextures;
 
 extern image_t *r_notexture;
 extern image_t *r_particletexture;
-extern int r_visframecount;
 extern int r_framecount;
 extern cplane_t frustum[4];
 extern int c_brush_polys, c_alias_polys;
@@ -151,9 +143,6 @@ extern vec3_t vup;
 extern vec3_t vpn;
 extern vec3_t vright;
 extern vec3_t r_origin;
-
-/* screen size info */
-extern int r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
 extern qboolean IsHighDPIaware;
 
@@ -177,7 +166,6 @@ extern cvar_t *gl1_picmip;
 extern cvar_t *gl_showbbox;
 extern cvar_t *gl_finish;
 extern cvar_t *gl1_ztrick;
-extern cvar_t *gl_zfix;
 extern cvar_t *gl1_polyblend;
 extern cvar_t *gl_drawbuffer;
 extern cvar_t *gl_texturemode;
@@ -198,7 +186,7 @@ extern byte minlight[256];
 
 qboolean R_Bind(int texnum);
 
-void R_TexEnv(GLenum value);
+void R_TexEnv(GLenum mode);
 void R_SelectTexture(GLenum);
 void R_MBind(GLenum target, int texnum);
 void R_EnableMultitexture(qboolean enable);
@@ -219,7 +207,6 @@ void R_DrawAlphaSurfaces(void);
 void R_InitParticleTexture(void);
 void Draw_InitLocal(void);
 void R_RotateForEntity(entity_t *e);
-void R_MarkLeaves(void);
 
 extern int r_dlightframecount;
 void R_EmitWaterPolys(msurface_t *fa);
@@ -244,7 +231,8 @@ qboolean R_ImageHasFreeSpace(void);
 
 void R_TextureAlphaMode(const char *string);
 void R_TextureSolidMode(const char *string);
-int Scrap_AllocBlock(int w, int h, int *x, int *y);
+
+qboolean R_Upload32(unsigned *data, int width, int height, qboolean mipmap);
 
 // GL buffer operations
 
@@ -363,7 +351,7 @@ typedef struct
 
 	int prev_mode;
 
-	unsigned char *d_16to8table;
+	byte *d_16to8table;
 
 	int lightmap_textures;
 
@@ -376,19 +364,6 @@ typedef struct
 
 	qboolean stencil;
 } glstate_t;
-
-typedef struct
-{
-	int current_lightmap_texture;
-
-	msurface_t *lightmap_surfaces[MAX_LIGHTMAPS];
-
-	int allocated[BLOCK_WIDTH];
-
-	/* the lightmap texture data needs to be kept in
-	   main memory so texsubimage can update properly */
-	byte *lightmap_buffer[MAX_LIGHTMAPS];
-} gllightmapstate_t;
 
 void LM_CreateLightmapsPoligon(model_t *currentmodel, msurface_t *fa);
 void LM_EndBuildingLightmaps(void);
@@ -434,6 +409,8 @@ int RI_GetSDLVersion();
 extern image_t * RDraw_FindPic(const char *name);
 extern void RDraw_GetPicSize(int *w, int *h, const char *pic);
 extern void RDraw_PicScaled(int x, int y, const char *pic, float factor, const char *alttext);
+extern void RDraw_PicScaledCol(int x, int y, const char *pic, float factor, const vec3_t color,
+	const char *alttext);
 extern void RDraw_StretchPic(int x, int y, int w, int h, const char *pic);
 extern void RDraw_CharScaled(int x, int y, int num, float scale);
 extern void RDraw_StringScaled(int x, int y, float scale, qboolean alt, const char *message);
@@ -452,5 +429,11 @@ extern void RI_SetSky(const char *name, float rotate, int autorotate, const vec3
 extern void RI_EndRegistration(void);
 extern qboolean RI_IsVSyncActive(void);
 extern void RI_EndFrame(void);
+
+void Mod_Init(void);
+void Mod_ClearAll(void);
+
+void Mod_Modellist_f(void);
+void Mod_FreeAll(void);
 
 #endif

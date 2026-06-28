@@ -79,8 +79,8 @@ static mframe_t rotfish_frames_melee [] =
 	{ai_run, 10, NULL},
 	{ai_run, 10, NULL}
 };
-mmove_t rotfish_move_melee =
-{
+
+mmove_t rotfish_move_melee = {
 	FRAME_attack1,
 	FRAME_attack18,
 	rotfish_frames_melee,
@@ -105,7 +105,7 @@ rotfish_search(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_search, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 rotfish_dead(edict_t *self)
 {
 	VectorSet(self->mins, -16, -16, -24);
@@ -143,8 +143,8 @@ static mframe_t rotfish_frames_death [] =
 
 	{ai_move, 0, NULL}
 };
-mmove_t rotfish_move_death =
-{
+
+mmove_t rotfish_move_death = {
 	FRAME_death1,
 	FRAME_death21,
 	rotfish_frames_death,
@@ -152,12 +152,12 @@ mmove_t rotfish_move_death =
 };
 
 void
-rotfish_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+rotfish_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
-	int		n;
-
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

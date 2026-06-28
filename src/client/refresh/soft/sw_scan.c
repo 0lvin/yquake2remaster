@@ -38,7 +38,7 @@ the sine warp, to keep the edges from wrapping
 =============
 */
 void
-D_WarpScreen (void)
+D_WarpScreen(void)
 {
 	const int *turb;
 	int w, h, u,v;
@@ -189,14 +189,13 @@ TurbulentPow2(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv
 	int spanstep_shift, spanstep_value;
 	const pixel_t *r_turb_pbase;
 	const int *r_turb_turb;
-	float spancountminus1;
 
 	spanstep_shift = D_DrawSpanGetStep(d_zistepu, d_zistepv);
 	spanstep_value = (1 << spanstep_shift);
 
 	r_turb_turb = sintable + ((int)(r_newrefdef.time*SPEED)&(CYCLE-1));
 
-	r_turb_pbase = (unsigned char *)cacheblock;
+	r_turb_pbase = (byte *)cacheblock;
 
 	sdivzpow2stepu = d_sdivzstepu * spanstep_value;
 	tdivzpow2stepu = d_tdivzstepu * spanstep_value;
@@ -280,6 +279,8 @@ TurbulentPow2(espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv
 			}
 			else
 			{
+				float spancountminus1;
+
 				// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
 				// can't step off polygon), clamp, calculate s and t steps across
 				// span by division, biasing steps low so we don't run off the
@@ -343,14 +344,13 @@ NonTurbulentPow2 (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zis
 	int spanstep_shift, spanstep_value;
 	const pixel_t *r_turb_pbase;
 	const int *r_turb_turb;
-	float spancountminus1;
 
 	spanstep_shift = D_DrawSpanGetStep(d_zistepu, d_zistepv);
 	spanstep_value = (1 << spanstep_shift);
 
 	r_turb_turb = blanktable;
 
-	r_turb_pbase = (unsigned char *)cacheblock;
+	r_turb_pbase = (byte *)cacheblock;
 
 	sdivzpow2stepu = d_sdivzstepu * spanstep_value;
 	tdivzpow2stepu = d_tdivzstepu * spanstep_value;
@@ -434,6 +434,8 @@ NonTurbulentPow2 (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zis
 			}
 			else
 			{
+				float spancountminus1;
+
 				// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
 				// can't step off polygon), clamp, calculate s and t steps across
 				// span by division, biasing steps low so we don't run off the
@@ -589,12 +591,11 @@ D_DrawSpansPow2
 =============
 */
 void
-D_DrawSpansPow2 (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv)
+D_DrawSpansPow2(const espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv)
 {
 	int 	spancount;
 	pixel_t	*pbase;
 	int	snext, tnext;
-	float	spancountminus1;
 	float	sdivzpow2stepu, tdivzpow2stepu, zipow2stepu;
 	int	texture_filtering;
 	int	spanstep_shift, spanstep_value;
@@ -602,7 +603,7 @@ D_DrawSpansPow2 (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zist
 	spanstep_shift = D_DrawSpanGetStep(d_zistepu, d_zistepv);
 	spanstep_value = (1 << spanstep_shift);
 
-	pbase = (unsigned char *)cacheblock;
+	pbase = (byte *)cacheblock;
 
 	texture_filtering = (int)sw_texture_filtering->value;
 	sdivzpow2stepu = d_sdivzstepu * spanstep_value;
@@ -685,6 +686,8 @@ D_DrawSpansPow2 (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zist
 			}
 			else
 			{
+				float spancountminus1;
+
 				// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
 				// can't step off polygon), clamp, calculate s and t steps across
 				// span by division, biasing steps low so we don't run off the
@@ -741,7 +744,7 @@ D_DrawZSpans
 =============
 */
 void
-D_DrawZSpans (espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv)
+D_DrawZSpans(const espan_t *pspan, float d_ziorigin, float d_zistepu, float d_zistepv)
 {
 	zvalue_t	izistep;
 	int		safe_step;

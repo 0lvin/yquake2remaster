@@ -37,8 +37,6 @@ server_t sv; /* local server */
 static entity_xstate_t *
 SV_AllocBaseline(int entnum)
 {
-	int nextpow2;
-
 	if ((entnum < 0) || (entnum > MAX_SV_ENTNUM))
 	{
 		return NULL;
@@ -46,6 +44,8 @@ SV_AllocBaseline(int entnum)
 
 	if (entnum >= sv.numbaselines)
 	{
+		int nextpow2;
+
 		nextpow2 = (sv.numbaselines || (entnum >= ALLOC_ENTITIES_MIN)) ?
 			(int)NextPow2gt(entnum) : ALLOC_ENTITIES_MIN;
 
@@ -155,6 +155,12 @@ SV_ImageIndex(const char *name)
 void
 SV_GetEntityState(const edict_t *svent, entity_xstate_t *state)
 {
+#ifdef DEBUG
+	if (sizeof(entity_xstate_t) != sizeof(entity_state_t) + sizeof(entity_rrstate_t))
+	{
+		Sys_Error("%s: incorrect entity struct sizes\n", __func__);
+	}
+#endif
 	memcpy(state, &svent->s, sizeof(entity_state_t));
 	memcpy((byte *)state + sizeof(entity_state_t),
 		&svent->rrs, sizeof(entity_rrstate_t));
@@ -205,7 +211,6 @@ SV_CheckForSavegame(qboolean isautosave)
 	char name[MAX_OSPATH];
 	char savename[MAX_OSPATH];
 	FILE *f;
-	int i;
 
 	Com_DPrintf("%s()\n", __func__);
 
@@ -238,11 +243,12 @@ SV_CheckForSavegame(qboolean isautosave)
 	/* get configstrings and areaportals */
 	SV_ReadLevelFile();
 
-	if (!sv.loadgame || (sv.loadgame && isautosave))
+	if (!sv.loadgame || isautosave)
 	{
 		/* coming back to a level after being in a different
 		   level, so run it for ten seconds */
 		server_state_t previousState;
+		int i;
 
 		previousState = sv.state;
 		sv.state = ss_loading;
@@ -417,7 +423,7 @@ SV_SpawnServer(char *server, char *spawnpoint, server_state_t serverstate,
  * A brand new game has been started
  */
 static void
-SV_ClearGamemodeCvar(char *name, char *msg, int flags)
+SV_ClearGamemodeCvar(const char *name, char *msg, int flags)
 {
 	Cvar_FullSet(name, "0", flags);
 
@@ -457,6 +463,16 @@ SV_ChooseGamemode(void)
 
 		choice = "coop";
 		gamemode = GAMEMODE_COOP;
+	}
+	else if (Cvar_VariableValue("ctf"))
+	{
+		if (Cvar_VariableValue("singleplayer"))
+		{
+			SV_ClearGamemodeCvar("singleplayer", msg, 0);
+		}
+
+		choice = "ctf";
+		gamemode = GAMEMODE_DM;
 	}
 	else
 	{
@@ -539,7 +555,7 @@ SV_InitGame(void)
 	svs.gamemode = gamemode;
 	svs.spawncount = randk();
 	svs.clients = Z_Malloc(sizeof(client_t) * maxclients->value);
-	svs.num_client_entities = maxclients->value * UPDATE_BACKUP * 64;
+	svs.num_client_entities = maxclients->value * UPDATE_BACKUP * MAX_PACKET_ENTITIES;
 	svs.client_entities = Z_Malloc( sizeof(entity_xstate_t) * svs.num_client_entities);
 
 	/* init network stuff */
@@ -587,7 +603,7 @@ SV_InitGame(void)
  *  map tram.cin+jail_e3
  */
 void
-SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isautosave)
+SV_Map(qboolean attractloop, const char *levelstring, qboolean loadgame, qboolean isautosave)
 {
 	char level[MAX_QPATH];
 	char *ch;
@@ -656,12 +672,12 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 
 	ext = (l <= 4) ? NULL : level + l - 4;
 
-	if (ext && (!strcmp(ext, ".cin") ||
-				!strcmp(ext, ".ogv") ||
-				!strcmp(ext, ".avi") ||
-				!strcmp(ext, ".roq") ||
-				!strcmp(ext, ".mpg") ||
-				!strcmp(ext, ".smk")))
+	if (ext && (!Q_stricmp(ext, ".cin") ||
+				!Q_stricmp(ext, ".ogv") ||
+				!Q_stricmp(ext, ".avi") ||
+				!Q_stricmp(ext, ".roq") ||
+				!Q_stricmp(ext, ".mpg") ||
+				!Q_stricmp(ext, ".smk")))
 	{
 #ifndef DEDICATED_ONLY
 		SCR_BeginLoadingPlaque(); /* for local system */

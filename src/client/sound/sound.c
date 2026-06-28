@@ -267,7 +267,7 @@ S_GetVolume(const byte *data, int sound_length, int width, double *sound_volume)
 	if (width == 2)
 	{
 		short *sound_data = (short *)data;
-		short *sound_end = sound_data + sound_length;
+		const short *sound_end = sound_data + sound_length;
 		while (sound_data < sound_end)
 		{
 			short sound_sample = LittleShort(*sound_data);
@@ -278,7 +278,7 @@ S_GetVolume(const byte *data, int sound_length, int width, double *sound_volume)
 	else if (width == 1)
 	{
 		byte *sound_data = (byte *)data;
-		byte *sound_end = sound_data + sound_length;
+		const byte *sound_end = sound_data + sound_length;
 		while (sound_data < sound_end)
 		{
 			// normilize to 16bit sound;
@@ -300,18 +300,18 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 	int *attack_length, int *fade_length)
 {
 	/* attack length */
-	short sound_max = 0;
+	short audio_max = 0;
 	/* calculate max value*/
 	if (width == 2)
 	{
 		short *sound_data = (short *)data;
-		short *sound_end = sound_data + sound_length;
+		const short *sound_end = sound_data + sound_length;
 		while (sound_data < sound_end)
 		{
 			short sound_sample = LittleShort(*sound_data);
-			if (sound_max < abs(sound_sample))
+			if (audio_max < abs(sound_sample))
 			{
-				sound_max = abs(sound_sample);
+				audio_max = abs(sound_sample);
 			}
 			sound_data ++;
 		}
@@ -319,32 +319,32 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 	else if (width == 1)
 	{
 		byte *sound_data = (byte *)data;
-		byte *sound_end = sound_data + sound_length;
+		const byte *sound_end = sound_data + sound_length;
 		while (sound_data < sound_end)
 		{
 			// normilize to 16bit sound;
 			short sound_sample = *sound_data << 8;
-			if (sound_max < abs(sound_sample))
+			if (audio_max < abs(sound_sample))
 			{
-				sound_max = abs(sound_sample);
+				audio_max = abs(sound_sample);
 			}
 			sound_data ++;
 		}
 	}
 
 	// use something in middle
-	sound_max = (sound_max + sound_volume) / 2;
+	audio_max = (audio_max + sound_volume) / 2;
 
 	// calculate attack/fade length
 	if (width == 2)
 	{
 		// calculate attack/fade length
 		short *sound_data = (short *)data;
-		short *delay_data = sound_data;
-		short *fade_data = sound_data;
+		const short *delay_data = sound_data;
+		const short *fade_data;
 		short *sound_end = sound_data + sound_length;
 		short sound_sample = 0;
-		short sound_treshold = sound_max / 2;
+		short sound_treshold = audio_max / 2;
 
 		/* delay calculate */
 		do
@@ -356,7 +356,6 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 		/* delay_data == (short *)(data + info.dataofs) */
 		*begin_length = (sound_data - delay_data) / channels;
 		delay_data = sound_data;
-		fade_data = sound_data;
 
 		/* attack calculate */
 		do
@@ -364,7 +363,7 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 			sound_sample = LittleShort(*sound_data);
 			sound_data ++;
 		}
-		while (sound_data < sound_end && abs(sound_sample) < sound_max);
+		while (sound_data < sound_end && abs(sound_sample) < audio_max);
 		/* fade_data == delay_data */
 		*attack_length = (sound_data - delay_data) / channels;
 		fade_data = sound_data;
@@ -386,18 +385,18 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 			sound_data --;
 			sound_sample = LittleShort(*sound_data);
 		}
-		while (sound_data > fade_data && abs(sound_sample) < sound_max);
+		while (sound_data > fade_data && abs(sound_sample) < audio_max);
 		*fade_length = (sound_end - sound_data) / channels;
 	}
 	else if (width == 1)
 	{
 		// calculate attack/fade length
 		byte *sound_data = (byte *)data;
-		byte *delay_data = sound_data;
-		byte *fade_data;
+		const byte *delay_data = sound_data;
+		const byte *fade_data;
 		byte *sound_end = sound_data + sound_length;
 		short sound_sample = 0;
-		short sound_treshold = sound_max / 2;
+		short sound_treshold = audio_max / 2;
 
 		/* delay calculate */
 		do
@@ -418,7 +417,7 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 			sound_sample = *sound_data << 8;
 			sound_data ++;
 		}
-		while (sound_data < sound_end && abs(sound_sample) < sound_max);
+		while (sound_data < sound_end && abs(sound_sample) < audio_max);
 		/* fade_data == delay_data */
 		*attack_length = (sound_data - delay_data) / channels;
 		fade_data = sound_data;
@@ -442,7 +441,7 @@ S_GetStatistics(const byte *data, int sound_length, int width, int channels,
 			// normilize to 16bit sound;
 			sound_sample = *sound_data << 8;
 		}
-		while (sound_data > fade_data && abs(sound_sample) < sound_max);
+		while (sound_data > fade_data && abs(sound_sample) < audio_max);
 		*fade_length = (sound_end - sound_data) / channels;
 	}
 }
@@ -765,7 +764,7 @@ S_RegisterSexedSound(const entity_xstate_t *ent, char *base)
 	sfx_t *sfx;
 	char model[MAX_QPATH];
 	char sexedFilename[MAX_QPATH];
-	char *cs;
+	const char *cs;
 	int n;
 
 	/* determine what model the client is using */
@@ -920,6 +919,7 @@ S_PickChannel(int entnum, int entchannel)
 	int first_to_die;
 	int life_left;
 	channel_t *ch;
+	const int plnum = cl.playernum + 1;
 
 	if (entchannel < 0)
 	{
@@ -944,8 +944,8 @@ S_PickChannel(int entnum, int entchannel)
 		}
 
 		/* don't let monster sounds override player sounds */
-		if ((channels[ch_idx].entnum == cl.playernum + 1) &&
-			(entnum != cl.playernum + 1) && channels[ch_idx].sfx)
+		if ((channels[ch_idx].entnum == plnum) &&
+			(entnum != plnum) && channels[ch_idx].sfx)
 		{
 			continue;
 		}
@@ -1026,7 +1026,7 @@ void
 S_IssuePlaysound(playsound_t *ps)
 {
 	channel_t *ch;
-	sfxcache_t *sc;
+	const sfxcache_t *sc;
 
 	if (!ps)
 	{
@@ -1113,7 +1113,7 @@ void
 S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 		float fvol, float attenuation, float timeofs)
 {
-	sfxcache_t *sc;
+	const sfxcache_t *sc;
 	playsound_t *ps, *sort;
 
 	if (sound_started == SS_NOT)
@@ -1185,7 +1185,6 @@ S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 		vec3_t orientation, direction;
 		vec_t distance_direction;
 		int dir_x, dir_y, dir_z;
-		int effect_volume = -1;
 
 		VectorSubtract(listener_forward, listener_up, orientation);
 
@@ -1211,6 +1210,7 @@ S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 
 		if (sfx->cache)
 		{
+			int effect_volume = -1;
 			int effect_duration;
 
 			effect_duration = sfx->cache->length;
@@ -1292,7 +1292,12 @@ S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx,
 		}
 	}
 
-	cvar_t *game = Cvar_Get("game",  "", CVAR_LATCH | CVAR_SERVERINFO);
+	static const cvar_t *game = NULL;
+
+	if (game == NULL)
+	{
+		game = Cvar_Get("game",  "", CVAR_LATCH | CVAR_SERVERINFO);
+	}
 
 	const qboolean is_mission_pack =
 		(strcmp(game->string, "") == 0) ||
@@ -1407,20 +1412,22 @@ void
 S_BuildSoundList(int *sounds)
 {
 	int i;
+	const float ambient = s_ambient->value;
+	const int plnum = cl.playernum + 1;
 
 	for (i = 0; i < cl.frame.num_entities && i <= MAX_CL_ENTNUM; i++)
 	{
 		int num;
-		entity_xstate_t *ent;
+		const entity_xstate_t *ent;
 
 		num = (cl.frame.parse_entities + i) & (MAX_PARSE_ENTITIES - 1);
 		ent = &cl_parse_entities[num];
 
-		if ((s_ambient->value == 2) && !ent->modelindex)
+		if ((ambient == 2) && !ent->modelindex)
 		{
 			sounds[i] = 0;
 		}
-		else if ((s_ambient->value == 3) && (ent->number != cl.playernum + 1))
+		else if ((ambient == 3) && (ent->number != plnum))
 		{
 			sounds[i] = 0;
 		}
@@ -1550,7 +1557,7 @@ S_SoundList(void)
 {
 	int i;
 	sfx_t *sfx;
-	sfxcache_t *sc;
+	const sfxcache_t *sc;
 	int size, total, used;
 	int numsounds;
 	qboolean freeup;
@@ -1656,7 +1663,7 @@ void S_Activate(qboolean active)
 void
 S_Init(void)
 {
-	cvar_t *cv;
+	const cvar_t *cv;
 
 	Com_Printf("\n------- sound initialization -------\n");
 
@@ -1864,10 +1871,10 @@ GetBSPEntitySoundOrigin(int ent, const vec3_t listener_org, vec3_t org)
 void
 GetEntitySoundOrigin(int ent, const vec3_t listener_org, vec3_t org)
 {
-	vec_t *lerp_origin = {0};
-
 	if (!GetBSPEntitySoundOrigin(ent, listener_org, org))
 	{
+		const vec_t *lerp_origin;
+
 		lerp_origin = ((ent >= 0) && (ent < cl_numentities)) ?
 			cl_entities[ent].lerp_origin : vec3_origin;
 

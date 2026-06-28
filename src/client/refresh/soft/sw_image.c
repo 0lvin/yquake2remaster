@@ -33,7 +33,7 @@ R_ImageList_f
 ===============
 */
 void
-R_ImageList_f (void)
+R_ImageList_f(void)
 {
 	int		i, used, texels;
 	image_t	*image;
@@ -125,7 +125,7 @@ R_FindFreeImage(const char *name)
 }
 
 static void
-R_ImageShrink(const unsigned char* src, unsigned char *dst, int width, int realwidth, int height, int realheight)
+R_ImageShrink(const byte* src, byte *dst, int width, int realwidth, int height, int realheight)
 {
 	int x, y;
 	float xstep, ystep;
@@ -219,7 +219,7 @@ Get_BestImageSize(const image_t *image, int *req_width, int *req_height)
 	}
 }
 
-static byte *d_16to8table = NULL; // 16 to 8 bit conversion table
+byte *d_16to8table = NULL; // 16 to 8 bit conversion table
 
 int
 R_ConvertRGBColor(unsigned color)
@@ -238,7 +238,7 @@ R_ConvertRGBColor(unsigned color)
 }
 
 void
-R_Convert32To8bit(const unsigned char* pic_in, pixel_t* pic_out, size_t size,
+R_Convert32To8bit(const byte* pic_in, pixel_t* pic_out, size_t size,
 	qboolean transparent)
 {
 	size_t i;
@@ -628,7 +628,7 @@ will be freed.
 ================
 */
 void
-R_FreeUnusedImages (void)
+R_FreeUnusedImages(void)
 {
 	int		i;
 	image_t	*image;
@@ -735,7 +735,7 @@ R_InitTextures
 ==================
 */
 static void
-R_InitTextures (void)
+R_InitTextures(void)
 {
 	R_InitNoTexture();
 	/* empty white texture for r_lightmap = 1*/
@@ -748,7 +748,7 @@ R_InitImages
 ===============
 */
 void
-R_InitImages (void)
+R_InitImages(void)
 {
 	registration_sequence = 1;
 	image_max = 0;
@@ -765,7 +765,7 @@ R_ShutdownImages
 ===============
 */
 void
-R_ShutdownImages (void)
+R_ShutdownImages(void)
 {
 	int	i;
 	image_t	*image;

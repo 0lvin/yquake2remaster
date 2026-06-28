@@ -32,7 +32,7 @@
 #include "shared.h"
 #include "crc.h"
 
-#define YQ2VERSION "8.61RR14"
+#define YQ2VERSION "8.71RR15"
 #define BASEDIRNAME "baseq2"
 
 #ifndef YQ2OSTYPE
@@ -120,37 +120,37 @@ void MSG_WriteFloat(sizebuf_t *sb, float f);
 void MSG_WriteString(sizebuf_t *sb, const char *s);
 void MSG_WriteCoord(sizebuf_t *sb, float f, int protocol);
 void MSG_WritePos(sizebuf_t *sb, const vec3_t pos, int protocol);
-void MSG_WriteAngle(sizebuf_t *sb, float f);
+void MSG_WriteAngle(sizebuf_t *sb, float f, int protocol);
 void MSG_WriteAngle16(sizebuf_t *sb, float f);
-void MSG_WriteConfigString(sizebuf_t *sb, short index, const char *s);
-void MSG_WriteDeltaUsercmd(sizebuf_t *sb, const struct usercmd_s *from,
+void MSG_WriteConfigString(sizebuf_t *buf, short index, const char *s);
+void MSG_WriteDeltaUsercmd(sizebuf_t *buf, const struct usercmd_s *from,
 		const struct usercmd_s *cmd);
 void MSG_WriteDeltaEntity(const struct entity_xstate_s *from,
 		const struct entity_xstate_s *to, sizebuf_t *msg,
 		qboolean force, qboolean newentity, int protocol);
-void MSG_WriteDir(sizebuf_t *sb, const vec3_t vector);
+void MSG_WriteDir(sizebuf_t *sb, const vec3_t dir);
 
-void MSG_BeginReading(sizebuf_t *sb);
+void MSG_BeginReading(sizebuf_t *msg);
 
-int MSG_ReadChar(sizebuf_t *sb);
-int MSG_ReadByte(sizebuf_t *sb);
-int MSG_ReadShort(sizebuf_t *sb);
-int MSG_ReadLong(sizebuf_t *sb);
-float MSG_ReadFloat(sizebuf_t *sb);
-char *MSG_ReadString(sizebuf_t *sb);
-char *MSG_ReadStringLine(sizebuf_t *sb);
+int MSG_ReadChar(sizebuf_t *msg_read);
+int MSG_ReadByte(sizebuf_t *msg_read);
+int MSG_ReadShort(sizebuf_t *msg_read);
+int MSG_ReadLong(sizebuf_t *msg_read);
+float MSG_ReadFloat(sizebuf_t *msg_read);
+char *MSG_ReadString(sizebuf_t *msg_read);
+char *MSG_ReadStringLine(sizebuf_t *msg_read);
 
-float MSG_ReadCoord(sizebuf_t *sb, int protocol);
-void MSG_ReadPos(sizebuf_t *sb, vec3_t pos, int protocol);
-float MSG_ReadAngle(sizebuf_t *sb);
-float MSG_ReadAngle16(sizebuf_t *sb);
-void MSG_ReadDeltaUsercmd(sizebuf_t *sb,
-		struct usercmd_s *from,
-		struct usercmd_s *cmd);
+float MSG_ReadCoord(sizebuf_t *msg_read, int protocol);
+void MSG_ReadPos(sizebuf_t *msg_read, vec3_t pos, int protocol);
+float MSG_ReadAngle(sizebuf_t *msg_read, int protocol);
+float MSG_ReadAngle16(sizebuf_t *msg_read);
+void MSG_ReadDeltaUsercmd(sizebuf_t *msg_read,
+		const struct usercmd_s *from,
+		struct usercmd_s *move);
 
-void MSG_ReadDir(sizebuf_t *sb, vec3_t vector);
+void MSG_ReadDir(sizebuf_t *sb, vec3_t dir);
 
-void MSG_ReadData(sizebuf_t *sb, void *buffer, int size);
+void MSG_ReadData(sizebuf_t *msg_read, void *data, int len);
 
 /* ================================================================== */
 
@@ -168,7 +168,7 @@ extern float LittleFloat(float l);
 int COM_Argc(void);
 char *COM_Argv(int arg);    /* range and null checked */
 void COM_ClearArgv(int arg);
-int COM_CheckParm(char *parm);
+int COM_CheckParm(const char *parm);
 void COM_AddParm(char *parm);
 
 void COM_Init(void);
@@ -178,7 +178,7 @@ char *CopyString(const char *in);
 
 /* ================================================================== */
 
-void Info_Print(char *s);
+void Info_Print(const char *s);
 
 /* PROTOCOL */
 
@@ -245,7 +245,22 @@ enum svc_ops_e
 	svc_packetentities,         /* [...] */
 	svc_deltapacketentities,    /* [...] */
 	svc_frame,
+
+	/* KEX messages */
+	svc_splitclient,
+	svc_configblast,            /* [Kex] A compressed version of svc_configstring */
+	svc_spawnbaselineblast,     /* [Kex] A compressed version of svc_spawnbaseline */
+	svc_level_restart,          /* [Paril-KEX] level was soft-rebooted */
+	svc_damage,                 /* [Paril-KEX] damage indicators */
+	svc_locprint,               /* [Kex] localized + libfmt version of print */
 	svc_fog,                    /* [Paril-KEX] change current fog values */
+	svc_waitingforplayers,      /* [Kex-Edward] Inform clients that the server */
+	                            /*   is waiting for remaining players */
+	svc_bot_chat,               /* [Kex] bot specific chat */
+	svc_poi,                    /* [Paril-KEX] point of interest */
+	svc_help_path,              /* [Paril-KEX] help path */
+	svc_muzzleflash3,           /* [Paril-KEX] muzzleflashes, but ushort id */
+	svc_achievement,            /* [Paril-KEX] */
 };
 
 /* ============================================== */
@@ -372,7 +387,7 @@ void Cbuf_AddText(const char *text);
 /* as new commands are generated from the console or keybindings, */
 /* the text is added to the end of the command buffer. */
 
-void Cbuf_InsertText(char *text);
+void Cbuf_InsertText(const char *text);
 
 /* when a command wants to issue other commands immediately, the text is */
 /* inserted at the beginning of the buffer, before any remaining unexecuted */
@@ -478,7 +493,7 @@ void Cmd_ForwardToServer(void);
 
 extern cvar_t *cvar_vars;
 
-cvar_t *Cvar_Get(const char *var_name, const char *value, int flags);
+cvar_t *Cvar_Get(const char *var_name, const char *var_value, int flags);
 
 /* creates the variable if it doesn't exist, or returns the existing one */
 /* if it exists, the value will not be changed, but flags will be ORed in */
@@ -578,7 +593,7 @@ void NET_Config(qboolean multiplayer);
 
 qboolean NET_GetPacket(netsrc_t sock, netadr_t *net_from,
 		sizebuf_t *net_message);
-void NET_SendPacket(netsrc_t sock, int length, void *data, netadr_t to);
+void NET_SendPacket(netsrc_t sock, int length, const void *data, netadr_t to);
 
 qboolean NET_CompareAdr(netadr_t a, netadr_t b);
 qboolean NET_CompareBaseAdr(netadr_t a, netadr_t b);
@@ -633,13 +648,13 @@ extern byte net_message_buffer[MAX_MSGLEN];
 void Netchan_Init(void);
 void Netchan_Setup(netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
 
-qboolean Netchan_NeedReliable(netchan_t *chan);
-void Netchan_Transmit(netchan_t *chan, int length, byte *data);
-void Netchan_OutOfBand(int net_socket, netadr_t adr, int length, byte *data);
+qboolean Netchan_NeedReliable(const netchan_t *chan);
+void Netchan_Transmit(netchan_t *chan, int length, const byte *data);
+void Netchan_OutOfBand(int net_socket, netadr_t adr, int length, const byte *data);
 void Netchan_OutOfBandPrint(int net_socket, netadr_t adr, char *format, ...);
 qboolean Netchan_Process(netchan_t *chan, sizebuf_t *msg);
 
-qboolean Netchan_CanReliable(netchan_t *chan);
+qboolean Netchan_CanReliable(const netchan_t *chan);
 
 /* CMODEL */
 
@@ -662,8 +677,8 @@ const char *CM_EntityString(int *size);
 int CM_HeadnodeForBox(vec3_t mins, vec3_t maxs);
 
 /* returns an ORed contents mask */
-int CM_PointContents(vec3_t p, int headnode);
-int CM_TransformedPointContents(vec3_t p, int headnode,
+int CM_PointContents(const vec3_t p, int headnode);
+int CM_TransformedPointContents(const vec3_t p, int headnode,
 		vec3_t origin, vec3_t angles);
 
 trace_t CM_BoxTrace(const vec3_t start, const vec3_t end, const vec3_t mins,
@@ -676,7 +691,7 @@ const byte *CM_ClusterPVS(int cluster, size_t *size);
 const byte *CM_ClusterPHS(int cluster, size_t *size);
 byte *CM_ClusterPTS(size_t *size);
 
-int CM_PointLeafnum(vec3_t p);
+int CM_PointLeafnum(const vec3_t p);
 
 /* call with topnode set to the headnode, returns with topnode */
 /* set to the first node that splits the box */
@@ -691,13 +706,13 @@ void CM_SetAreaPortalState(int portalnum, qboolean open);
 qboolean CM_AreasConnected(int area1, int area2);
 
 int CM_WriteAreaBits(byte *buffer, int area);
-qboolean CM_HeadnodeVisible(int headnode, const byte *visbits);
+qboolean CM_HeadnodeVisible(int nodenum, const byte *visbits);
 
 void CM_WritePortalState(FILE *f);
 int CM_LoadFile(const char *path, void **buffer);
 
 /* Shared Model load code */
-int Mod_LoadFile(const char *path, void **buffer);
+int Mod_LoadFile(const char *name, void **buffer);
 void Mod_FreeFile(const char *path);
 void Mod_AliasesInit(void);
 void Mod_AliasesFreeAll(void);
@@ -743,7 +758,7 @@ typedef enum
 } fsSearchType_t;
 
 void FS_DPrintf(const char *format, ...);
-int FS_FOpenFile(const char *name, fileHandle_t *f, qboolean gamedir_only);
+int FS_FOpenFile(const char *rawname, fileHandle_t *f, qboolean gamedir_only);
 void FS_FCloseFile(fileHandle_t f);
 int FS_Read(void *buffer, int size, fileHandle_t f);
 int FS_FRead(void *buffer, int size, int count, fileHandle_t f);
@@ -764,7 +779,7 @@ void FS_InitFilesystem(void);
 void FS_ShutdownFilesystem(void);
 void FS_BuildGameSpecificSearchPath(const char *dir);
 const char *FS_Gamedir(void);
-const char *FS_NextPath(const char *prevpath);
+const char *FS_NextPath(const char *prevPath);
 int FS_LoadFile(const char *path, void **buffer);
 qboolean FS_FileInGamedir(const char *file);
 qboolean FS_AddPAKFromGamedir(const char *pak);
@@ -855,16 +870,10 @@ extern int time_after_game;
 extern int time_before_ref;
 extern int time_after_ref;
 
-void Z_Init(void);
-void Z_Free(void *ptr);
-void *Z_Malloc(int size);           /* returns 0 filled memory */
-void *Z_TagMalloc(int size, int tag);
-void *Z_Realloc(void *ptr, int size);
-void *Z_TagRealloc(void *ptr, int size, int tag);
-void Z_FreeTags(int tag);
+#include "zone.h"
 
 void Qcommon_Init(int argc, char **argv);
-void Qcommon_ExecConfigs(qboolean addEarlyCmds);
+void Qcommon_ExecConfigs(qboolean gameStartUp);
 const char* Qcommon_GetInitialGame(void);
 void Qcommon_Shutdown(void);
 
@@ -880,11 +889,11 @@ void CL_Init(void);
 void CL_Drop(void);
 void CL_Shutdown(void);
 void CL_Frame(int packetdelta, int renderdelta, int timedelta, qboolean packetframe, qboolean renderframe);
-void Con_Print(char *text);
+void Con_Print(const char *txt);
 void SCR_BeginLoadingPlaque(void);
 
 void SV_Init(void);
-void SV_Shutdown(char *finalmsg, qboolean reconnect);
+void SV_Shutdown(const char *finalmsg, qboolean reconnect);
 void SV_Frame(int usec);
 const char *SV_LocalizationUIMessage(const char *message, const char *default_message);
 const char *SV_LocalizationMessage(const char *message, const char **sound);
@@ -901,7 +910,7 @@ int P_ConvertConfigStringTo(int i, int protocol);
 
 // system.c
 char *Sys_ConsoleInput(void);
-void Sys_ConsoleOutput(char *string);
+void Sys_ConsoleOutput(const char *string);
 YQ2_ATTR_NORETURN void Sys_Error(const char *error, ...);
 YQ2_ATTR_NORETURN void Sys_Quit(void);
 void Sys_Init(void);
@@ -917,7 +926,7 @@ void *Sys_LoadLibrary(const char *path, const char *sym, void **handle);
 void *Sys_GetGameAPI(void *parms);
 void Sys_UnloadGame(void);
 void Sys_GetWorkDir(char *buffer, size_t len);
-qboolean Sys_SetWorkDir(char *path);
+qboolean Sys_SetWorkDir(const char *path);
 qboolean Sys_Realpath(const char *in, char *out, size_t size);
 
 // Windows only (system.c)

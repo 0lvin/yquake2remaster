@@ -26,19 +26,10 @@ static int sound_weld2;
 static int sound_weld3;
 
 void fixbot_run(edict_t *self);
-void fixbot_stand(edict_t *self);
-void fixbot_dead(edict_t *self);
+static void fixbot_dead(edict_t *self);
 void fixbot_attack(edict_t *self);
-void fixbot_fire_blaster(edict_t *self);
-void fixbot_fire_welder(edict_t *self);
-void fixbot_die(edict_t *self, edict_t *inflictor, edict_t *attacker,
-		int damage, vec3_t point);
-
-void M_MoveToGoal(edict_t *ent, float dist);
-
-void use_scanner(edict_t *self);
-void change_to_roam(edict_t *self);
-void fly_vertical(edict_t *self);
+static void fixbot_fire_blaster(edict_t *self);
+static void fixbot_fire_welder(edict_t *self);
 
 extern mmove_t fixbot_move_forward;
 extern mmove_t fixbot_move_stand;
@@ -53,12 +44,6 @@ extern mmove_t fixbot_move_landing;
 extern mmove_t fixbot_move_turn;
 
 extern void roam_goal(edict_t *self);
-
-float
-crand(void)
-{
-	return (rand() & 32767) * (2.0 / 32767) - 1;
-}
 
 static edict_t *
 fixbot_FindDeadMonster(edict_t *self)
@@ -125,7 +110,7 @@ fixbot_FindDeadMonster(edict_t *self)
 	return best;
 }
 
-int
+static int
 fixbot_search(edict_t *self)
 {
 	edict_t *ent;
@@ -188,7 +173,7 @@ make_bot_goal(edict_t *self)
 	return ent;
 }
 
-void
+static void
 landing_goal(edict_t *self)
 {
 	trace_t tr;
@@ -220,7 +205,7 @@ landing_goal(edict_t *self)
 	self->monsterinfo.currentmove = &fixbot_move_landing;
 }
 
-void
+static void
 takeoff_goal(edict_t *self)
 {
 	trace_t tr;
@@ -253,7 +238,7 @@ takeoff_goal(edict_t *self)
 	self->monsterinfo.currentmove = &fixbot_move_takeoff;
 }
 
-void
+static void
 change_to_roam(edict_t *self)
 {
 	if (!self)
@@ -268,24 +253,24 @@ change_to_roam(edict_t *self)
 
 	self->monsterinfo.currentmove = &fixbot_move_roamgoal;
 
-	if (self->spawnflags & 16)
+	if (self->spawnflags & SPAWNFLAG_FIXBOT_LANDING)
 	{
 		landing_goal(self);
 		self->monsterinfo.currentmove = &fixbot_move_landing;
-		self->spawnflags = 32;
+		self->spawnflags = SPAWNFLAG_FIXBOT_WORKING;
 	}
 
-	if (self->spawnflags & 8)
+	if (self->spawnflags & SPAWNFLAG_FIXBOT_TAKEOFF)
 	{
 		takeoff_goal(self);
 		self->monsterinfo.currentmove = &fixbot_move_takeoff;
-		self->spawnflags = 32;
+		self->spawnflags = SPAWNFLAG_FIXBOT_WORKING;
 	}
 
-	if (self->spawnflags & 4)
+	if (self->spawnflags & SPAWNFLAG_FIXBOT_FIXIT)
 	{
 		self->monsterinfo.currentmove = &fixbot_move_roamgoal;
-		self->spawnflags = 32;
+		self->spawnflags = SPAWNFLAG_FIXBOT_WORKING;
 	}
 
 	if (!self->spawnflags)
@@ -297,12 +282,11 @@ change_to_roam(edict_t *self)
 void
 roam_goal(edict_t *self)
 {
-	trace_t tr;
 	vec3_t forward;
 	vec3_t end;
 	edict_t *ent;
 	vec3_t dang;
-	int len, oldlen, i;
+	int oldlen, i;
 	vec3_t vec;
 	vec3_t whichvec;
 
@@ -317,6 +301,9 @@ roam_goal(edict_t *self)
 
 	for (i = 0; i < 12; i++)
 	{
+		trace_t tr;
+		int len;
+
 		VectorCopy(self->s.angles, dang);
 
 		if (i < 6)
@@ -352,7 +339,7 @@ roam_goal(edict_t *self)
 	self->monsterinfo.currentmove = &fixbot_move_turn;
 }
 
-void
+static void
 use_scanner(edict_t *self)
 {
 	edict_t *ent = NULL;
@@ -462,16 +449,13 @@ use_scanner(edict_t *self)
  *  decend translated along the z the current
  *  frames are at 10fps
  */
-void
+static void
 blastoff(edict_t *self, vec3_t start, vec3_t aimdir, int damage,
 		int kick, int te_impact, int hspread, int vspread)
 {
 	trace_t tr;
 	vec3_t dir;
-	vec3_t forward, right, up;
 	vec3_t end;
-	float r;
-	float u;
 	vec3_t water_start;
 	qboolean water = false;
 	int content_mask = MASK_SHOT | MASK_WATER;
@@ -488,6 +472,9 @@ blastoff(edict_t *self, vec3_t start, vec3_t aimdir, int damage,
 
 	if (!(tr.fraction < 1.0))
 	{
+		vec3_t forward, right, up;
+		float r, u;
+
 		vectoangles(aimdir, dir);
 		AngleVectors(dir, forward, right, up);
 
@@ -509,13 +496,13 @@ blastoff(edict_t *self, vec3_t start, vec3_t aimdir, int damage,
 		/* see if we hit water */
 		if (tr.contents & MASK_WATER)
 		{
-			int color;
-
 			water = true;
 			VectorCopy(tr.endpos, water_start);
 
 			if (!VectorCompare(start, tr.endpos))
 			{
+				int color;
+
 				if (tr.contents & CONTENTS_WATER)
 				{
 					if (strcmp(tr.surface->name, "*brwater") == 0)
@@ -626,7 +613,7 @@ blastoff(edict_t *self, vec3_t start, vec3_t aimdir, int damage,
 	}
 }
 
-void
+static void
 fly_vertical(edict_t *self)
 {
 	int i;
@@ -667,7 +654,7 @@ fly_vertical(edict_t *self)
 	}
 }
 
-void
+static void
 fly_vertical2(edict_t *self)
 {
 	vec3_t v;
@@ -883,11 +870,9 @@ mmove_t fixbot_move_roamgoal = {
 	NULL
 };
 
-void
+static void
 ai_facing(edict_t *self, float dist)
 {
-	vec3_t v;
-
 	if (!self)
 	{
 		return;
@@ -899,6 +884,8 @@ ai_facing(edict_t *self, float dist)
 	}
 	else
 	{
+		vec3_t v;
+
 		VectorSubtract(self->goalentity->s.origin, self->s.origin, v);
 		self->ideal_yaw = vectoyaw(v);
 		M_ChangeYaw(self);
@@ -915,17 +902,6 @@ mmove_t fixbot_move_turn = {
 	fixbot_frames_turn,
 	NULL
 };
-
-void
-go_roam(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.currentmove = &fixbot_move_stand;
-}
 
 /* takeoff */
 static mframe_t fixbot_frames_takeoff[] = {
@@ -1024,7 +1000,7 @@ mmove_t fixbot_move_land = {
 	NULL
 };
 
-void
+static void
 ai_movetogoal(edict_t *self, float dist)
 {
 	if (!self)
@@ -1090,17 +1066,6 @@ mmove_t fixbot_move_backward = {
 	NULL
 };
 
-static mframe_t fixbot_frames_start_attack[] = {
-	{ai_charge, 0, NULL}
-};
-
-mmove_t fixbot_move_start_attack = {
-	FRAME_freeze_01,
-	FRAME_freeze_01,
-	fixbot_frames_start_attack,
-	fixbot_attack
-};
-
 static mframe_t fixbot_frames_attack1[] = {
 	{ai_charge, 0, NULL},
 	{ai_charge, 0, NULL},
@@ -1117,7 +1082,7 @@ mmove_t fixbot_move_attack1 = {
 	NULL
 };
 
-int
+static int
 check_telefrag(edict_t *self)
 {
 	vec3_t end, up;
@@ -1148,7 +1113,7 @@ check_telefrag(edict_t *self)
 	return 1;
 }
 
-void
+static void
 fixbot_fire_laser(edict_t *self)
 {
 	vec3_t forward, right, up;
@@ -1281,7 +1246,7 @@ mmove_t fixbot_move_attack2 = {
 	fixbot_run
 };
 
-void
+static void
 weldstate(edict_t *self)
 {
 	if (!self)
@@ -1312,7 +1277,7 @@ weldstate(edict_t *self)
 	}
 }
 
-void
+static void
 ai_move2(edict_t *self, float dist)
 {
 	vec3_t v;
@@ -1386,13 +1351,12 @@ mmove_t fixbot_move_weld_end = {
 	NULL
 };
 
-void
+static void
 fixbot_fire_welder(edict_t *self)
 {
 	vec3_t start;
 	vec3_t forward, right, up;
-	vec3_t vec;
-	float r;
+	vec3_t offset;
 
 	if (!self)
 	{
@@ -1404,23 +1368,23 @@ fixbot_fire_welder(edict_t *self)
 		return;
 	}
 
-	vec[0] = 24.0;
-	vec[1] = -0.8;
-	vec[2] = -10.0;
+	VectorSet(offset, 24.0, -0.8, -10.0);
 
 	AngleVectors(self->s.angles, forward, right, up);
-	G_ProjectSource(self->s.origin, vec, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 
 	gi.WriteByte(svc_temp_entity);
 	gi.WriteByte(TE_WELDING_SPARKS);
 	gi.WriteByte(10);
 	gi.WritePosition(start);
 	gi.WriteDir(vec3_origin);
-	gi.WriteByte(0xe0 + (rand() & 7));
+	gi.WriteByte(0xe0 + (randk() & 7));
 	gi.multicast(self->s.origin, MULTICAST_PVS);
 
 	if (random() > 0.8)
 	{
+		float r;
+
 		r = random();
 
 		if (r < 0.33)
@@ -1438,7 +1402,7 @@ fixbot_fire_welder(edict_t *self)
 	}
 }
 
-void
+static void
 fixbot_fire_blaster(edict_t *self)
 {
 	vec3_t start;
@@ -1457,7 +1421,7 @@ fixbot_fire_blaster(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, up);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_fixbot_BLASTER_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_fixbot_BLASTER_1],
 			forward, right, start);
 
 	VectorCopy(self->enemy->s.origin, end);
@@ -1500,9 +1464,6 @@ fixbot_run(edict_t *self)
 void
 fixbot_walk(edict_t *self)
 {
-	vec3_t vec;
-	int len;
-
 	if (!self)
 	{
 		return;
@@ -1510,6 +1471,9 @@ fixbot_walk(edict_t *self)
 
 	if (strcmp(self->goalentity->classname, "object_repair") == 0)
 	{
+		vec3_t vec;
+		int len;
+
 		VectorSubtract(self->s.origin, self->goalentity->s.origin, vec);
 		len = VectorLength(vec);
 
@@ -1524,22 +1488,8 @@ fixbot_walk(edict_t *self)
 }
 
 void
-fixbot_start_attack(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.currentmove = &fixbot_move_start_attack;
-}
-
-void
 fixbot_attack(edict_t *self)
 {
-	vec3_t vec;
-	int len;
-
 	if (!self)
 	{
 		return;
@@ -1547,6 +1497,9 @@ fixbot_attack(edict_t *self)
 
 	if (self->monsterinfo.aiflags & AI_MEDIC)
 	{
+		vec3_t vec;
+		int len;
+
 		if (!visible(self, self->goalentity))
 		{
 			return;
@@ -1601,7 +1554,7 @@ fixbot_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 fixbot_dead(edict_t *self)
 {
 	if (!self)
@@ -1611,12 +1564,13 @@ fixbot_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
 void
 fixbot_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{

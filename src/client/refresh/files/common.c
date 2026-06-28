@@ -67,6 +67,8 @@ cvar_t *r_vsync;
 cvar_t *vid_fullscreen;
 cvar_t *vid_gamma;
 cvar_t *viewsize;
+cvar_t *r_zfix;
+static cvar_t *r_znear;
 
 #define MAXPRINTMSG 4096
 
@@ -106,11 +108,11 @@ Com_Printf(const char *msg, ...)
 }
 
 void
-Com_DPrintf(const char *msg, ...)
+Com_DPrintf(const char *fmt, ...)
 {
 	va_list argptr;
-	va_start(argptr, msg);
-	ri.Com_VPrintf(PRINT_DEVELOPER, msg, argptr);
+	va_start(argptr, fmt);
+	ri.Com_VPrintf(PRINT_DEVELOPER, fmt, argptr);
 	va_end(argptr);
 }
 
@@ -285,11 +287,36 @@ R_InitCvar(void)
 	vid_fullscreen = ri.Cvar_Get("vid_fullscreen", "0", CVAR_ARCHIVE);
 	vid_gamma = ri.Cvar_Get("vid_gamma", "1.0", CVAR_ARCHIVE);
 	viewsize = ri.Cvar_Get("viewsize", "100", CVAR_ARCHIVE);
+	r_znear = ri.Cvar_Get("r_znear", "4", CVAR_ARCHIVE);
+	r_zfix = ri.Cvar_Get("r_zfix", "0", 0);
 
 	/* clamp r_msaa_samples to accepted range so that video menu doesn't crash on us */
 	if (r_msaa_samples->value < 0)
 	{
 		ri.Cvar_Set("r_msaa_samples", "0");
 	}
+}
 
+float
+R_GetFarValue(const model_t *r_worldmodel)
+{
+	float dist = 4096.0f;
+
+	if (r_worldmodel)
+	{
+		dist = r_worldmodel->radius;
+	}
+
+	if (r_farsee->value)
+	{
+		dist *= 2.0;
+	}
+
+	return Q_max(4096.0f, dist);
+}
+
+float
+R_GetNearValue(void)
+{
+	return Q_max(r_znear->value, 0.1f);
 }

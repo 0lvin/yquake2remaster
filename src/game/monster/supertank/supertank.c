@@ -38,13 +38,12 @@ static int sound_search2;
 
 static int tread_sound;
 
-void BossExplode(edict_t *self);
-void supertank_dead(edict_t *self);
-void supertankRocket(edict_t *self);
-void supertankMachineGun(edict_t *self);
-void supertank_reattack1(edict_t *self);
+static void supertank_dead(edict_t *self);
+static void supertankRocket(edict_t *self);
+static void supertankMachineGun(edict_t *self);
+static void supertank_reattack1(edict_t *self);
 
-void
+static void
 TreadSound(edict_t *self)
 {
 	if (!self)
@@ -136,8 +135,7 @@ static mframe_t supertank_frames_stand[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t supertank_move_stand =
-{
+mmove_t supertank_move_stand = {
 	FRAME_stand_1,
 	FRAME_stand_60,
 	supertank_frames_stand,
@@ -176,8 +174,7 @@ static mframe_t supertank_frames_run[] = {
 	{ai_run, 12, NULL}
 };
 
-mmove_t supertank_move_run =
-{
+mmove_t supertank_move_run = {
 	FRAME_forwrd_1,
 	FRAME_forwrd_18,
 	supertank_frames_run,
@@ -205,24 +202,12 @@ static mframe_t supertank_frames_forward[] = {
 	{ai_walk, 4, NULL}
 };
 
-mmove_t supertank_move_forward =
-{
+mmove_t supertank_move_forward = {
 	FRAME_forwrd_1,
 	FRAME_forwrd_18,
 	supertank_frames_forward,
 	NULL
 };
-
-void
-supertank_forward(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.currentmove = &supertank_move_forward;
-}
 
 void
 supertank_walk(edict_t *self)
@@ -274,8 +259,7 @@ static mframe_t supertank_frames_turn_right[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_turn_right =
-{
+mmove_t supertank_move_turn_right = {
 	FRAME_right_1,
 	FRAME_right_18,
 	supertank_frames_turn_right,
@@ -303,8 +287,7 @@ static mframe_t supertank_frames_turn_left[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_turn_left =
-{
+mmove_t supertank_move_turn_left = {
 	FRAME_left_1,
 	FRAME_left_18,
 	supertank_frames_turn_left,
@@ -318,8 +301,7 @@ static mframe_t supertank_frames_pain3[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_pain3 =
-{
+mmove_t supertank_move_pain3 = {
 	FRAME_pain3_9,
 	FRAME_pain3_12,
 	supertank_frames_pain3,
@@ -333,8 +315,7 @@ static mframe_t supertank_frames_pain2[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_pain2 =
-{
+mmove_t supertank_move_pain2 = {
 	FRAME_pain2_5,
 	FRAME_pain2_8,
 	supertank_frames_pain2,
@@ -348,8 +329,7 @@ static mframe_t supertank_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_pain1 =
-{
+mmove_t supertank_move_pain1 = {
 	FRAME_pain1_1,
 	FRAME_pain1_4,
 	supertank_frames_pain1,
@@ -383,8 +363,7 @@ static mframe_t supertank_frames_death1[] = {
 	{ai_move, 0, BossExplode}
 };
 
-mmove_t supertank_move_death =
-{
+mmove_t supertank_move_death = {
 	FRAME_death_1,
 	FRAME_death_24,
 	supertank_frames_death1,
@@ -412,8 +391,7 @@ static mframe_t supertank_frames_backward[] = {
 	{ai_walk, 0, NULL}
 };
 
-mmove_t supertank_move_backward =
-{
+mmove_t supertank_move_backward = {
 	FRAME_backwd_1,
 	FRAME_backwd_18,
 	supertank_frames_backward,
@@ -429,8 +407,7 @@ static mframe_t supertank_frames_attack4[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_attack4 =
-{
+mmove_t supertank_move_attack4 = {
 	FRAME_attak4_1,
 	FRAME_attak4_6,
 	supertank_frames_attack4,
@@ -467,8 +444,7 @@ static mframe_t supertank_frames_attack3[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_attack3 =
-{
+mmove_t supertank_move_attack3 = {
 	FRAME_attak3_1,
 	FRAME_attak3_27,
 	supertank_frames_attack3,
@@ -505,8 +481,7 @@ static mframe_t supertank_frames_attack2[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_attack2 =
-{
+mmove_t supertank_move_attack2 = {
 	FRAME_attak2_1,
 	FRAME_attak2_27,
 	supertank_frames_attack2,
@@ -522,8 +497,7 @@ static mframe_t supertank_frames_attack1[] = {
 	{ai_charge, 0, supertankMachineGun},
 };
 
-mmove_t supertank_move_attack1 =
-{
+mmove_t supertank_move_attack1 = {
 	FRAME_attak1_1,
 	FRAME_attak1_6,
 	supertank_frames_attack1,
@@ -547,15 +521,14 @@ static mframe_t supertank_frames_end_attack1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t supertank_move_end_attack1 =
-{
+mmove_t supertank_move_end_attack1 = {
 	FRAME_attak1_7,
 	FRAME_attak1_20,
 	supertank_frames_end_attack1,
 	supertank_run
 };
 
-void
+static void
 supertank_reattack1(edict_t *self)
 {
 	if (!self)
@@ -642,7 +615,7 @@ supertank_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 supertankRocket(edict_t *self)
 {
 	vec3_t forward, right;
@@ -670,7 +643,7 @@ supertankRocket(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_number],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_number],
 			forward, right, start);
 
 	VectorCopy(self->enemy->s.origin, vec);
@@ -681,7 +654,7 @@ supertankRocket(edict_t *self)
 	monster_fire_rocket(self, start, dir, 50, 500, flash_number);
 }
 
-void
+static void
 supertankMachineGun(edict_t *self)
 {
 	vec3_t dir;
@@ -708,7 +681,7 @@ supertankMachineGun(edict_t *self)
 	dir[2] = 0;
 
 	AngleVectors(dir, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_number],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_number],
 			forward, right, start);
 
 	if (self->enemy)
@@ -765,25 +738,59 @@ supertank_dead(edict_t *self)
 		return;
 	}
 
+	/* no blowy on deady */
+	if (self->spawnflags & SPAWNFLAG_MONSTER_DEAD)
+	{
+		self->deadflag = DEAD_NO;
+		self->takedamage = DAMAGE_YES;
+		return;
+	}
+
 	VectorSet(self->mins, -60, -60, 0);
 	VectorSet(self->maxs, 60, 60, 72);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
+}
+
+static void
+supertank_gib(edict_t *self)
+{
+	size_t n;
+
+	for (n = 0; n < 4; n++)
+	{
+		ThrowGib(self, NULL, 500, GIB_ORGANIC);
+	}
+
+	for (n = 0; n < 8; n++)
+	{
+		ThrowGib(self, NULL, 500, GIB_METALLIC);
+	}
+
+	ThrowGib(self, "models/objects/gibs/chest/tris.md2",
+		500, GIB_ORGANIC);
+	ThrowHead(self, NULL, 500, GIB_METALLIC);
 }
 
 void
 BossExplode(edict_t *self)
 {
 	vec3_t org;
-	int n;
 
 	if (!self)
 	{
 		return;
 	}
 
+	/* no blowy on deady */
+	if (self->spawnflags & SPAWNFLAG_MONSTER_DEAD)
+	{
+		return;
+	}
+
 	self->think = BossExplode;
 	VectorCopy(self->s.origin, org);
-	org[2] += 24 + (randk() & 15);
+	org[2] += 24 + (frandk() * 15);
 
 	switch (self->count++)
 	{
@@ -821,20 +828,7 @@ BossExplode(edict_t *self)
 			break;
 		case 8:
 			self->s.sound = 0;
-
-			for (n = 0; n < 4; n++)
-			{
-				ThrowGib(self, NULL, 500, GIB_ORGANIC);
-			}
-
-			for (n = 0; n < 8; n++)
-			{
-				ThrowGib(self, NULL, 500, GIB_METALLIC);
-			}
-
-			ThrowGib(self, "models/objects/gibs/chest/tris.md2",
-				500, GIB_ORGANIC);
-			ThrowHead(self, NULL, 500, GIB_METALLIC);
+			supertank_gib(self);
 			self->deadflag = DEAD_DEAD;
 			return;
 	}
@@ -850,18 +844,36 @@ BossExplode(edict_t *self)
 void
 supertank_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage /* unused */,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
 	if (!self)
 	{
 		return;
 	}
 
-	gi.sound(self, CHAN_VOICE, sound_death, 1, ATTN_NORM, 0);
-	self->deadflag = DEAD_DEAD;
-	self->takedamage = DAMAGE_NO;
-	self->count = 0;
-	self->monsterinfo.currentmove = &supertank_move_death;
+	if (self->spawnflags & SPAWNFLAG_MONSTER_DEAD)
+	{
+		/* check for gib */
+		if ((self->deadflag == DEAD_DEAD) || (self->health <= self->gib_health))
+		{
+			supertank_gib(self);
+			self->deadflag = DEAD_DEAD;
+			return;
+		}
+
+		if (self->deadflag == DEAD_DEAD)
+		{
+			return;
+		}
+	}
+	else
+	{
+		gi.sound(self, CHAN_VOICE, sound_death, 1, ATTN_NORM, 0);
+		self->deadflag = DEAD_DEAD;
+		self->takedamage = DAMAGE_NO;
+		self->count = 0;
+		self->monsterinfo.currentmove = &supertank_move_death;
+	}
 }
 
 qboolean

@@ -44,6 +44,7 @@ static	vec3_t	*shadowverts = NULL;
 uint16_t	*vertIdxData = NULL;
 
 static	int	verts_count = 0;
+static	int	index_count = 0;
 
 // correction matrix with "hacked depth" for models with RF_DEPTHHACK flag set
 static float r_vulkan_correction_dh[16] = {
@@ -52,6 +53,30 @@ static float r_vulkan_correction_dh[16] = {
 	0.f,  0.f, .3f, 0.f,
 	0.f,  0.f, .3f, 1.f
 };
+
+int
+Mesh_IndexesRealloc(int count)
+{
+	void *ptr;
+
+	if (index_count > count)
+	{
+		return 0;
+	}
+
+	index_count = ROUNDUP(count * 2, 256);
+
+	ptr = realloc(vertIdxData, index_count * sizeof(uint16_t));
+	YQ2_COM_CHECK_OOM(ptr, "realloc()",
+					index_count * sizeof(uint16_t))
+	if (!ptr)
+	{
+		return -1;
+	}
+	vertIdxData = ptr;
+
+	return 0;
+}
 
 int
 Mesh_VertsRealloc(int count)
@@ -92,15 +117,6 @@ Mesh_VertsRealloc(int count)
 	}
 	vertList = ptr;
 
-	ptr = realloc(vertIdxData, verts_count * sizeof(uint16_t));
-	YQ2_COM_CHECK_OOM(ptr, "realloc()",
-					verts_count * sizeof(uint16_t))
-	if (!ptr)
-	{
-		return -1;
-	}
-	vertIdxData = ptr;
-
 	return 0;
 }
 
@@ -117,8 +133,14 @@ Mesh_Init(void)
 	vertList = NULL;
 
 	verts_count = 0;
+	index_count = 0;
 
 	if (Mesh_VertsRealloc(MAX_VERTS))
+	{
+		Com_Error(ERR_FATAL, "%s: can't allocate memory", __func__);
+	}
+
+	if (Mesh_IndexesRealloc(MAX_VERTS * 3))
 	{
 		Com_Error(ERR_FATAL, "%s: can't allocate memory", __func__);
 	}
@@ -138,6 +160,7 @@ Mesh_Free(void)
 			__func__, verts_count);
 	}
 	verts_count = 0;
+	index_count = 0;
 
 	if (shadowverts)
 	{
@@ -165,7 +188,7 @@ Mesh_Free(void)
 }
 
 static void
-Vk_DrawAliasFrameLerpCommands(int *order, int *order_end, float alpha,
+Vk_DrawAliasFrameLerpCommands(int *order, const int *order_end, float alpha,
 	dxtrivertx_t *verts, vec4_t *s_lerped, const float *shadelight,
 	const float *shadevector, qboolean iscolor, int *vertIdx,
 	int *firstVertex, int *index_pos)
@@ -279,6 +302,12 @@ Vk_DrawAliasFrameLerpCommands(int *order, int *order_end, float alpha,
 			while (--count);
 		}
 
+		if (Mesh_IndexesRealloc(*index_pos + (vertexCount - 2) * 3))
+		{
+			Com_Error(ERR_FATAL, "%s: can't allocate memory", __func__);
+			return;
+		}
+
 		if (pipelineIdx == TRIANGLE_STRIP)
 		{
 			R_GenStripIndexes(vertIdxData + *index_pos,
@@ -313,7 +342,8 @@ Vk_DrawAliasFrameLerp(entity_t *currententity, dmdx_t *paliashdr, float backlerp
 	int *index_pos, VkBuffer **buffer, VkDeviceSize *dstOffset)
 {
 	daliasxframe_t *frame, *oldframe;
-	dxtrivertx_t *ov, *verts;
+	const dxtrivertx_t *ov;
+	dxtrivertx_t *verts;
 	int *order;
 	float frontlerp;
 	float alpha;
@@ -417,14 +447,14 @@ Vk_DrawAliasFrameLerp(entity_t *currententity, dmdx_t *paliashdr, float backlerp
 		descriptorSets, 1, &uboOffset);
 	vkCmdBindVertexBuffers(vk_activeCmdbuffer, 0, 1, &vbo, &vboOffset);
 
-	*buffer = UpdateIndexBuffer(vertIdxData, verts_count * sizeof(uint16_t), dstOffset);
+	*buffer = UpdateIndexBuffer(vertIdxData, *index_pos * sizeof(uint16_t), dstOffset);
 
 	vkCmdBindIndexBuffer(vk_activeCmdbuffer, **buffer, *dstOffset, VK_INDEX_TYPE_UINT16);
 	vkCmdDrawIndexed(vk_activeCmdbuffer, *index_pos, 1, 0, 0, 0);
 }
 
 static void
-Vk_DrawAliasShadow(int *order, int *order_end, float height, float lheight,
+Vk_DrawAliasShadow(int *order, const int *order_end, float height, float lheight,
 	vec4_t *s_lerped, const float *shadevector,
 	int *vertIdx)
 {
@@ -481,37 +511,6 @@ Vk_DrawAliasShadow(int *order, int *order_end, float height, float lheight,
 	}
 }
 
-static qboolean
-R_CullAliasModel(const model_t *currentmodel, vec3_t bbox[8], entity_t *e)
-{
-	dmdx_t *paliashdr;
-
-	paliashdr = (dmdx_t *)currentmodel->extradata;
-	if (!paliashdr)
-	{
-		Com_Printf("%s %s: Model is not fully loaded\n",
-				__func__, currentmodel->name);
-		return true;
-	}
-
-	if ((e->frame >= paliashdr->num_frames) || (e->frame < 0))
-	{
-		Com_DPrintf("%s %s: no such frame %d\n",
-				__func__, currentmodel->name, e->frame);
-		e->frame = 0;
-	}
-
-	if ((e->oldframe >= paliashdr->num_frames) || (e->oldframe < 0))
-	{
-		Com_DPrintf("%s %s: no such oldframe %d\n",
-				__func__, currentmodel->name, e->oldframe);
-		e->oldframe = 0;
-	}
-
-	return R_CullAliasMeshModel(paliashdr, frustum, e->frame, e->oldframe,
-		e->angles, e->origin, bbox);
-}
-
 void
 R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 {
@@ -529,7 +528,7 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 	{
 		vec3_t bbox[8];
 
-		if (R_CullAliasModel(currentmodel, bbox, currententity))
+		if (R_CullAliasModel(currentmodel, frustum, bbox, currententity))
 		{
 			return;
 		}
@@ -554,128 +553,15 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 
 	paliashdr = (dmdx_t *)currentmodel->extradata;
 
-	/* get lighting information */
-	if (currententity->flags &
-		(RF_SHELL_HALF_DAM | RF_SHELL_GREEN | RF_SHELL_RED |
-		 RF_SHELL_BLUE | RF_SHELL_DOUBLE))
+	if (r_worldmodel)
 	{
-		VectorClear(shadelight);
-
-		if (currententity->flags & RF_SHELL_HALF_DAM)
-		{
-			shadelight[0] = 0.56;
-			shadelight[1] = 0.59;
-			shadelight[2] = 0.45;
-		}
-
-		if (currententity->flags & RF_SHELL_DOUBLE)
-		{
-			shadelight[0] = 0.9;
-			shadelight[1] = 0.7;
-		}
-
-		if (currententity->flags & RF_SHELL_RED)
-		{
-			shadelight[0] = 1.0;
-		}
-
-		if (currententity->flags & RF_SHELL_GREEN)
-		{
-			shadelight[1] = 1.0;
-		}
-
-		if (currententity->flags & RF_SHELL_BLUE)
-		{
-			shadelight[2] = 1.0;
-		}
-	}
-	else if (currententity->flags & RF_FULLBRIGHT)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			shadelight[i] = 1.0;
-		}
+		R_ApplyModelLight(r_worldmodel, currententity, shadelight,
+			lightspot, r_worldmodel->lightdata);
 	}
 	else
 	{
-		if (!r_worldmodel || !r_worldmodel->lightdata)
-		{
-			shadelight[0] = shadelight[1] = shadelight[2] = 1.0F;
-		}
-		else
-		{
-			R_LightPoint(r_worldmodel->grid, currententity, r_worldmodel->surfaces,
-				r_worldmodel->nodes, currententity->origin, shadelight,
-				r_modulate->value, lightspot);
-		}
-
-		/* player lighting hack for communication back to server */
-		if (currententity->flags & RF_WEAPONMODEL)
-		{
-			/* pick the greatest component, which should be
-			   the same as the mono value returned by software */
-			if (shadelight[0] > shadelight[1])
-			{
-				if (shadelight[0] > shadelight[2])
-				{
-					r_lightlevel->value = 150 * shadelight[0];
-				}
-				else
-				{
-					r_lightlevel->value = 150 * shadelight[2];
-				}
-			}
-			else
-			{
-				if (shadelight[1] > shadelight[2])
-				{
-					r_lightlevel->value = 150 * shadelight[1];
-				}
-				else
-				{
-					r_lightlevel->value = 150 * shadelight[2];
-				}
-			}
-		}
-	}
-
-	if (currententity->flags & RF_MINLIGHT)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			if (shadelight[i] > 0.1)
-			{
-				break;
-			}
-		}
-
-		if (i == 3)
-		{
-			shadelight[0] = 0.1;
-			shadelight[1] = 0.1;
-			shadelight[2] = 0.1;
-		}
-	}
-
-	if (currententity->flags & RF_GLOW)
-	{
-		/* bonus items will pulse with time */
-		float scale;
-
-		scale = 0.1 * sin(r_newrefdef.time * 7);
-
-		for (i = 0; i < 3; i++)
-		{
-			float	min;
-
-			min = shadelight[i] * 0.8;
-			shadelight[i] += scale;
-
-			if (shadelight[i] < min)
-			{
-				shadelight[i] = min;
-			}
-		}
+		R_ApplyModelLight(NULL, currententity, shadelight,
+			lightspot, NULL);
 	}
 
 	/* ir goggles color override */
@@ -702,8 +588,8 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 		// hack the depth range to prevent view model from poking into walls
 		float r_proj_aspect = (float)r_newrefdef.width / r_newrefdef.height;
 		float r_proj_fovy = r_newrefdef.fov_y;
-		float dist = (r_farsee->value == 0) ? 4096.0f : (r_worldmodel->radius * 2);
-		const float zNear = Q_max(vk_znear->value, 0.1f);
+		float dist = R_GetFarValue(r_worldmodel);
+		const float zNear = R_GetNearValue();
 
 		// use different range for player setup screen so it doesn't collide with the viewmodel
 		r_vulkan_correction_dh[10] = 0.3f - (r_newrefdef.rdflags & RDF_NOWORLDMODEL) * 0.1f;
@@ -719,7 +605,8 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 			Mat_Perspective(r_projection_matrix, r_vulkan_correction_dh, r_gunfov->value, r_proj_aspect, zNear, dist);
 		}
 		Mat_Mul(r_view_matrix, r_projection_matrix, r_viewproj_matrix);
-		vkCmdPushConstants(vk_activeCmdbuffer, vk_drawTexQuadPipeline[vk_state.current_renderpass].layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(r_viewproj_matrix), r_viewproj_matrix);
+		vkCmdPushConstants(vk_activeCmdbuffer, vk_drawTexQuadPipeline[vk_state.current_renderpass].layout,
+			VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(r_viewproj_matrix), r_viewproj_matrix);
 	}
 
 	if ( ( currententity->flags & RF_WEAPONMODEL ) && ( r_lefthand->value == 1.0F ) )
@@ -827,7 +714,7 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 
 	if (r_shadows->value && !(currententity->flags & (RF_TRANSLUCENT | RF_WEAPONMODEL)))
 	{
-		int num_mesh_nodes, i;
+		int num_mesh_nodes, m;
 		dmdxmesh_t *mesh_nodes;
 		float height, lheight;
 		int *order;
@@ -843,12 +730,12 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 		lheight = currententity->origin[2] - lightspot[2];
 		height = -lheight + 1.0;
 
-		for (i = 0; i < num_mesh_nodes; i++)
+		for (m = 0; m < num_mesh_nodes; m++)
 		{
 			Vk_DrawAliasShadow(
-				order + mesh_nodes[i].ofs_glcmds,
+				order + mesh_nodes[m].ofs_glcmds,
 				order + Q_min(paliashdr->num_glcmds,
-					mesh_nodes[i].ofs_glcmds + mesh_nodes[i].num_glcmds),
+					mesh_nodes[m].ofs_glcmds + mesh_nodes[m].num_glcmds),
 				height, lheight, s_lerped, shadevector,
 				&vertIdx);
 		}

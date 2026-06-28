@@ -163,10 +163,10 @@ SetAllLightFlags(msurface_t *surf)
 	}
 }
 
-void
-GL3_DrawGLPoly(msurface_t *fa)
+static void
+GL3_DrawGLPoly(const msurface_t *fa)
 {
-	mpoly_t *p = fa->polys;
+	const mpoly_t *p = fa->polys;
 
 	GL3_BindVAO(gl3state.vao3D);
 	GL3_BindVBO(gl3state.vbo3D);
@@ -174,10 +174,10 @@ GL3_DrawGLPoly(msurface_t *fa)
 	GL3_BufferAndDraw3D(p->verts, p->numverts, GL_TRIANGLE_FAN);
 }
 
-void
-GL3_DrawGLFlowingPoly(msurface_t *fa)
+static void
+GL3_DrawGLFlowingPoly(const msurface_t *fa)
 {
-	mpoly_t *p;
+	const mpoly_t *p;
 	float sscroll, tscroll;
 
 	p = fa->polys;
@@ -191,7 +191,6 @@ GL3_DrawGLFlowingPoly(msurface_t *fa)
 		GL3_UpdateUBO3D();
 	}
 
-
 	GL3_BindVAO(gl3state.vao3D);
 	GL3_BindVBO(gl3state.vbo3D);
 
@@ -201,59 +200,65 @@ GL3_DrawGLFlowingPoly(msurface_t *fa)
 static void
 DrawTriangleOutlines(void)
 {
-	STUB_ONCE("TODO: Implement for r_showtris support!");
-#if 0
-	int i, j;
-	mpoly_t *p;
+	const msurface_t *surf;
+	size_t i;
 
 	if (!r_showtris->value)
 	{
 		return;
 	}
 
-	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
-	glColor4f(1, 1, 1, 1);
+	GL3_UseProgram(gl3state.si3DcolorOnly.shaderProgram);
 
-	for (i = 0; i < MAX_LIGHTMAPS; i++)
+	gl3state.uniCommonData.color = HMM_Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	GL3_UpdateUBOCommon();
+
+	for (i = 0, surf = gl3_worldmodel->surfaces; i < gl3_worldmodel->numsurfaces; i++, surf++)
 	{
-		msurface_t *surf;
+		const mpoly_t *p;
 
-		for (surf = gl3_lms.lightmap_surfaces[i];
-				surf != 0;
-				surf = surf->lightmapchain)
+		if (surf->visframe != gl3_framecount)
 		{
-			p = surf->polys;
+			continue;
+		}
 
-			for ( ; p; p = p->chain)
+		for (p = surf->polys; p != NULL; p = p->chain)
+		{
+			size_t j;
+
+			for (j = 2; j < p->numverts; j++)
 			{
-				for (j = 2; j < p->numverts; j++)
+				mvtx_t vtx[4];
+				size_t k;
+
+				for (k = 0; k < 3; k++)
 				{
-					GLfloat vtx[12];
-					unsigned int k;
-
-					for (k=0; k<3; k++)
-					{
-						vtx[0+k] = p->verts [ 0 ][ k ];
-						vtx[3+k] = p->verts [ j - 1 ][ k ];
-						vtx[6+k] = p->verts [ j ][ k ];
-						vtx[9+k] = p->verts [ 0 ][ k ];
-					}
-
-					glEnableClientState( GL_VERTEX_ARRAY );
-
-					glVertexPointer( 3, GL_FLOAT, 0, vtx );
-					glDrawArrays( GL_LINE_STRIP, 0, 4 );
-
-					glDisableClientState( GL_VERTEX_ARRAY );
+					vtx[0].pos[k] = p->verts[0].pos[k];
+					vtx[1].pos[k] = p->verts[j - 1].pos[k];
+					vtx[2].pos[k] = p->verts[j].pos[k];
+					vtx[3].pos[k] = p->verts[0].pos[k];
 				}
+
+				// set other fields to 0
+				for (k = 0; k < 4; k++)
+				{
+					vtx[k].texCoord[0] = 0;
+					vtx[k].texCoord[1] = 0;
+					vtx[k].lmTexCoord[0] = 0;
+					vtx[k].lmTexCoord[1] = 0;
+					vtx[k].normal[0] = 0;
+					vtx[k].normal[1] = 0;
+					vtx[k].normal[2] = 0;
+					vtx[k].lightFlags = 0;
+				}
+
+				GL3_BufferAndDraw3D(vtx, 4, GL_LINE_STRIP);
 			}
 		}
 	}
 
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_TEXTURE_2D);
-#endif // 0
 }
 
 static void
@@ -285,10 +290,10 @@ UpdateLMscales(const hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE], gl3ShaderInfo
 }
 
 static void
-RenderBrushPoly(entity_t *currententity, msurface_t *fa)
+RenderBrushPoly(const entity_t *currententity, msurface_t *fa)
 {
 	int map;
-	gl3image_t *image;
+	const gl3image_t *image;
 
 	c_brush_polys++;
 
@@ -398,7 +403,7 @@ GL3_DrawAlphaSurfaces(void)
 }
 
 static void
-DrawTextureChains(entity_t *currententity)
+DrawTextureChains(const entity_t *currententity)
 {
 	int i;
 	msurface_t *s;
@@ -435,10 +440,10 @@ DrawTextureChains(entity_t *currententity)
 }
 
 static void
-RenderLightmappedPoly(entity_t *currententity, msurface_t *surf)
+RenderLightmappedPoly(const entity_t *currententity, msurface_t *surf)
 {
 	int map;
-	gl3image_t *image = R_TextureAnimation(currententity, surf->texinfo);
+	const gl3image_t *image = R_TextureAnimation(currententity, surf->texinfo);
 
 	hmm_vec4 lmScales[MAX_LIGHTMAPS_PER_SURFACE] = {0};
 	lmScales[0] = HMM_Vec4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -475,12 +480,10 @@ RenderLightmappedPoly(entity_t *currententity, msurface_t *surf)
 }
 
 static void
-DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
+DrawInlineBModel(const entity_t *currententity, model_t *currentmodel)
 {
-	int i;
-	cplane_t *pplane;
-	float dot;
 	msurface_t *psurf;
+	size_t i;
 
 	/* calculate dynamic lighting for bmodel */
 	R_PushDlights(&r_newrefdef, currentmodel->nodes + currentmodel->firstnode,
@@ -500,6 +503,9 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 	/* draw texture */
 	for (i = 0; i < currentmodel->nummodelsurfaces; i++, psurf++)
 	{
+		cplane_t *pplane;
+		float dot;
+
 		/* find which side of the node we are on */
 		pplane = psurf->plane;
 
@@ -534,10 +540,9 @@ DrawInlineBModel(entity_t *currententity, gl3model_t *currentmodel)
 }
 
 void
-GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
+GL3_DrawBrushModel(entity_t *e, model_t *currentmodel)
 {
 	vec3_t mins, maxs;
-	int i;
 	qboolean rotated;
 
 	if (currentmodel->nummodelsurfaces == 0)
@@ -549,6 +554,8 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 
 	if (e->angles[0] || e->angles[1] || e->angles[2])
 	{
+		int i;
+
 		rotated = true;
 
 		for (i = 0; i < 3; i++)
@@ -569,7 +576,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		return;
 	}
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 	}
@@ -588,8 +595,6 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 		modelorg[2] = DotProduct(temp, up);
 	}
 
-
-
 	//glPushMatrix();
 	hmm_mat4 oldMat = gl3state.uni3DData.transModelMat4;
 
@@ -605,7 +610,7 @@ GL3_DrawBrushModel(entity_t *e, gl3model_t *currentmodel)
 	gl3state.uni3DData.transModelMat4 = oldMat;
 	GL3_UpdateUBO3D();
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
@@ -626,7 +631,7 @@ RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 		return; /* solid */
 	}
 
-	if (node->visframe != gl3_visframecount)
+	if (node->visframe != r_visframecount)
 	{
 		return;
 	}
@@ -787,110 +792,4 @@ GL3_DrawWorld(void)
 	DrawTextureChains(&ent);
 	GL3_DrawSkyBox();
 	DrawTriangleOutlines();
-}
-
-/*
- * Mark the leaves and nodes that are
- * in the PVS for the current cluster
- */
-void
-GL3_MarkLeaves(void)
-{
-	const byte *vis;
-	byte *fatvis = NULL;
-	mnode_t *node;
-	int i;
-	mleaf_t *leaf;
-
-	if ((gl3_oldviewcluster == gl3_viewcluster) &&
-		(gl3_oldviewcluster2 == gl3_viewcluster2) &&
-		!r_novis->value &&
-		(gl3_viewcluster != -1))
-	{
-		return;
-	}
-
-	/* development aid to let you run around
-	   and see exactly where the pvs ends */
-	if (r_lockpvs->value)
-	{
-		return;
-	}
-
-	gl3_visframecount++;
-	gl3_oldviewcluster = gl3_viewcluster;
-	gl3_oldviewcluster2 = gl3_viewcluster2;
-
-	if (r_novis->value || (gl3_viewcluster == -1) || !gl3_worldmodel->vis)
-	{
-		/* mark everything */
-		for (i = 0; i < gl3_worldmodel->numleafs; i++)
-		{
-			gl3_worldmodel->leafs[i].visframe = gl3_visframecount;
-		}
-
-		for (i = 0; i < gl3_worldmodel->numnodes; i++)
-		{
-			gl3_worldmodel->nodes[i].visframe = gl3_visframecount;
-		}
-
-		return;
-	}
-
-	vis = GL3_Mod_ClusterPVS(gl3_viewcluster, gl3_worldmodel);
-
-	/* may have to combine two clusters because of solid water boundaries */
-	if (gl3_viewcluster2 != gl3_viewcluster)
-	{
-		int c;
-
-		fatvis = malloc(((gl3_worldmodel->numleafs + 31) / 32) * sizeof(int));
-		memcpy(fatvis, vis, (gl3_worldmodel->numleafs + 7) / 8);
-		vis = GL3_Mod_ClusterPVS(gl3_viewcluster2, gl3_worldmodel);
-		c = (gl3_worldmodel->numleafs + 31) / 32;
-
-		for (i = 0; i < c; i++)
-		{
-			((int *)fatvis)[i] |= ((int *)vis)[i];
-		}
-
-		vis = fatvis;
-	}
-
-	for (i = 0, leaf = gl3_worldmodel->leafs;
-		 i < gl3_worldmodel->numleafs;
-		 i++, leaf++)
-	{
-		int cluster;
-
-		cluster = leaf->cluster;
-
-		if (cluster == -1)
-		{
-			continue;
-		}
-
-		if (vis[cluster >> 3] & (1 << (cluster & 7)))
-		{
-			node = (mnode_t *)leaf;
-
-			do
-			{
-				if (node->visframe == gl3_visframecount)
-				{
-					break;
-				}
-
-				node->visframe = gl3_visframecount;
-				node = node->parent;
-			}
-			while (node);
-		}
-	}
-
-	/* clean combined buffer */
-	if (fatvis)
-	{
-		free(fatvis);
-	}
 }

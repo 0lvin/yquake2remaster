@@ -26,6 +26,7 @@
  */
 
 #include "models.h"
+#include <limits.h>
 
 #define MC_BITS_X (16)
 #define MC_BITS_Y (16)
@@ -151,6 +152,7 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 	dtriangle_t *tris;
 	dstvert_t *st;
 	void *extradata = NULL;
+	const mdr_lod_t *inlod;
 	dmdx_vert_t *vertx;
 	char *skin;
 	int i;
@@ -172,20 +174,51 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 		return NULL;
 	}
 
-	int unframesize = sizeof(mdr_frame_t) + sizeof(mdr_bone_t) * (pinmodel.num_bones - 1);
-	char *frames = malloc(unframesize * pinmodel.num_frames);
-	if (!frames)
+	if (pinmodel.num_frames <= 0)
 	{
-		YQ2_COM_CHECK_OOM(frames, "malloc()", unframesize * pinmodel.num_frames)
+		Com_Printf("%s: %s has incorrect frames count %d\n",
+				__func__, mod_name, pinmodel.num_frames);
 		return NULL;
 	}
+
+	if (pinmodel.num_bones <= 0 ||
+			pinmodel.num_bones > (modfilelen / (int)sizeof(mdr_bone_t)))
+	{
+		Com_Printf("%s: %s has incorrect bones count %d\n",
+				__func__, mod_name, pinmodel.num_bones);
+                return NULL;
+        }
+
+        int unframesize = sizeof(mdr_frame_t) + sizeof(mdr_bone_t) * (pinmodel.num_bones - 1);
+
+        /* keep the output buffer and the `i * unframesize` index math
+           (used in both frame branches) within int range */
+        if ((size_t)pinmodel.num_frames * unframesize > INT_MAX)
+        {
+                Com_Printf("%s: %s has too large frame data\n", __func__, mod_name);
+                return NULL;
+        }
+
+        char *frames = malloc((size_t)unframesize * pinmodel.num_frames);
+        if (!frames)
+        {
+                YQ2_COM_CHECK_OOM(frames, "malloc()", (size_t)unframesize * pinmodel.num_frames)
+                return NULL;
+        }
 
 	if (pinmodel.ofs_frames < 0)
 	{
 		int compframesize = sizeof(mdr_compframe_t) + sizeof(mdr_compbone_t) * (pinmodel.num_bones - 1);
+		if ((size_t)(-pinmodel.ofs_frames) + (size_t)pinmodel.num_frames * compframesize > (size_t)modfilelen)
+		{
+			Com_Printf("%s: %s has broken compressed frames\n", __func__, mod_name);
+			free(frames);
+			return NULL;
+		}
+
 		for (i = 0; i < pinmodel.num_frames; i++)
 		{
-			mdr_compframe_t * inframe = (mdr_compframe_t*)(
+			const mdr_compframe_t * inframe = (mdr_compframe_t*)(
 				(byte*)buffer + -pinmodel.ofs_frames +
 				(i * compframesize));
 			mdr_frame_t *outframe = (mdr_frame_t *)(frames + i * unframesize);
@@ -207,13 +240,24 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 	}
 	else
 	{
+		if ((size_t)pinmodel.ofs_frames + (size_t)pinmodel.num_frames * unframesize > (size_t)modfilelen)
+		{
+			Com_Printf("%s: %s has broken frames\n", __func__, mod_name);
+			free(frames);
+			return NULL;
+		}
+
 		for (i = 0; i < pinmodel.num_frames; i++)
 		{
+			const float *infloat;
+			size_t float_count;
+			float *outfloat;
+			int j;
+
 			mdr_frame_t * inframe = (mdr_frame_t*)(
 				(byte*)buffer + pinmodel.ofs_frames +
 				(i * unframesize));
 			mdr_frame_t *outframe = (mdr_frame_t *)(frames + i * unframesize);
-			int j;
 
 			memcpy(outframe->name, inframe->name, sizeof(outframe->name));
 			for (j = 0; j < 3; j++)
@@ -224,8 +268,7 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 				outframe->radius = LittleFloat(inframe->radius);
 			}
 
-			int float_count = pinmodel.num_bones * sizeof(mdr_bone_t);
-			float *infloat, *outfloat;
+			float_count = pinmodel.num_bones * (sizeof(mdr_bone_t) / sizeof(float));
 			infloat = (float *)&inframe->bones;
 			outfloat = (float *)&outframe->bones;
 			for (j = 0; j < float_count; j ++)
@@ -235,17 +278,56 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 		}
 	}
 
-	mdr_lod_t *inlod;
+	if (pinmodel.ofs_lods < 0 || (size_t)pinmodel.ofs_lods + sizeof(mdr_lod_t) > (size_t)modfilelen)
+	{
+		Com_Printf("%s: %s has broken lods offset\n", __func__, mod_name);
+		free(frames);
+		return NULL;
+	}
+
 	inlod = (mdr_lod_t*)((byte *)buffer + pinmodel.ofs_lods);
+
+	if (inlod->num_surfaces <= 0)
+	{
+		Com_Printf("%s: %s has incorrect surfaces count %d\n",
+				__func__, mod_name, inlod->num_surfaces);
+		free(frames);
+		return NULL;
+	}
 
 	meshofs = inlod->ofs_surfaces;
 	for (i = 0; i < inlod->num_surfaces; i++)
 	{
-		mdr_surface_t* insurf;
+		const mdr_surface_t* insurf;
+
+		if (meshofs < 0 || (size_t)pinmodel.ofs_lods + meshofs + sizeof(mdr_surface_t) > (size_t)modfilelen)
+		{
+			Com_Printf("%s: %s has broken surface offset\n", __func__, mod_name);
+			free(frames);
+			return NULL;
+		}
 
 		insurf = (mdr_surface_t*)((char*)inlod + meshofs);
+
+		if (LittleLong(insurf->num_tris) < 0 || LittleLong(insurf->num_tris) > MAX_TRIANGLES ||
+			LittleLong(insurf->num_verts) < 0 || LittleLong(insurf->num_verts) > MAX_VERTS ||
+			LittleLong(insurf->ofs_end) <= 0)
+		{
+			Com_Printf("%s: %s has broken surface\n", __func__, mod_name);
+			free(frames);
+			return NULL;
+		}
+
 		num_tris += LittleLong(insurf->num_tris);
 		num_xyz += LittleLong(insurf->num_verts);
+
+		if (num_tris > MAX_TRIANGLES || num_xyz > MAX_VERTS)
+		{
+			Com_Printf("%s: %s has too many verts/tris\n", __func__, mod_name);
+			free(frames);
+			return NULL;
+		}
+
 		meshofs += LittleLong(insurf->ofs_end);
 	}
 
@@ -293,9 +375,29 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 	{
 		mdr_surface_t* insurf;
 		const int *p;
+		size_t surfofs;
 		int j;
 
 		insurf = (mdr_surface_t*)((char*)inlod + meshofs);
+		surfofs = (byte *)insurf - (byte *)buffer;
+
+		if (LittleLong(insurf->ofs_tris) < 0 ||
+			surfofs + LittleLong(insurf->ofs_tris) +
+			(size_t)LittleLong(insurf->num_tris) * 3 * sizeof(int) > (size_t)modfilelen)
+		{
+			Com_Printf("%s: %s has broken surface triangles\n", __func__, mod_name);
+			free(vertx);
+			free(frames);
+			return NULL;
+		}
+		if (insurf->ofs_verts < 0 ||
+			surfofs + insurf->ofs_verts > (size_t)modfilelen)
+		{
+			Com_Printf("%s: %s has broken surface verts\n", __func__, mod_name);
+			free(vertx);
+			free(frames);
+			return NULL;
+		}
 
 		/* load shaders */
 		memcpy(skin, insurf->shader, Q_min(sizeof(insurf->shader), MAX_SKINNAME));
@@ -313,10 +415,21 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 
 			for (k = 0; k < 3; k++)
 			{
-				int vert_id;
+				int vert_id, local_id;
 
 				/* index */
-				vert_id = LittleLong(p[j * 3 + k]) + num_xyz;
+				local_id = LittleLong(p[j * 3 + k]);
+
+				if (local_id < 0 || local_id >= LittleLong(insurf->num_verts))
+				{
+					Com_Printf("%s: %s has broken triangle index\n", __func__, mod_name);
+					free(vertx);
+					free(frames);
+					return NULL;
+				}
+
+				vert_id = local_id + num_xyz;
+
 				tris[num_tris + j].index_xyz[k] = vert_id;
 				tris[num_tris + j].index_st[k] = vert_id;
 			}
@@ -328,28 +441,50 @@ Mod_LoadModel_MDR(const char *mod_name, const void *buffer, int modfilelen)
 		{
 			int f;
 
+			if ((byte *)inVert + sizeof(mdr_vertex_t) > (byte *)buffer + modfilelen ||
+				LittleLong(inVert->num_weights) < 0 ||
+				(byte *)inVert + sizeof(mdr_vertex_t) +
+				(size_t)(LittleLong(inVert->num_weights) - 1) * sizeof(mdr_weight_t) > (byte *)buffer + modfilelen)
+				{
+					Com_Printf("%s: %s has broken vertex weights\n", __func__, mod_name);
+					free(vertx);
+					free(frames);
+					return NULL;
+				}
+
 			st[j + num_xyz].s = LittleFloat(inVert->texcoords[0]) * pheader->skinwidth;
 			st[j + num_xyz].t = LittleFloat(inVert->texcoords[1]) * pheader->skinheight;
 
 			for (f = 0; f < pinmodel.num_frames; f ++)
 			{
+				const mdr_frame_t *outframe;
 				int k, vert_pos;
-				mdr_frame_t *outframe = (mdr_frame_t *)(frames + f * unframesize);
 				vec3_t tempVert, tempNormal;
 				mdr_weight_t *w;
 
+				outframe = (mdr_frame_t *)(frames + f * unframesize);
 				vert_pos = num_xyz + f * pheader->num_xyz + j;
 
 				VectorClear(tempVert);
 				VectorClear(tempNormal);
 
 				w = inVert->weights;
+
 				for ( k = 0; k < LittleLong(inVert->num_weights); k++, w++)
 				{
-					mdr_bone_t *bone;
+					const mdr_bone_t *bone;
 					float bone_weight;
 					vec3_t innorm, inoffset;
 					int n;
+
+					if (LittleLong(w->bone_index) < 0 || LittleLong(w->bone_index) >= pinmodel.num_bones)
+					{
+						Com_Printf("%s: has invalid bone index", __func__);
+						free(vertx);
+						free(frames);
+						return NULL;
+					}
+
 
 					bone = outframe->bones + LittleLong(w->bone_index);
 

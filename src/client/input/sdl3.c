@@ -96,7 +96,6 @@ typedef enum
 // IN_Update() called at the beginning of a frame to the
 // actual movement functions called at a later time.
 static float mouse_x, mouse_y;
-static unsigned char joy_escbutton = SDL_GAMEPAD_BUTTON_START;
 static int joystick_left_x, joystick_left_y, joystick_right_x, joystick_right_y;
 static qboolean mlooking;
 
@@ -133,18 +132,6 @@ static cvar_t *haptic_feedback_filter;
 
 // ----
 
-typedef struct haptic_effects_cache {
-	int effect_volume;
-	int effect_duration;
-	int effect_delay;
-	int effect_attack;
-	int effect_fade;
-	int effect_id;
-	int effect_x;
-	int effect_y;
-	int effect_z;
-} haptic_effects_cache_t;
-
 qboolean show_gamepad = false, show_haptic = false, show_gyro = false;
 
 static SDL_Haptic *joystick_haptic = NULL;
@@ -174,7 +161,6 @@ static cvar_t *joy_ramp_time;
 static cvar_t *joy_outer_threshold;
 static cvar_t *joy_forwardsensitivity;
 static cvar_t *joy_sidesensitivity;
-void IN_ApplyJoyPreset(void);
 
 // Joystick's analog sticks configuration
 static sticklayout_t joy_active_layout;
@@ -275,8 +261,6 @@ static unsigned short int front_sample = 0;
 
 // Threshold at which a trigger press is registered, in SDL units
 static int trig_thresh;
-
-extern void CalibrationFinishedCallback(void);
 
 /* ------------------------------------------------------------------ */
 
@@ -910,14 +894,14 @@ IN_Update(void)
 					/* Note that the SDL_SCANCODEs are SDL_SCANCODE_1, _2, ..., _9, SDL_SCANCODE_0
 					 * while in ASCII it's '0', '1', ..., '9' => handle 0 and 1-9 separately
 					 * (quake2 uses the ASCII values for those keys) */
-					int key = '0'; /* implicitly handles SDL_SCANCODE_0 */
+					int key_val = '0'; /* implicitly handles SDL_SCANCODE_0 */
 
 					if (sc <= SDL_SCANCODE_9)
 					{
-						key = '1' + (sc - SDL_SCANCODE_1);
+						key_val = '1' + (sc - SDL_SCANCODE_1);
 					}
 
-					Key_Event(key, down, false);
+					Key_Event(key_val, down, false);
 				}
 				else
 				{
@@ -944,19 +928,23 @@ IN_Update(void)
 					}
 					else
 					{
-						int key = IN_TranslateSDLtoQ2Key(kc);
-						if(key == 0)
+						int key_v;
+
+						key_v = IN_TranslateSDLtoQ2Key(kc);
+						if(key_v == 0)
 						{
 							// fallback to scancodes if we don't know the keycode
-							key = IN_TranslateScancodeToQ2Key(sc);
+							key_v = IN_TranslateScancodeToQ2Key(sc);
 						}
-						if(key != 0)
+
+						if(key_v != 0)
 						{
-							Key_Event(key, down, true);
+							Key_Event(key_v, down, true);
 						}
 						else
 						{
-							Com_DPrintf("Pressed unknown key with SDL_Keycode %d, SDL_Scancode %d.\n", kc, (int)sc);
+							Com_DPrintf("Pressed unknown key with SDL_Keycode %d, SDL_Scancode %d.\n",
+								kc, (int)sc);
 						}
 					}
 				}
@@ -1030,12 +1018,10 @@ IN_Update(void)
 			case SDL_EVENT_GAMEPAD_BUTTON_UP :
 			case SDL_EVENT_GAMEPAD_BUTTON_DOWN :
 			{
-				qboolean down = (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN);
 				unsigned char btn = event.gbutton.button;
 
-				// Handle Esc button first, to override its original key
-				Key_Event( (btn == joy_escbutton)? K_ESCAPE : K_JOY_FIRST_BTN + btn,
-					down, true );
+				Key_Event( (btn == SDL_GAMEPAD_BUTTON_START)? K_ESCAPE : K_JOY_FIRST_BTN + btn,
+					(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN), true );
 				break;
 			}
 
@@ -1449,12 +1435,13 @@ static float
 IN_FlickStick(thumbstick_t stick, float axial_deadzone)
 {
 	static qboolean is_flicking;
-	static float last_stick_angle;
-	thumbstick_t processed = stick;
 	float angle_change = 0;
 
 	if (IN_StickMagnitude(stick) > Q_min(joy_flick_threshold->value, 1.0f))	// flick!
 	{
+		thumbstick_t processed = stick;
+		static float last_stick_angle;
+
 		// Snap-to-axis only if player just started to flick. With x < 0.4,
 		// f(x)=1-(1-x)^2 → < 0.64; this might mean a "tap" to the stick, so
 		// treat it as a possible attempt to turn 90º / 180º.
@@ -1577,7 +1564,7 @@ IN_UpdateStickLayout(joystate_t *joy)
 }
 
 static qboolean
-IN_CrossedThreshold(joystate_t *joy, float outer_threshold)
+IN_CrossedThreshold(const joystate_t *joy, float outer_threshold)
 {
 	const float magnitude = Q_magnitude(*joy->yaw, *joy->pitch);
 	return (magnitude >= outer_threshold);
@@ -2515,44 +2502,134 @@ IN_Haptic_Prepare(void)
 }
 
 /*
- * Game Controller
+ * Helper functions for Gyro initialization.
+ * Their nature depend on NO_SDL_GYRO.
+ */
+
+#ifndef NO_SDL_GYRO
+
+static void
+IN_Joy_IMU_Treatment(SDL_Joystick *joystick, const char* joystick_name, SDL_JoystickID joy_id)
+{
+	SDL_CloseJoystick(joystick);
+	joystick = NULL;
+	Com_Printf ("Skipping IMU device.\n");
+}
+
+static void
+IN_Gyro_and_LED_Enabling(void)
+{
+	if (!controller) return;
+
+	const qboolean found_gyro =
+		SDL_GamepadHasSensor(controller, SDL_SENSOR_GYRO)
+		&& SDL_SetGamepadSensorEnabled(
+			controller, SDL_SENSOR_GYRO, true);
+
+	const qboolean found_accel =
+		SDL_GamepadHasSensor(controller, SDL_SENSOR_ACCEL)
+		&& SDL_SetGamepadSensorEnabled(
+			controller, SDL_SENSOR_ACCEL, true);
+
+	if (found_gyro && found_accel)
+	{
+		show_gyro = true;
+		Com_Printf("Sensors enabled: Gyro at %.2f Hz, Accelerometer at %.2f Hz\n",
+			SDL_GetGamepadSensorDataRate(controller, SDL_SENSOR_GYRO),
+			SDL_GetGamepadSensorDataRate(controller, SDL_SENSOR_ACCEL));
+	}
+	else
+	{
+		if (!found_gyro)
+		{
+			Com_Printf("Gyro sensor not found.\n");
+		}
+
+		if (!found_accel)
+		{
+			Com_Printf("Accelerometer sensor not found.\n");
+		}
+
+		// Both were required for gyro support, so disable them completely.
+		SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, false);
+		SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_ACCEL, false);
+	}
+
+	const bool hasLED = SDL_GetBooleanProperty( SDL_GetGamepadProperties(controller),
+			SDL_PROP_JOYSTICK_CAP_RGB_LED_BOOLEAN, false );
+	if (hasLED)
+	{
+		SDL_SetGamepadLED(controller, 0, 80, 0);	// green light
+	}
+}
+
+static qboolean
+IN_GameController_Verify_Init_Complete(void)
+{
+	return show_gamepad;
+}
+
+#else	// with NO_SDL_GYRO
+
+static void
+IN_Joy_IMU_Treatment(SDL_Joystick *joystick, const char* joystick_name, SDL_JoystickID joy_id)
+{
+	// If it's not a Left JoyCon, use it as Gyro
+	const qboolean using_imu = !imu_joystick &&
+		!( strstr(joystick_name, "Joy-Con") && strstr(joystick_name, "L") );
+	Com_Printf ("IMU device found... ");
+	SDL_CloseJoystick(joystick);
+	joystick = NULL;
+
+	if (using_imu)
+	{
+		imu_joystick = SDL_OpenJoystick(joy_id);
+		if (imu_joystick)
+		{
+			show_gyro = true;
+			Com_Printf ("using it as Gyro sensor.\n");
+		}
+		else
+		{
+			Com_Printf ("\nCouldn't open IMU: %s.\n", SDL_GetError());
+		}
+	}
+	else
+	{
+		Com_Printf ("skipping.\n");
+	}
+}
+
+static void
+IN_Gyro_and_LED_Enabling(void)
+{
+	// Unavailable in this case
+}
+
+static qboolean
+IN_GameController_Verify_Init_Complete(void)
+{
+	return (show_gamepad && show_gyro);
+}
+
+#endif	// NO_SDL_GYRO
+
+/*
+ * Game Controller initialization
  */
 static void
 IN_Controller_Init(qboolean notify_user)
 {
-	cvar_t *cvar;
-	int nummappings, numjoysticks, joy_num, i;
+	int numjoysticks, joy_num, i;
 	char controllerdb[MAX_OSPATH] = {0};
 	SDL_Joystick *joystick = NULL;
 	bool is_controller = false;
 
-	cvar = Cvar_Get("joy_escbutton", "0", CVAR_ARCHIVE);
-	if (cvar)
-	{
-		switch ((int)cvar->value)
-		{
-			case 1:
-				joy_escbutton = SDL_GAMEPAD_BUTTON_BACK;
-				break;
-			case 2:
-				joy_escbutton = SDL_GAMEPAD_BUTTON_GUIDE;
-				break;
-			default:
-				joy_escbutton = SDL_GAMEPAD_BUTTON_START;
-		}
-	}
-
-	cvar = Cvar_Get("in_initjoy", "1", CVAR_NOSET);
+	const cvar_t *cvar = Cvar_Get("in_initjoy", "1", CVAR_NOSET);
 	joy_num = (int)cvar->value;
-	if (joy_num < 1)
-	{
-		return;
-	}
+	if (joy_num < 1) return;
 
-	if (notify_user)
-	{
-		Com_Printf("- Gamepad init attempt -\n");
-	}
+	if (notify_user) Com_Printf("- Gamepad init attempt -\n");
 
 	if (!SDL_WasInit(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC))
 	{
@@ -2576,14 +2653,13 @@ IN_Controller_Init(qboolean notify_user)
 		IN_Haptic_Prepare();
 
 		SDL_free((void *)joysticks);
-
 		return;
 	}
 
 	for (const char* rawPath = FS_GetNextRawPath(NULL); rawPath != NULL; rawPath = FS_GetNextRawPath(rawPath))
 	{
 		snprintf(controllerdb, MAX_OSPATH, "%s/gamecontrollerdb.txt", rawPath);
-		nummappings = SDL_AddGamepadMappingsFromFile(controllerdb);
+		int nummappings = SDL_AddGamepadMappingsFromFile(controllerdb);
 		if (nummappings > 0)
 			Com_Printf ("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
 	}
@@ -2601,54 +2677,25 @@ IN_Controller_Init(qboolean notify_user)
 		}
 
 		const char* joystick_name = SDL_GetJoystickName(joystick);
-		const int name_len = strlen(joystick_name);
+		const size_t name_len = strlen(joystick_name);
 
 		Com_Printf ("Trying joystick %d, '%s'\n", i+1, joystick_name);
 
 		// Ugly hack to detect IMU-only devices - works for Switch controllers at least
 		if ( name_len > 6 && strstr(joystick_name + name_len - 6, "IMU") )
 		{
-#ifndef NO_SDL_GYRO
-			SDL_CloseJoystick(joystick);
-			joystick = NULL;
-			Com_Printf ("Skipping IMU device.\n");
-
-#else	// if it's not a Left JoyCon, use it as Gyro
-			qboolean using_imu = !imu_joystick && !( strstr(joystick_name, "Joy-Con") && strstr(joystick_name, "L") );
-			Com_Printf ("IMU device found... ");
-			SDL_CloseJoystick(joystick);
-			joystick = NULL;
-
-			if (using_imu)
-			{
-				imu_joystick = SDL_OpenJoystick(joysticks[i]);
-				if (imu_joystick)
-				{
-					show_gyro = true;
-					Com_Printf ("using it as Gyro sensor.\n");
-				}
-				else
-				{
-					Com_Printf ("\nCouldn't open IMU: %s.\n", SDL_GetError());
-				}
-			}
-			else
-			{
-				Com_Printf ("skipping.\n");
-			}
-#endif
+			IN_Joy_IMU_Treatment(joystick, joystick_name, joysticks[i]);
 			goto next_joy;
 		}
 
 		Com_Printf ("Buttons = %d, Axes = %d, Hats = %d\n", SDL_GetNumJoystickButtons(joystick),
-			    SDL_GetNumJoystickAxes(joystick), SDL_GetNumJoystickHats(joystick));
+				SDL_GetNumJoystickAxes(joystick), SDL_GetNumJoystickHats(joystick));
 		is_controller = SDL_IsGamepad(joysticks[i]);
 
 		if (!is_controller)
 		{
 			char joystick_guid[65] = {0};
 			SDL_GUID guid = SDL_GetJoystickGUIDForID(joysticks[i]);
-
 			SDL_GUIDToString(guid, joystick_guid, 64);
 
 			Com_Printf ("To identify joystick as Gamepad, provide its config by either:\n"
@@ -2670,57 +2717,14 @@ IN_Controller_Init(qboolean notify_user)
 			}
 
 			show_gamepad = true;
-			Com_Printf("Enabled as Gamepad, settings:\n%s\n",
-				   SDL_GetGamepadMapping(controller));
-
-#ifndef NO_SDL_GYRO
-
-			const qboolean found_gyro =
-				SDL_GamepadHasSensor(controller, SDL_SENSOR_GYRO)
-				&& SDL_SetGamepadSensorEnabled(
-					controller, SDL_SENSOR_GYRO, true);
-
-			const qboolean found_accel =
-				SDL_GamepadHasSensor(controller, SDL_SENSOR_ACCEL)
-				&& SDL_SetGamepadSensorEnabled(
-					controller, SDL_SENSOR_ACCEL, true);
-
-			if (found_gyro && found_accel)
-			{
-				show_gyro = true;
-				Com_Printf("Sensors enabled: Gyro at %.2f Hz, Accelerometer at %.2f Hz\n",
-					SDL_GetGamepadSensorDataRate(controller, SDL_SENSOR_GYRO),
-					SDL_GetGamepadSensorDataRate(controller, SDL_SENSOR_ACCEL));
-			}
-			else
-			{
-				if (!found_gyro)
-				{
-					Com_Printf("Gyro sensor not found.\n");
-				}
-
-				if (!found_accel)
-				{
-					Com_Printf("Accelerometer sensor not found.\n");
-				}
-
-				// Both were required for gyro support, so disable them completely.
-				SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, false);
-				SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_ACCEL, false);
-			}
-
-			bool hasLED = SDL_GetBooleanProperty(SDL_GetGamepadProperties(controller), SDL_PROP_JOYSTICK_CAP_RGB_LED_BOOLEAN, false);
-			if (hasLED)
-			{
-				SDL_SetGamepadLED(controller, 0, 80, 0);	// green light
-			}
-
-#endif	// !NO_SDL_GYRO
+			Com_Printf("Enabled as Gamepad, settings:\n%s\n", SDL_GetGamepadMapping(controller));
+			IN_Gyro_and_LED_Enabling();
 
 			joystick_haptic = SDL_OpenHapticFromJoystick(SDL_GetGamepadJoystick(controller));
 			IN_Haptic_Prepare();
 
-			bool hasRumble = SDL_GetBooleanProperty(SDL_GetGamepadProperties(controller), SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false);
+			const bool hasRumble = SDL_GetBooleanProperty( SDL_GetGamepadProperties(controller),
+					SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false );
 			if (hasRumble)
 			{
 				show_haptic = true;
@@ -2730,13 +2734,10 @@ IN_Controller_Init(qboolean notify_user)
 			{
 				Com_Printf("Gamepad doesn't support rumble.\n");
 			}
-
-#ifndef NO_SDL_GYRO	// "native SDL gyro" exits when finding a single working gamepad
-			break;
-#endif
 		}
 
 next_joy:
+		if (IN_GameController_Verify_Init_Complete()) break;
 		i++;
 		if (i == numjoysticks) i = 0;
 	}
@@ -2773,7 +2774,7 @@ static const joy_preset_t joy_presets[] = {
 void
 IN_ApplyJoyPreset(void)
 {
-	const int final_preset = ARRLEN(joy_presets) - 1;
+	static const int final_preset = ARRLEN(joy_presets) - 1;
 	const int i = lroundf(Q_clamp(joy_sensitivity->value, 0, final_preset));
 
 	joy_sensitivity->modified = false;
@@ -2791,7 +2792,7 @@ IN_ApplyJoyPreset(void)
 qboolean
 IN_MatchJoyPreset(void)
 {
-	const int num_presets = ARRLEN(joy_presets);
+	static const int num_presets = ARRLEN(joy_presets);
 
 	for (int i = 0; i < num_presets; i++)
 	{

@@ -32,6 +32,7 @@
 #endif
 
 #include <errno.h>
+#include <limits.h>
 
 #include "../header/client.h"
 #include "header/local.h"
@@ -144,7 +145,7 @@ OGG_InitTrackList(void)
 
 	const char* potMusicDirs[3] = {0};
 	char gameMusicDir[MAX_QPATH] = {0}; // e.g. "xatrix/music"
-	cvar_t* gameCvar = Cvar_Get("game", "", CVAR_LATCH | CVAR_SERVERINFO);
+	const cvar_t* gameCvar = Cvar_Get("game", "", CVAR_LATCH | CVAR_SERVERINFO);
 
 	if (gameCvar->string[0] == '\0' || strcmp(BASEDIRNAME, gameCvar->string) == 0)
 	{
@@ -528,7 +529,7 @@ OGG_PlayTrack(const char *track, qboolean cdtrack, qboolean immediate)
 	case 1:			// play once
 	{
 		return;
-	} break;
+	};
 	case 2:			// sequential
 	{
 		newtrack = (curtrack + 1) % (ogg_maxfileindex + 1) != 0 ? (curtrack + 1) : 2;
@@ -753,6 +754,10 @@ OGG_Cmd(void)
 	{
 		OGG_Info();
 	}
+	else if (Q_stricmp(Cmd_Argv(1), "mute") == 0)
+	{
+	    ogg_mutemusic = !ogg_mutemusic;
+	}
 	else if (Q_stricmp(Cmd_Argv(1), "play") == 0)
 	{
 		if (Cmd_Argc() != 3)
@@ -763,6 +768,13 @@ OGG_Cmd(void)
 
 		OGG_PlayTrack(Cmd_Argv(2), false, true);
 	}
+	else if (Q_stricmp(Cmd_Argv(1), "skip") == 0)
+	{
+		char curtrack[4];
+		snprintf(curtrack, sizeof(curtrack), "%i", ogg_curfile);
+		OGG_Stop();
+		OGG_PlayTrack(curtrack, false, false);
+	}
 	else if (Q_stricmp(Cmd_Argv(1), "stop") == 0)
 	{
 		OGG_Stop();
@@ -770,10 +782,6 @@ OGG_Cmd(void)
 	else if (Q_stricmp(Cmd_Argv(1), "toggle") == 0)
 	{
 		OGG_TogglePlayback();
-	}
-	else if (Q_stricmp(Cmd_Argv(1), "mute") == 0)
-	{
-	    ogg_mutemusic = !ogg_mutemusic;
 	}
 	else
 	{
@@ -912,8 +920,9 @@ OGG_LoadAsWav(const char *filename, wavinfo_t *info, void **buffer)
 
 	/* load vorbis file from memory */
 	ogg2wav_file = stb_vorbis_open_memory(temp_buffer, size, &res, NULL);
-	if (!res && ogg2wav_file->channels > 0)
+	if (ogg2wav_file && !res && ogg2wav_file->channels > 0)
 	{
+		unsigned int samples = 0;
 		int read_samples = 0;
 
 		/* fill in wav structure */
@@ -922,7 +931,16 @@ OGG_LoadAsWav(const char *filename, wavinfo_t *info, void **buffer)
 		info->channels = ogg2wav_file->channels;
 		info->loopstart = -1;
 		/* return length * channels */
-		info->samples = stb_vorbis_stream_length_in_samples(ogg2wav_file) * info->channels;
+		samples = stb_vorbis_stream_length_in_samples(ogg2wav_file);
+
+		if (samples > INT_MAX / info->channels)
+		{
+			stb_vorbis_close(ogg2wav_file);
+			FS_FreeFile(temp_buffer);
+			return;
+		}
+
+		info->samples = (int)(samples * info->channels);
 		info->dataofs = 0;
 
 		/* alloc memory for uncompressed wav */

@@ -1,5 +1,6 @@
 # Yamagi Quake II Remaster
 
+[![Coverity Scan](https://img.shields.io/coverity/scan/31780)](https://scan.coverity.com/projects/yquake2-yquake2remaster)
 [![Top Language](https://img.shields.io/github/languages/top/yquake2/yquake2remaster.svg)](https://github.com/yquake2/yquake2remaster)
 [![Code Size](https://img.shields.io/github/languages/code-size/yquake2/yquake2remaster.svg)](https://github.com/yquake2/yquake2remaster)
 [![Release](https://img.shields.io/github/release/yquake2/yquake2remaster.svg)](https://github.com/yquake2/yquake2remaster/releases/latest)
@@ -9,6 +10,7 @@
 [![Downloads (latest)](https://img.shields.io/github/downloads/yquake2/yquake2remaster/latest/total.svg)](https://github.com/yquake2/yquake2remaster/releases/latest)
 [![Commits](https://img.shields.io/github/commits-since/yquake2/yquake2remaster/latest.svg)](https://github.com/yquake2/yquake2remaster/commits/master)
 [![Last Commit](https://img.shields.io/github/last-commit/yquake2/yquake2remaster.svg)](https://github.com/yquake2/yquake2remaster/commits/master)
+[![Build Status](https://github.com/yquake2/yquake2remaster/actions/workflows/coverity.yml/badge.svg)](https://github.com/yquake2/yquake2remaster/actions/workflows/coverity.yml)
 [![Build Status](https://github.com/yquake2/yquake2remaster/actions/workflows/linux_aarch64.yml/badge.svg)](https://github.com/yquake2/yquake2remaster/actions/workflows/linux_aarch64.yml)
 [![Build Status](https://github.com/yquake2/yquake2remaster/actions/workflows/linux_x86_64.yml/badge.svg)](https://github.com/yquake2/yquake2remaster/actions/workflows/linux_x86_64.yml)
 [![Build Status](https://github.com/yquake2/yquake2remaster/actions/workflows/macos.yml/badge.svg)](https://github.com/yquake2/yquake2remaster/actions/workflows/macos.yml)
@@ -29,7 +31,15 @@ Have a look at the yquake2 repository for the "normal" Yamagi Quake II:
 * Saves format is unstable and could change between alpha releases.
 * MacOS build is only build tested and run is not checked.
 
-Models support:
+### Building from Source
+
+If you downloaded the Source Code (ZIP) directly from GitHub, please note that GitHub does
+not include submodules in these archives. To build the project successfully, you have two options:
+
+ * Follow the step-by-step instructions for a [lightweight setup](doc/020_installation.md#minimal-test-run-on-debian)
+ * Use CMake without submodules.
+
+### Models support:
 
 | Format | Original Game   | Frame vertex | Meshes   | Comments                                |
 | ------ | --------------- | ------------ | -------- | --------------------------------------- |
@@ -51,7 +61,7 @@ Models support:
 
 All models support only single texture for all meshes and frames limit based on game protocol.
 
-Texture support:
+### Texture support:
 
 | Format | Original Game  | Comments |
 | ------ | -------------- | -------- |
@@ -66,7 +76,7 @@ Texture support:
 | jpg    | retexturing    | 24 bit   |
 | bmp    | Daikatana      | 24 bit   |
 
-Sprites support:
+### Sprites support:
 
 | Format | Original Game  | Comments                                       |
 | ------ | -------------- | ---------------------------------------------- |
@@ -77,7 +87,7 @@ Sprites support:
 | png    |                | Convert to sp2                                 |
 | tga    | ReRelease      | Convert to sp2                                 |
 
-Maps support:
+### Maps support:
 
 | Format | Version | Game                                       |
 | ------ | ------- | ------------------------------------------ |
@@ -90,7 +100,7 @@ Maps support:
 | QBSP   | 38      | Quake 2 ReRelease                          |
 | BSPX   | 38      | Quake 2 ReRelease (Extension to IBSP)      |
 
-Sound support:
+### Sound support:
 
 | Format | Music | Effects |
 | ------ | ----- | ------- |
@@ -98,7 +108,7 @@ Sound support:
 | ogg    | Yes   | Yes     |
 | mp3    | No    | Yes     |
 
-Package file support:
+### Package file support:
 
 | Format | Description                        |
 | ------ | ---------------------------------- |
@@ -118,7 +128,7 @@ Note:
 * If you like support some other maps type, create pull request for Mod_Load2QBSP
    function and provide a link to demo maps.
 
-Dynamic frame names:
+### Dynamic frame names:
 
 | group   | monster | player | description   |
 | ------- | ------- | ------ | ------------- |
@@ -150,7 +160,7 @@ Dynamic frame names:
 | wave    |    N    |    Y   |               |
 | walk    |    Y    |        |               |
 
-Games:
+### Games:
 
 * Quake 2 ReRelease:
   * SDK: <https://github.com/id-Software/quake2-rerelease-dll>
@@ -180,6 +190,8 @@ Games:
 * Dawn of Darkness:
   * Docs: <https://www.moddb.com/mods/dawn-of-darkness1/downloads/dod-mood-scripts-gsm-tutorials-fgd-and-def-file>
   * Demo: [Episode 1](https://www.moddb.com/mods/dawn-of-darkness1/downloads/dawn-of-darkness-episode-1)
+* Infinity: The Kai'Ren Threat
+  * Demo: [Demo maps](https://www.moddb.com/mods/infinity-the-kairen-threat/downloads/infinity-demo)
 * JaBot:
   * SDK: <https://www.moddb.com/mods/jabotq2/downloads/jabot-q2-v09x-win32-and-linux>
 * Additional maps used for check maps support:
@@ -188,13 +200,22 @@ Games:
   * ReRelease Basic Jam: <https://www.moddb.com/games/quake-2/addons/quake-2-re-release-back-to-baseq2ics-jam-1>
   * ReRelease PSX Jam: <https://www.moddb.com/mods/psx-jam-1/downloads/quake-2-re-release-psx-jam-1>
 
-Games check videos:
+### Games check videos:
+
+* 8.61RR15+:
+
+[![Check hologram implementation](https://img.youtube.com/vi/jTaCyx3KCr0/hqdefault.jpg)](https://www.youtube.com/watch?v=jTaCyx3KCr0)
+
+* 8.61RR14+:
+
+[![Check dynamic animation for weapons](https://img.youtube.com/vi/R8crz-ISkeA/hqdefault.jpg)](https://www.youtube.com/watch?v=R8crz-ISkeA)
+[![Check infinity mod](https://img.youtube.com/vi/JYw_FEjaPJ4/hqdefault.jpg)](https://www.youtube.com/watch?v=JYw_FEjaPJ4)
 
 * 8.61RR13+:
 
-[![Check dynamic player swim](https://img.youtube.com/vi/8N_TJPsgvC0/hqdefault.jpg)](https://www.youtube.com/watch?v=8N_TJPsgvC0A)
-[![Check demo maps](https://img.youtube.com/vi/VkhrEOtKeZE/hqdefault.jpg)](https://www.youtube.com/watch?v=VkhrEOtKeZEA)
-[![Check demo maps](https://img.youtube.com/vi/SHZAEkgUJLg/hqdefault.jpg)](https://www.youtube.com/watch?v=SHZAEkgUJLgA)
+[![Check dynamic player swim](https://img.youtube.com/vi/8N_TJPsgvC0/hqdefault.jpg)](https://www.youtube.com/watch?v=8N_TJPsgvC0)
+[![Check demo maps](https://img.youtube.com/vi/VkhrEOtKeZE/hqdefault.jpg)](https://www.youtube.com/watch?v=VkhrEOtKeZE)
+[![Check demo maps](https://img.youtube.com/vi/SHZAEkgUJLg/hqdefault.jpg)](https://www.youtube.com/watch?v=SHZAEkgUJLg)
 
 Checked with:
  * [Q2Test](https://archive.org/details/QuakeII_1020)
@@ -203,13 +224,13 @@ Checked with:
 
 * 8.61RR13:
 
-[![Check dynamic frames](https://img.youtube.com/vi/dXJ5vOsYdvQ/hqdefault.jpg)](https://www.youtube.com/watch?v=dXJ5vOsYdvQA)
+[![Check dynamic frames](https://img.youtube.com/vi/dXJ5vOsYdvQ/hqdefault.jpg)](https://www.youtube.com/watch?v=dXJ5vOsYdvQ)
 
 * 8.52RR13+:
 
-[![Check dynamic frames split](https://img.youtube.com/vi/_CPmh5_TLbk/hqdefault.jpg)](https://www.youtube.com/watch?v=_CPmh5_TLbkA)
-[![Check dynamic frames groups](https://img.youtube.com/vi/qDSaRBsnh3k/hqdefault.jpg)](https://www.youtube.com/watch?v=qDSaRBsnh3kA)
-[![Check menu translation and fog](https://img.youtube.com/vi/HHj6m0z0uGA/hqdefault.jpg)](https://www.youtube.com/watch?v=HHj6m0z0uGA)
+[![Check dynamic frames split](https://img.youtube.com/vi/_CPmh5_TLbk/hqdefault.jpg)](https://www.youtube.com/watch?v=_CPmh5_TLbk)
+[![Check dynamic frames groups](https://img.youtube.com/vi/qDSaRBsnh3k/hqdefault.jpg)](https://www.youtube.com/watch?v=qDSaRBsnh3k)
+[![Check menu translation and fog](https://img.youtube.com/vi/HHj6m0z0uGA/hqdefault.jpg)](https://www.youtube.com/watch?v=HHj6m0z0uG)
 
 * 8.52RR12+:
 
@@ -255,9 +276,9 @@ Checked with:
 [![8.31RR7](https://img.youtube.com/vi/VAFs1HtQU_0/hqdefault.jpg)](https://www.youtube.com/watch?v=VAFs1HtQU_0)
 
 
-Goals, fully finished goals could be checked in [here](CHANGELOG):
+### Goals, fully finished goals could be checked in [here](CHANGELOG):
 
-* [ ] soft: fix crash with md5 models in player model select and ASAN=1
+* [ ] soft: fix crash with md5 models in player model select and ASAN=1,
 * [ ] soft: q64/outpost scale textures unsupported,
 * [ ] soft: broken wall light and wall glitch,
 * [ ] soft: rework 32bit color cinema workarrounds,
@@ -267,18 +288,16 @@ Goals, fully finished goals could be checked in [here](CHANGELOG):
 * [ ] vulkan: group `it_pic` images,
 * [ ] vulkan: rearange surfaces before render,
 * [ ] vulkan: add fog distance effect,
+* [ ] soft: add fog distance effect (optional),
 * [ ] reuse memory from models cache in renders model list,
 * [ ] reuse memory from models cache for bsp,
-* [ ] game: cleanup function declarations in game save code,
 * [ ] game: fix broken base3 with sorted fields names,
 * [ ] game: code has not reset ctf flag on load saves,
 * [ ] game: code has reset thirdperson flag on load new level,
 * [ ] game: check RealBoundingBox with frame box,
-* [ ] ReRelease: mguhub map has sometimes broken logic for surface fall in next maps,
-* [ ] ReRelease: incorrect light apply to models (wall looks fine),
 * [ ] ReRelease: incorrect dead animation for Arachnid,
 * [ ] ReRelease: broken fire effect for Guardian.
-* [ ] ReRelease: fix invisiable entities in basicsjam1_ziutek,
+* [ ] ReRelease: water in basicsjam1_ziutek,
 * [ ] ReRelease: make lightmap textures dynamic n64jam_palmlix,
 * [ ] ReRelease: support `textures/*/*.mat load` texture effects,
 * [ ] ReRelease: support `textures/*/*_glow.png` load,
@@ -287,8 +306,8 @@ Goals, fully finished goals could be checked in [here](CHANGELOG):
 * [ ] ReRelease: basicsjam1_detrohogga: fix droptofloor startsolid,
 * [ ] gl1, gl3, gl4, vk, soft: implement direction of `CS_SHADOWLIGHTS`,
 * [ ] gl3, gl4: implement color multiplication and alpha gradient for `misc_flare`,
-* [ ] gl3, gl4: add fog distance effect,
-* [ ] soft, vulkan: implement color multiplication and alpha combine or make black
+* [ ] gl3, gl4, vk: fix and port `r_bloom`,
+* [ ] soft: implement color multiplication and alpha combine or make black
       parts transparent for `misc_flare`,
 * [ ] ReRelease: single player support,
 * [ ] ReRelease: support effects and additional flags when possible,
@@ -296,10 +315,9 @@ Goals, fully finished goals could be checked in [here](CHANGELOG):
       and https://github.com/Paril/quake2-rerelease-dll,
 * [ ] ReRelease: modified game code support with removed KEX only related code.
 
-Other games support goals:
+### Other games support goals:
 
-* [ ] Jabot: fix crash in SZ_GetSpace,
-* [ ] Jabot: dynamic allocations,
+* [ ] jabot: make count of nodes/edicts dynamic allocations,
 * [ ] Heretic 2: add swim player animation support,
 * [ ] Heretic 2: add utf8 colors and fonts support in console,
 * [ ] Heretic 2: correct obj placeholders,
@@ -310,22 +328,50 @@ Other games support goals:
 * [ ] Anachronox: load atd as sprite,
 * [ ] Anachronox: fix incorrect scale of `ob_stop-flame` and `ob_wommhill01`,
 * [ ] Anachronox: skins load broken with mingw win64 build,
-* [ ] Anachronox: rowdys map models disappear on dance space,
-* [ ] Anachronox: rowdys save entity disappear in a8080c05,
 * [ ] Anachronox: CTC entity format,
 * [ ] Anachronox: support material load textures/textureinfo.dat,
 * [ ] Daikatana: Fix protopod animation,
 * [ ] Daikatana/SiN: Fix transparent textures in maps,
-* [ ] DoD: fix statusbar `roarke`.
+* [ ] DoD: fix statusbar `roarke`,
+* [ ] Support obj waveform model format for debug other formats.
 
-Not a goal:
+### Fixed:
+
+* [x] ReRelease: mguhub map has sometimes broken logic for surface fall in next maps,
+* [x] game: cleanup function declarations in game save code,
+* [x] Jabot: fix crash in SZ_GetSpace,
+* [x] vulkan: implement color multiplication and alpha combine or make black
+      parts transparent for `misc_flare`,
+* [x] ReRelease: fix vulkan render on open door in mguhub,
+* [x] gl1: reuse R_MakeSkyVec,
+* [x] Anachronox: rowdys save entity disappear in a8080c05,
+* [x] gl4: add fog distance effect,
+* [x] gl3: add fog distance effect,
+* [x] client: share r_farsee,
+* [x] Infinity: implement `misc_hologram`,
+* [x] Infinity: implement `misc_lightning`,
+* [x] Infinity: implement `misc_text_caption`,
+* [x] Infinity: implement `misc_rain`,
+* [x] Infinity: implement `misc_drip`,
+* [x] Infinity: implement `misc_desk`,
+* [x] Infinity: implement `misc_chair`,
+* [x] Infinity: implement `misc_crate`,
+* [x] ReRelease: implement `misc_lavaball`,
+* [x] ReRelease: implement `target_story`,
+* [x] ReRelease: implement `target_crossunit_target`,
+* [x] ReRelease: implement `target_crossunit_trigger`,
+* [x] CppCheck: fix const warnings and scope,
+* [x] renders: share model_t type.
+* [x] ReRelease: Fix jerky rotation animation for func_rotating entities in Call of the Machine
+
+### Not a goal:
 
 * [ ] Multiplayer protocol support with KEX engine,
 * [ ] Support KEX engine features (inventory, compass and so on),
 * [ ] [KEX game library support](https://github.com/id-Software/quake2-rerelease-dll).
 
 
-# Additional requirements:
+### Additional requirements:
 
 * ReRelease localization requires `Q2Game.kpf` file in root directory of game. If you
   like to support your language put it to localization/loc_<your language>.txt
@@ -335,7 +381,7 @@ Not a goal:
 * Heretic 2 localization requires `levelmsg.txt` in game directory.
 * Hexen 2 localization requires `Strings.txt` in game directory.
 
-Additional models:
+### Additional models:
 
 | Spawn classname  | Description                    |
 | ---------------- | ------------------------------ |

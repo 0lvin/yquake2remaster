@@ -300,7 +300,7 @@ void R_ConcatTransforms(const float in1[3][4], const float in2[3][4], float out[
 
 void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 void AngleVectors2(const vec3_t value1, vec3_t angles);
-int BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const struct cplane_s *plane);
+int BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const struct cplane_s *p);
 float anglemod(float a);
 float Q_fabs(float f);
 float LerpAngle(float a2, float a1, float frac);
@@ -350,15 +350,15 @@ void Com_PageInMemory(const byte *buffer, int size);
 /* portable case insensitive compare */
 int Q_stricmp(const char *s1, const char *s2);
 int Q_strcasecmp(const char *s1, const char *s2);
-int Q_strncasecmp(const char *s1, const char *s2, int n);
-char *Q_strcasestr(const char *s1, const char *s2);
+int Q_strncasecmp(const char *s1, const char *s2, size_t n);
+char *Q_strcasestr(const char *haystack, const char *needle);
 
 /* portable string lowercase */
 char *Q_strlwr(char *s);
 
 /* portable safe string copy/concatenate */
-int Q_strlcpy(char *dst, const char *src, int size);
-int Q_strlcat(char *dst, const char *src, int size);
+int Q_strlcpy(char *dst, const char *src, size_t size);
+int Q_strlcat(char *dst, const char *src, size_t size);
 
 /* Copies only ASCII chars > 31 && < 127 from s to d, up to n - 1
  * Returns space needed to fully copy s to d (minus null char)
@@ -383,7 +383,7 @@ void Q_replacebackslash(char *curr);
  * chrs is a string of characters to search for
  * If found, returns a pointer to that char inside s, NULL otherwise
  */
-char *Q_strchrs(const char *s, const char *chrs);
+const char *Q_strchrs(const char *s, const char *chrs);
 
 /* Returns a pointer to c in s if found
  * Otherwise returns a pointer to the null-terminator at the end of s
@@ -455,7 +455,7 @@ qboolean Sys_IsFile(const char *path);
 /* large block stack allocation routines */
 YQ2_ATTR_MALLOC void *Hunk_Begin(int maxsize);
 YQ2_ATTR_MALLOC void *Hunk_Alloc(int size);
-void Hunk_Free(void *buf);
+void Hunk_Free(void *base);
 int Hunk_End(void);
 
 /* directory searching */
@@ -466,8 +466,8 @@ int Hunk_End(void);
 #define SFF_SYSTEM 0x10
 
 /* pass in an attribute mask of things you wish to REJECT */
-char *Sys_FindFirst(const char *path, unsigned musthave, unsigned canthave);
-char *Sys_FindNext(unsigned musthave, unsigned canthave);
+char *Sys_FindFirst(const char *path, unsigned musthave, unsigned canhave);
+char *Sys_FindNext(unsigned musthave, unsigned canhave);
 void Sys_FindClose(void);
 
 /* this is only here so the functions in shared source files can link */
@@ -703,6 +703,12 @@ typedef struct usercmd_s
 	byte lightlevel;        /* light level the player is standing on */
 } usercmd_t;
 
+/* waterlevel values */
+#define WATER_NONE 0
+#define WATER_FEET 1
+#define WATER_WAIST 2
+#define WATER_UNDER 3
+
 #define MAXTOUCH 32
 typedef struct
 {
@@ -728,7 +734,7 @@ typedef struct
 
 	/* callbacks to test the world */
 	trace_t (*trace)(vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end);
-	int (*pointcontents)(vec3_t point);
+	int (*pointcontents)(const vec3_t point);
 } pmove_t;
 
 /* entity_state_t->effects
@@ -771,7 +777,9 @@ typedef struct
 
 /* entity_state_t->rr_effects
  * ReRelease flags, values are different to quake 2 RR code */
-#define EF_FLASHLIGHT 0x00000001         /* project flashlight, only for players */
+#define EF_HOLOGRAM 0x00000001           /* N64 hologram */
+#define EF_FLASHLIGHT 0x00000002         /* project flashlight, only for players */
+#define EF_TELEPORTER2 0x00000004        /* [Paril-KEX] n64 teleporter */
 
 /* entity_state_t->renderfx flags */
 #define RF_MINLIGHT 1               /* allways have some light (viewmodel) */
@@ -1263,6 +1271,16 @@ typedef enum
 
 #define MAX_STATS 32
 
+typedef enum
+{
+	LAYOUTS_LAYOUT = 0x01,          /* svc_layout is active; escape remapped to putaway */
+	LAYOUTS_INVENTORY = 0x02,       /* inventory is active; escape remapped to putaway */
+	LAYOUTS_HIDE_HUD = 0x04,        /* hide entire hud, for cameras, etc */
+	LAYOUTS_INTERMISSION = 0x08,    /* intermission is being drawn; collapse splitscreen into 1 view */
+	LAYOUTS_HELP = 0x10,            /* help is active; escape remapped to putaway */
+	LAYOUTS_HIDE_CROSSHAIR = 0x20,  /* hide crosshair only */
+} layout_flags_t;
+
 /* dmflags->value flags */
 #define DF_NO_HEALTH 0x00000001         /* 1 */
 #define DF_NO_ITEMS 0x00000002          /* 2 */
@@ -1314,9 +1332,10 @@ typedef enum
 #define CS_AIRACCEL 29              /* air acceleration control */
 #define CS_MAXCLIENTS 30
 #define CS_MAPCHECKSUM 31           /* for catching cheater maps */
-#define CS_SKIP 32                  /* Skip config string */
+#define CS_STORY 32                 /* maps story */
+#define CS_SKIP 33                  /* Skip config string */
 
-#define CS_MODELS 33
+#define CS_MODELS 34
 #define CS_SOUNDS (CS_MODELS + MAX_MODELS)
 #define CS_IMAGES (CS_SOUNDS + MAX_SOUNDS)
 #define CS_LIGHTS (CS_IMAGES + MAX_IMAGES)
@@ -1379,6 +1398,7 @@ typedef struct entity_rrstate_s
 	vec3_t scale; /* model scale */
 	unsigned int effects;
 	unsigned int mesh;
+	float alpha; /* model alpha */
 } entity_rrstate_t;
 
 typedef struct entity_xstate_s
@@ -1407,6 +1427,7 @@ typedef struct entity_xstate_s
 	vec3_t scale; /* model scale */
 	unsigned int rr_effects;
 	unsigned int rr_mesh;
+	float rr_alpha; /* model alpha */
 } entity_xstate_t;
 
 typedef struct

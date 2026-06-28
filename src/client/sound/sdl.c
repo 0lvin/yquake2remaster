@@ -333,10 +333,10 @@ SDL_TransferPaintBuffer(int endtime)
  * Mixes an 8 bit sample into a channel.
  */
 static void
-SDL_PaintChannelFrom8(channel_t *ch, sfxcache_t *sc, int count, int offset)
+SDL_PaintChannelFrom8(channel_t *ch, const sfxcache_t *sc, int count, int offset)
 {
-	int *lscale, *rscale;
-	unsigned char *sfx;
+	const int *lscale, *rscale;
+	const unsigned char *sfx;
 	int i;
 	portable_samplepair_t *samp;
 
@@ -375,7 +375,7 @@ static void
 SDL_PaintChannelFrom16(channel_t *ch, sfxcache_t *sc, int count, int offset)
 {
 	int leftvol, rightvol;
-	signed short *sfx;
+	const signed short *sfx;
 	int i;
 	portable_samplepair_t *samp;
 
@@ -692,7 +692,6 @@ SDL_AddLoopSounds(void)
 		return;
 	}
 
-	memset(&sounds, 0, sizeof(int) * MAX_EDICTS);
 	S_BuildSoundList(sounds);
 
 	for (i = 0; i < cl.frame.num_entities; i++)
@@ -700,7 +699,7 @@ SDL_AddLoopSounds(void)
 		int left, right, left_total, right_total;
 		channel_t *ch;
 		sfx_t *sfx;
-		sfxcache_t *sc;
+		const sfxcache_t *sc;
 		int num;
 		entity_xstate_t *ent;
 		vec3_t org;
@@ -923,7 +922,7 @@ SDL_UpdateScaletable(void)
  * performed.
  */
 qboolean
-SDL_Cache(sfx_t *sfx, wavinfo_t *info, byte *data, short volume,
+SDL_Cache(sfx_t *sfx, const wavinfo_t *info, byte *data, short volume,
 		  int begin_length, int  end_length,
 		  int attack_length, int fade_length)
 {
@@ -1354,9 +1353,8 @@ SDL_SDL3Callback(void *userdata, SDL_AudioStream *stream, int additional_amount,
 qboolean
 SDL_BackendInit(void)
 {
-	char reqdriver[128];
 	SDL_AudioSpec spec;
-	int samples, tmp, val;
+	int samples, tmp;
 
 	/* This should never happen,
 	   but this is Quake 2 ... */
@@ -1372,6 +1370,8 @@ SDL_BackendInit(void)
 
 	if (strcmp(s_sdldriver->string, "auto") != 0)
 	{
+		char reqdriver[128];
+
 		snprintf(reqdriver, sizeof(reqdriver), "%s=%s", "SDL_AUDIODRIVER", s_sdldriver->string);
 		if (putenv(reqdriver))
 		{
@@ -1394,8 +1394,9 @@ SDL_BackendInit(void)
 			return false;
 		}
 	}
+
 	const char* drivername = SDL_GetCurrentAudioDriver();
-	if(drivername == NULL)
+	if (drivername == NULL)
 	{
 		drivername = "(UNKNOWN)";
 	}
@@ -1467,7 +1468,10 @@ SDL_BackendInit(void)
 	tmp = (samples * spec.channels) * 10;
 
 	if (tmp & (tmp - 1))
-	{	/* make it a power of two */
+	{
+		int val;
+
+		/* make it a power of two */
 		val = 1;
 		while (val < tmp)
 			val <<= 1;
@@ -1522,9 +1526,8 @@ SDL_BackendShutdown(void)
 qboolean
 SDL_BackendInit(void)
 {
-	char reqdriver[128];
 	SDL_AudioSpec spec;
-	int tmp, val;
+	int tmp;
 
 	/* This should never happen,
 	   but this is Quake 2 ... */
@@ -1536,10 +1539,12 @@ SDL_BackendInit(void)
 	int sndbits = (Cvar_Get("sndbits", "16", CVAR_ARCHIVE))->value;
 	int sndfreq = (Cvar_Get("s_khz", "44", CVAR_ARCHIVE))->value;
 	int sndchans = (Cvar_Get("sndchannels", "2", CVAR_ARCHIVE))->value;
-	cvar_t *s_sdldriver = (Cvar_Get("s_sdldriver", "auto", CVAR_ARCHIVE));
+	const cvar_t *s_sdldriver = (Cvar_Get("s_sdldriver", "auto", CVAR_ARCHIVE));
 
 	if (strcmp(s_sdldriver->string, "auto") != 0)
 	{
+		char reqdriver[128];
+
 		snprintf(reqdriver, sizeof(reqdriver), "%s=%s", "SDL_AUDIODRIVER", s_sdldriver->string);
 		if (putenv(reqdriver))
 		{
@@ -1631,7 +1636,10 @@ SDL_BackendInit(void)
 	tmp = (spec.samples * spec.channels) * 10;
 
 	if (tmp & (tmp - 1))
-	{	/* make it a power of two */
+	{
+		int val;
+
+		/* make it a power of two */
 		val = 1;
 		while (val < tmp)
 			val <<= 1;

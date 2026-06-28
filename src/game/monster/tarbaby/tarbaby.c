@@ -26,7 +26,7 @@ static int sound_hit;
 static int sound_land;
 static int sound_sight;
 
-void tarbaby_rejump(edict_t *self);
+static void tarbaby_rejump(edict_t *self);
 
 static void
 tarbaby_unbounce(edict_t *self)
@@ -39,8 +39,8 @@ static mframe_t tarbaby_frames_stand [] =
 {
 	{ai_stand, 0, tarbaby_unbounce}
 };
-mmove_t tarbaby_move_stand =
-{
+
+mmove_t tarbaby_move_stand = {
 	FRAME_walk1,
 	FRAME_walk1,
 	tarbaby_frames_stand,
@@ -88,8 +88,8 @@ static mframe_t tarbaby_frames_run [] =
 
 	{ai_run, 2, NULL}
 };
-mmove_t tarbaby_move_run =
-{
+
+mmove_t tarbaby_move_run = {
 	FRAME_run1,
 	FRAME_run25,
 	tarbaby_frames_run,
@@ -110,7 +110,7 @@ tarbaby_sight(edict_t *self, edict_t *other /* unused */)
 }
 
 void
-tarbaby_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+tarbaby_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (other->takedamage)
 	{
@@ -160,15 +160,15 @@ static mframe_t tarbaby_frames_fly [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t tarbaby_move_fly =
-{
+
+mmove_t tarbaby_move_fly = {
 	FRAME_fly1,
 	FRAME_fly4,
 	tarbaby_frames_fly,
 	tarbaby_rejump
 };
 
-void
+static void
 tarbaby_fly(edict_t *self)
 {
 	self->monsterinfo.currentmove = &tarbaby_move_fly;
@@ -185,15 +185,15 @@ static mframe_t tarbaby_frames_jump [] =
 	{ai_charge, 0, tarbaby_jump_step},
 	{ai_charge, 0, NULL}
 };
-mmove_t tarbaby_move_jump =
-{
+
+mmove_t tarbaby_move_jump = {
 	FRAME_jump1,
 	FRAME_jump6,
 	tarbaby_frames_jump,
 	tarbaby_fly
 };
 
-void
+static void
 tarbaby_rejump(edict_t *self)
 {
 	self->monsterinfo.currentmove = &tarbaby_move_jump;
@@ -229,7 +229,7 @@ tarbaby_explode(edict_t *self)
 // Death
 void
 tarbaby_die(edict_t *self, edict_t *inflictor /* unused */,
-	edict_t *attacker /* unused */, int damage, vec3_t point /* unused */)
+	edict_t *attacker /* unused */, int damage, const vec3_t point /* unused */)
 {
 	if (self->deadflag == DEAD_DEAD)
 		return;

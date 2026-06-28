@@ -216,15 +216,16 @@ Huff1TableInit(void)
 {
 	int prev;
 	int j;
-	int *node, *nodebase;
+	int *nodebase;
 	byte counts[256];
-	int numhnodes;
 
 	cin.hnodes1 = Z_Malloc(256 * 256 * 2 * 4);
 	memset(cin.hnodes1, 0, 256 * 256 * 2 * 4);
 
 	for (prev = 0; prev < 256; prev++)
 	{
+		int numhnodes;
+
 		memset(cin.h_count, 0, sizeof(cin.h_count));
 		memset(cin.h_used, 0, sizeof(cin.h_used));
 
@@ -242,6 +243,8 @@ Huff1TableInit(void)
 
 		while (numhnodes != 511)
 		{
+			int *node;
+
 			node = nodebase + (numhnodes - 256) * 2;
 
 			/* pick two lowest counts */
@@ -271,13 +274,13 @@ Huff1TableInit(void)
 static cblock_t
 Huff1Decompress(cblock_t in)
 {
-	byte *input;
+	const byte *input;
 	byte *out_p;
 	int nodenum;
 	int count;
 	cblock_t out;
-	int inbyte;
-	int *hnodes, *hnodesbase;
+	const int *hnodes;
+	int *hnodesbase;
 
 	/* get decompressed count */
 	count = in.data[0] + (in.data[1] << 8) + (in.data[2] << 16) + (in.data[3] << 24);
@@ -292,6 +295,8 @@ Huff1Decompress(cblock_t in)
 
 	while (count)
 	{
+		int inbyte;
+
 		inbyte = *input++;
 
 		int i = 0;
@@ -367,7 +372,7 @@ SCR_ReadNextMPGFrame(void)
 			short *audiobuffer;
 
 			samples = plm_decode_audio(cin.plm_video);
-			if (!samples || samples->count <= 0)
+			if (!samples || !samples->count)
 			{
 				break;
 			}
@@ -541,6 +546,22 @@ SCR_LoadAVcodec(const char *arg, const char *dot)
 
 		Com_sprintf(name, sizeof(name), "%s/video/%s%s", path, arg, dot);
 		cin.av_video = cinavdecode_open(name, viddef.width, viddef.height);
+
+		if (!cin.av_video)
+		{
+			char arg_lower[256];
+			size_t j;
+
+			Q_strlcpy(arg_lower, arg, sizeof(arg_lower));
+			for (j = 0; j < strlen(arg_lower); j++)
+			{
+				arg_lower[j] = tolower((unsigned char)arg_lower[j]);
+			}
+
+			Com_sprintf(name, sizeof(name), "%s/video/%s%s", path, arg_lower, dot);
+			cin.av_video = cinavdecode_open(name, viddef.width, viddef.height);
+		}
+
 		if (cin.av_video)
 		{
 			break;
@@ -788,7 +809,8 @@ SCR_PlayCinematic(char *arg)
 {
 	int width, height;
 	byte *palette = NULL;
-	char name[MAX_OSPATH], *dot;
+	char name[MAX_OSPATH];
+	const char *dot;
 
 	In_FlushQueue();
 	abort_cinematic = INT_MAX;
@@ -800,13 +822,13 @@ SCR_PlayCinematic(char *arg)
 	dot = strstr(arg, ".");
 
 	/* static pcx image */
-	if (dot && (!strcmp(dot, ".pcx") ||
-				!strcmp(dot, ".lmp") ||
-				!strcmp(dot, ".tga") ||
-				!strcmp(dot, ".jpg") ||
-				!strcmp(dot, ".png")))
+	if (dot && (!Q_stricmp(dot, ".pcx") ||
+				!Q_stricmp(dot, ".lmp") ||
+				!Q_stricmp(dot, ".tga") ||
+				!Q_stricmp(dot, ".jpg") ||
+				!Q_stricmp(dot, ".png")))
 	{
-		cvar_t	*r_retexturing;
+		const cvar_t *r_retexturing;
 		char namewe[256];
 
 		Com_sprintf(name, sizeof(name), "pics/%s", arg);
@@ -875,12 +897,12 @@ SCR_PlayCinematic(char *arg)
 	}
 
 #ifdef AVMEDIADECODE
-	if (dot && (!strcmp(dot, ".cin") ||
-				!strcmp(dot, ".ogv") ||
-				!strcmp(dot, ".avi") ||
-				!strcmp(dot, ".mpg") ||
-				!strcmp(dot, ".smk") ||
-				!strcmp(dot, ".roq")))
+	if (dot && (!Q_stricmp(dot, ".cin") ||
+				!Q_stricmp(dot, ".ogv") ||
+				!Q_stricmp(dot, ".avi") ||
+				!Q_stricmp(dot, ".mpg") ||
+				!Q_stricmp(dot, ".smk") ||
+				!Q_stricmp(dot, ".roq")))
 	{
 		char namewe[256];
 
@@ -925,13 +947,29 @@ SCR_PlayCinematic(char *arg)
 #else
 
 	/* buildin decoders */
-	if (dot && !strcmp(dot, ".mpg"))
+	if (dot && !Q_stricmp(dot, ".mpg"))
 	{
 		int len;
 
 		Com_sprintf(name, sizeof(name), "video/%s", arg);
 
 		len = FS_LoadFile(name, &cin.raw_video);
+
+		if (!cin.raw_video || len <= 0)
+		{
+			char arg_lower[256];
+			size_t j;
+
+			Q_strlcpy(arg_lower, arg, sizeof(arg_lower));
+			for (j = 0; j < strlen(arg_lower); j++)
+			{
+				arg_lower[j] = tolower((unsigned char)arg_lower[j]);
+			}
+
+			Com_sprintf(name, sizeof(name), "video/%s", arg_lower);
+			len = FS_LoadFile(name, &cin.raw_video);
+		}
+
 		if (!cin.raw_video || len <= 0)
 		{
 			cl.cinematictime = 0; /* done */
@@ -943,6 +981,11 @@ SCR_PlayCinematic(char *arg)
 			!plm_probe(cin.plm_video, len) ||
 			!cin.plm_video->demux)
 		{
+			if (cin.plm_video)
+			{
+				plm_destroy(cin.plm_video);
+				cin.plm_video = NULL;
+			}
 			FS_FreeFile(cin.raw_video);
 			cin.raw_video = NULL;
 			cl.cinematictime = 0; /* done */
@@ -992,7 +1035,20 @@ SCR_PlayCinematic(char *arg)
 #endif
 
 	Com_sprintf(name, sizeof(name), "video/%s", arg);
-	FS_FOpenFile(name, &cl.cinematic_file, false);
+	if (FS_FOpenFile(name, &cl.cinematic_file, false) < 0)
+	{
+		char arg_lower[256];
+		size_t j;
+
+		Q_strlcpy(arg_lower, arg, sizeof(arg_lower));
+		for (j = 0; j < strlen(arg_lower); j++)
+		{
+			arg_lower[j] = tolower((unsigned char)arg_lower[j]);
+		}
+
+		Com_sprintf(name, sizeof(name), "video/%s", arg_lower);
+		FS_FOpenFile(name, &cl.cinematic_file, false);
+	}
 
 	if (!cl.cinematic_file)
 	{

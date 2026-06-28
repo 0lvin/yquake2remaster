@@ -85,7 +85,7 @@ static qboolean
 StringToFilter(char *s, ipfilter_t *f)
 {
 	char num[128];
-	int i, j;
+	int i;
 	YQ2_ALIGNAS_TYPE(unsigned) byte b[4];
 	YQ2_ALIGNAS_TYPE(unsigned) byte m[4];
 
@@ -102,6 +102,8 @@ StringToFilter(char *s, ipfilter_t *f)
 
 	for (i = 0; i < 4; i++)
 	{
+		int j;
+
 		if ((*s < '0') || (*s > '9'))
 		{
 			gi.cprintf(NULL, PRINT_HIGH, "Bad filter address: %s\n", s);
@@ -139,12 +141,12 @@ StringToFilter(char *s, ipfilter_t *f)
 }
 
 qboolean
-SV_FilterPacket(char *from)
+SV_FilterPacket(const char *from)
 {
 	int i;
 	unsigned in;
 	YQ2_ALIGNAS_TYPE(unsigned) byte m[4];
-	char *p;
+	const char *p;
 
 	if (!from)
 	{
@@ -270,8 +272,8 @@ SVCmd_ListIP_f(void)
 	{
 		/* PVS NOTE: maybe use memcpy instead? */
 		*(unsigned *)b = ipfilters[i].compare;
-		gi.cprintf(NULL, PRINT_HIGH, "%3i.%3i.%3i.%3i\n", b[0],
-				b[1], b[2], b[3]);
+		gi.cprintf(NULL, PRINT_HIGH, "%3i.%3i.%3i.%3i\n",
+				b[0], b[1], b[2], b[3]);
 	}
 }
 

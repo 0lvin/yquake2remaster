@@ -128,11 +128,11 @@ typedef struct
 	/* special messages */
 	void (*bprintf)(int printlevel, const char *fmt, ...);
 	void (*dprintf)(const char *fmt, ...);
-	void (*cprintf)(edict_t *ent, int printlevel, const char *fmt, ...);
-	void (*centerprintf)(edict_t *ent, const char *fmt, ...);
-	void (*sound)(edict_t *ent, int channel, int soundindex, float volume,
+	void (*cprintf)(const edict_t *ent, int printlevel, const char *fmt, ...);
+	void (*centerprintf)(const edict_t *ent, const char *fmt, ...);
+	void (*sound)(const edict_t *ent, int channel, int soundindex, float volume,
 			float attenuation, float timeofs);
-	void (*positioned_sound)(vec3_t origin, edict_t *ent, int channel,
+	void (*positioned_sound)(const vec3_t origin, const edict_t *ent, int channel,
 			int soundinedex, float volume, float attenuation, float timeofs);
 
 	/* config strings hold all the index strings, the lightstyles,
@@ -154,7 +154,7 @@ typedef struct
 	/* collision detection */
 	trace_t (*trace)(const vec3_t start, const vec3_t mins, const vec3_t maxs,
 			const vec3_t end, const edict_t *passent, int contentmask);
-	int (*pointcontents)(vec3_t point);
+	int (*pointcontents)(const vec3_t point);
 	qboolean (*inPVS)(vec3_t p1, vec3_t p2);
 	qboolean (*inPHS)(vec3_t p1, vec3_t p2);
 	void (*SetAreaPortalState)(int portalnum, qboolean open);
@@ -164,14 +164,14 @@ typedef struct
 	   if it is not passed to linkentity. If the size, position, or
 	   solidity changes, it must be relinked. */
 	void (*linkentity)(edict_t *ent);
-	void (*unlinkentity)(edict_t *ent);         /* call before removing an interactive edict */
-	int (*BoxEdicts)(vec3_t mins, vec3_t maxs, edict_t **list, int maxcount,
+	void (*unlinkentity)(edict_t *ent); /* call before removing an interactive edict */
+	int (*BoxEdicts)(const vec3_t mins, const vec3_t maxs, edict_t **list, int maxcount,
 			int areatype);
 	void (*Pmove)(pmove_t *pmove);				/* player movement code common with client prediction */
 
 	/* network messaging */
-	void (*multicast)(vec3_t origin, multicast_t to);
-	void (*unicast)(edict_t *ent, qboolean reliable);
+	void (*multicast)(const vec3_t origin, multicast_t to);
+	void (*unicast)(const edict_t *ent, qboolean reliable);
 	void (*WriteChar)(int c);
 	void (*WriteByte)(int c);
 	void (*WriteShort)(int c);
@@ -217,7 +217,7 @@ typedef struct
 	const dmdxframegroup_t * (*GetModelInfo)(int index, int *num, float *mins, float *maxs);
 	void (*GetModelFrameInfo)(int index, int num, float *mins, float *maxs);
 	void (*PmoveEx)(pmove_t *pmove, int *origin);
-	void * (*TagRealloc)(void *ptr, int size, int tag);
+	void * (*TagRealloc)(void *ptr, size_t size, unsigned short tag);
 
 	const char* (*LocalizationMessage)(const char *message, int *sound_index);
 	const char* (*LocalizationUIMessage)(const char *message, const char *default_message);

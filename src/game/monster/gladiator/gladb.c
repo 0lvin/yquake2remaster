@@ -72,7 +72,7 @@ gladb_search(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_search, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 gladb_cleaver_swing(edict_t *self)
 {
 	if (!self)
@@ -182,7 +182,7 @@ gladb_run(edict_t *self)
 	}
 }
 
-void
+static void
 GladbMelee(edict_t *self)
 {
 	vec3_t aim;
@@ -194,7 +194,7 @@ GladbMelee(edict_t *self)
 
 	VectorSet(aim, MELEE_DISTANCE, self->mins[0], -4);
 
-	if (fire_hit(self, aim, (20 + (rand() % 5)), 300))
+	if (fire_hit(self, aim, (20 + (randk() % 5)), 300))
 	{
 		gi.sound(self, CHAN_AUTO, sound_cleaver_hit, 1, ATTN_NORM, 0);
 	}
@@ -242,7 +242,7 @@ gladb_melee(edict_t *self)
 	self->monsterinfo.currentmove = &gladb_move_attack_melee;
 }
 
-void
+static void
 gladbGun(edict_t *self)
 {
 	vec3_t start;
@@ -255,7 +255,7 @@ gladbGun(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_GLADIATOR_RAILGUN_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_GLADIATOR_RAILGUN_1],
 			forward, right, start);
 
 	/* calc direction to where we targted */
@@ -265,7 +265,7 @@ gladbGun(edict_t *self)
 	fire_plasma(self, start, dir, 100, 725, 60, 60);
 }
 
-void
+static void
 gladbGun_check(edict_t *self)
 {
 	if (!self)
@@ -301,9 +301,6 @@ mmove_t gladb_move_attack_gun = {
 void
 gladb_attack(edict_t *self)
 {
-	float range;
-	vec3_t v;
-
 	if (!self)
 	{
 		return;
@@ -315,6 +312,9 @@ gladb_attack(edict_t *self)
 	*/
 	if (!(self->monsterinfo.aiflags & AI_STAND_GROUND))
 	{
+		float range;
+		vec3_t v;
+
 		VectorSubtract(self->s.origin, self->enemy->s.origin, v);
 		range = VectorLength(v);
 
@@ -409,7 +409,7 @@ gladb_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 gladb_dead(edict_t *self)
 {
 	if (!self)
@@ -419,6 +419,7 @@ gladb_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -457,10 +458,8 @@ mmove_t gladb_move_death = {
 void
 gladb_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage /*unused */,
-		vec3_t point)
+		const vec3_t point)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -469,6 +468,8 @@ gladb_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)

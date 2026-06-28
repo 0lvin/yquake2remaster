@@ -136,7 +136,7 @@ CanDamage(edict_t *targ, edict_t *inflictor)
 	return false;
 }
 
-void
+static void
 Killed(edict_t *targ, edict_t *inflictor, edict_t *attacker,
 		int damage, vec3_t point)
 {
@@ -251,7 +251,7 @@ Killed(edict_t *targ, edict_t *inflictor, edict_t *attacker,
 }
 
 static void
-SpawnDamage(int type, vec3_t origin, vec3_t normal)
+SpawnDamage(int type, const vec3_t origin, const vec3_t normal)
 {
 	gi.WriteByte(svc_temp_entity);
 	gi.WriteByte(type);
@@ -281,7 +281,7 @@ SpawnDamage(int type, vec3_t origin, vec3_t normal)
  *      DAMAGE_NO_PROTECTION	kills godmode, armor, everything
  */
 static int
-CheckPowerArmor(edict_t *ent, vec3_t point, vec3_t normal,
+CheckPowerArmor(edict_t *ent, const vec3_t point, const vec3_t normal,
 		int damage, int dflags)
 {
 	gclient_t *client;
@@ -424,13 +424,13 @@ CheckPowerArmor(edict_t *ent, vec3_t point, vec3_t normal,
 }
 
 static int
-CheckArmor(edict_t *ent, vec3_t point, vec3_t normal, int damage,
+CheckArmor(edict_t *ent, vec3_t point, const vec3_t normal, int damage,
 		int te_sparks, int dflags)
 {
 	gclient_t *client;
 	int save;
 	int index;
-	gitem_t *armor;
+	const gitem_t *armor;
 
 	if (!ent)
 	{
@@ -488,11 +488,9 @@ CheckArmor(edict_t *ent, vec3_t point, vec3_t normal, int damage,
 	return save;
 }
 
-void
+static void
 M_ReactToDamage(edict_t *targ, edict_t *attacker, edict_t *inflictor)
 {
-	qboolean new_tesla;
-
 	if (!targ || !attacker || !inflictor)
 	{
 		return;
@@ -514,6 +512,8 @@ M_ReactToDamage(edict_t *targ, edict_t *attacker, edict_t *inflictor)
 	   a "new" tesla */
 	if (!strcmp(inflictor->classname, "tesla"))
 	{
+		qboolean new_tesla;
+
 		new_tesla = MarkTeslaArea(targ, inflictor);
 
 		if (new_tesla || !targ->enemy)
@@ -545,11 +545,11 @@ M_ReactToDamage(edict_t *targ, edict_t *attacker, edict_t *inflictor)
 	   damage */
 	if (targ->enemy && targ->monsterinfo.aiflags & AI_TARGET_ANGER)
 	{
-		float percentHealth;
-
 		/* make sure whatever we were pissed at is still around. */
 		if (targ->enemy->inuse)
 		{
+			float percentHealth;
+
 			percentHealth = (float)(targ->health) / (float)(targ->max_health);
 
 			if (percentHealth > 0.33)
@@ -669,7 +669,7 @@ M_ReactToDamage(edict_t *targ, edict_t *attacker, edict_t *inflictor)
 }
 
 qboolean
-CheckTeamDamage(edict_t *targ, edict_t *attacker)
+CheckTeamDamage(const edict_t *targ, const edict_t *attacker)
 {
 	if (ctf->value && targ->client && attacker->client)
 	{
@@ -703,7 +703,7 @@ apply_knockback(edict_t *targ, vec3_t dir, float knockback, float scale)
 
 void
 T_Damage(edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
-		vec3_t point, vec3_t normal, int damage, int knockback, int dflags,
+		vec3_t point, const vec3_t normal, int damage, int knockback, int dflags,
 		int mod)
 {
 	gclient_t *client;
@@ -1029,7 +1029,7 @@ T_Damage(edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 
 void
 T_RadiusDamage(edict_t *inflictor, edict_t *attacker, float damage,
-		edict_t *ignore, float radius, int mod)
+		const edict_t *ignore, float radius, int mod)
 {
 	float points;
 	edict_t *ent = NULL;
@@ -1086,8 +1086,6 @@ T_RadiusNukeDamage(edict_t *inflictor, edict_t *attacker, float damage,
 	vec3_t dir;
 	float len;
 	float killzone, killzone2;
-	trace_t tr;
-	float dist;
 
 	killzone = radius;
 	killzone2 = radius * 2.0;
@@ -1167,6 +1165,8 @@ T_RadiusNukeDamage(edict_t *inflictor, edict_t *attacker, float damage,
 		if ((ent->client) &&
 			(ent->client->nuke_framenum != level.framenum + 20) && (ent->inuse))
 		{
+			trace_t tr;
+
 			tr = gi.trace(inflictor->s.origin, NULL, NULL, ent->s.origin,
 					inflictor, MASK_SOLID);
 
@@ -1176,6 +1176,8 @@ T_RadiusNukeDamage(edict_t *inflictor, edict_t *attacker, float damage,
 			}
 			else
 			{
+				float dist;
+
 				dist = realrange(ent, inflictor);
 
 				if (dist < 2048)

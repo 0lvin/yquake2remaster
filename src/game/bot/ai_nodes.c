@@ -647,10 +647,11 @@ AI_CreateNodesForEntities(void)
 // AI_LoadPLKFile
 // load nodes and plinks from file
 //==========================================
-qboolean AI_LoadPLKFile( char *mapname )
+qboolean
+AI_LoadPLKFile(char *mapname)
 {
 	char filename[MAX_OSPATH];
-	int version;
+	int version, i;
 	FILE *pIn;
 
 	nav.num_nodes = 0;
@@ -689,6 +690,14 @@ qboolean AI_LoadPLKFile( char *mapname )
 		return false;
 	}
 
+	if (nav.num_nodes < 0 || nav.num_nodes > MAX_NODES)
+	{
+		Com_Printf("%s: broken navigation %d nodes\n", __func__, nav.num_nodes);
+		nav.num_nodes = 0;
+		fclose(pIn);
+		return false;
+	}
+
 	if (fread(nodes, sizeof(nav_node_t), nav.num_nodes, pIn) != nav.num_nodes)
 	{
 		Com_Printf("%s: broken navigation %s file nodes\n", __func__, filename);
@@ -703,6 +712,30 @@ qboolean AI_LoadPLKFile( char *mapname )
 		nav.num_nodes = 0;
 		fclose(pIn);
 		return false;
+	}
+
+	for (i = 0; i < nav.num_nodes; i++)
+	{
+		int j;
+
+		if (pLinks[i].numLinks < 0 || pLinks[i].numLinks > NODES_MAX_PLINKS)
+		{
+			Com_Printf("%s: broken navigation %s file links count\n", __func__, filename);
+			nav.num_nodes = 0;
+			fclose(pIn);
+			return false;
+		}
+
+		for (j = 0; j < pLinks[i].numLinks; j++)
+		{
+			if (pLinks[i].nodes[j] < 0 || pLinks[i].nodes[j] >= nav.num_nodes)
+			{
+				Com_Printf("%s: broken navigation %s file link target\n", __func__, filename);
+				nav.num_nodes = 0;
+				fclose(pIn);
+				return false;
+			}
+		}
 	}
 
 	fclose(pIn);
@@ -765,12 +798,14 @@ AI_IsPlatformLink(int n1, int n2)
 		}
 		else
 		{
-			trace_t	trace;
-			float	heightdiff;
+			trace_t trace;
+
 			//n1 is plat upper: it can link to visibles at same height
 			trace = gi.trace( nodes[n1].origin, vec3_origin, vec3_origin, nodes[n2].origin, n1ent, MASK_NODESOLID );
 			if (trace.fraction == 1.0 && !trace.startsolid)
 			{
+				float heightdiff;
+
 				heightdiff = nodes[n1].origin[2] - nodes[n2].origin[2];
 				if (heightdiff < 0)
 				{
@@ -820,12 +855,13 @@ AI_IsPlatformLink(int n1, int n2)
 		if (nodes[n2].origin[2] < nodes[othernode].origin[2])
 		{
 			trace_t	trace;
-			float	heightdiff;
 
 			//n2 is plat lower: other's can link to it when visible and good height
 			trace = gi.trace( nodes[n1].origin, vec3_origin, vec3_origin, nodes[n2].origin, n2ent, MASK_NODESOLID );
 			if (trace.fraction == 1.0 && !trace.startsolid)
 			{
+				float heightdiff;
+
 				heightdiff = nodes[n1].origin[2] - nodes[n2].origin[2];
 				if (heightdiff < 0)
 				{
@@ -928,7 +964,7 @@ AI_FindServerLinkType(int n1, int n2)
 static int
 AI_LinkServerNodes(int start)
 {
-	int			n1, n2;
+	int			n1;
 	int			count = 0;
 	float		pLinkRadius = NODE_DENSITY*1.2;
 	qboolean	ignoreHeight = true;
@@ -940,6 +976,8 @@ AI_LinkServerNodes(int start)
 
 	for (n1=start; n1<nav.num_nodes; n1++)
 	{
+		int n2;
+
 		n2 = 0;
 		n2 = AI_findNodeInRadius(0, nodes[n1].origin, pLinkRadius, ignoreHeight);
 
@@ -974,14 +1012,24 @@ AI_LinkServerNodes(int start)
 			n2 = AI_findNodeInRadius(n2, nodes[n1].origin, pLinkRadius, ignoreHeight);
 		}
 	}
+
 	return count;
+}
+
+void
+AI_CleanNodesAndLinks(void)
+{
+	nav.num_nodes = 0;
+	memset(nodes, 0, sizeof(nav_node_t) * MAX_NODES);
+	memset(pLinks, 0, sizeof(nav_plink_t) * MAX_NODES);
 }
 
 //==========================================
 // AI_InitNavigationData
 // Setup nodes & links for this map
 //==========================================
-void AI_InitNavigationData(void)
+void
+AI_InitNavigationData(void)
 {
 	int	i;
 	int newlinks;
@@ -989,12 +1037,9 @@ void AI_InitNavigationData(void)
 	int linkscount;
 	int	servernodesstart = 0;
 
-	//Init nodes arrays
-	nav.num_nodes = 0;
-	memset( nodes, 0, sizeof(nav_node_t) * MAX_NODES );
-	memset( pLinks, 0, sizeof(nav_plink_t) * MAX_NODES );
+	AI_CleanNodesAndLinks();
 
-	//Load nodes from file
+	/* Load nodes from file */
 	nav.loaded = AI_LoadPLKFile(level.mapname);
 	if (!nav.loaded)
 	{

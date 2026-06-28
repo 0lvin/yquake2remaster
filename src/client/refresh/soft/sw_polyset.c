@@ -79,7 +79,7 @@ static light3_t	d_lightbasestep, d_lightextrastep;
 static int	d_sfracbasestep, d_tfracbasestep;
 static zvalue_t	d_ziextrastep, d_zibasestep;
 
-void	(*d_pdrawspans)(const entity_t *currententity, spanpackage_t *pspanpackage);
+void	(*d_pdrawspans)(const entity_t *currententity, const spanpackage_t *pspanpackage);
 
 static void R_PolysetSetEdgeTable(void);
 static void R_RasterizeAliasPolySmooth(const entity_t *currententity);
@@ -428,15 +428,8 @@ R_PolysetDrawSpans8
 ================
 */
 void
-R_PolysetDrawSpans8_33(const entity_t *currententity, spanpackage_t *pspanpackage)
+R_PolysetDrawSpans8_33(const entity_t *currententity, const spanpackage_t *pspanpackage)
 {
-	pixel_t		*lpdest;
-	pixel_t		*lptex;
-	int		lsfrac, ltfrac;
-	light3_t	llight;
-	zvalue_t	lzi;
-	zvalue_t	*lpz;
-
 	do
 	{
 		int lcount;
@@ -455,7 +448,13 @@ R_PolysetDrawSpans8_33(const entity_t *currententity, spanpackage_t *pspanpackag
 
 		if (lcount > 0)
 		{
-			int	pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
+			int lsfrac, ltfrac, pos_shift;
+			pixel_t *lpdest, *lptex;
+			const zvalue_t *lpz;
+			light3_t llight;
+			zvalue_t lzi;
+
+			pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
 
 			lpdest = d_viewbuffer + pos_shift;
 			lpz = d_pzbuffer + pos_shift;
@@ -498,12 +497,8 @@ R_PolysetDrawSpans8_33(const entity_t *currententity, spanpackage_t *pspanpackag
 }
 
 void
-R_PolysetDrawSpansConstant8_33(const entity_t *currententity, spanpackage_t *pspanpackage)
+R_PolysetDrawSpansConstant8_33(const entity_t *currententity, const spanpackage_t *pspanpackage)
 {
-	pixel_t		*lpdest;
-	int		lzi;
-	zvalue_t	*lpz;
-
 	do
 	{
 		int lcount;
@@ -522,7 +517,11 @@ R_PolysetDrawSpansConstant8_33(const entity_t *currententity, spanpackage_t *psp
 
 		if (lcount > 0)
 		{
-			int	pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
+			const zvalue_t *lpz;
+			int lzi, pos_shift;
+			pixel_t *lpdest;
+
+			pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
 
 			lpdest = d_viewbuffer + pos_shift;
 			lpz = d_pzbuffer + pos_shift;
@@ -545,15 +544,8 @@ R_PolysetDrawSpansConstant8_33(const entity_t *currententity, spanpackage_t *psp
 }
 
 void
-R_PolysetDrawSpans8_66(const entity_t *currententity, spanpackage_t *pspanpackage)
+R_PolysetDrawSpans8_66(const entity_t *currententity, const spanpackage_t *pspanpackage)
 {
-	pixel_t		*lpdest;
-	pixel_t		*lptex;
-	int		lsfrac, ltfrac;
-	light3_t	llight;
-	zvalue_t	lzi;
-	zvalue_t	*lpz;
-
 	do
 	{
 		int lcount;
@@ -572,9 +564,13 @@ R_PolysetDrawSpans8_66(const entity_t *currententity, spanpackage_t *pspanpackag
 
 		if (lcount > 0)
 		{
-			int	pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
-			qboolean	zdamaged = false;
+			int pos_shift, lsfrac, ltfrac;
+			qboolean zdamaged = false;
+			pixel_t *lpdest, *lptex;
+			zvalue_t lzi, *lpz;
+			light3_t llight;
 
+			pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
 			lpdest = d_viewbuffer + pos_shift;
 			lpz = d_pzbuffer + pos_shift;
 			lptex = pspanpackage->ptex;
@@ -627,12 +623,8 @@ R_PolysetDrawSpans8_66(const entity_t *currententity, spanpackage_t *pspanpackag
 }
 
 void
-R_PolysetDrawSpansConstant8_66(const entity_t *currententity, spanpackage_t *pspanpackage)
+R_PolysetDrawSpansConstant8_66(const entity_t *currententity, const spanpackage_t *pspanpackage)
 {
-	pixel_t		*lpdest;
-	zvalue_t	lzi;
-	zvalue_t	*lpz;
-
 	do
 	{
 		int lcount;
@@ -651,6 +643,9 @@ R_PolysetDrawSpansConstant8_66(const entity_t *currententity, spanpackage_t *psp
 
 		if (lcount > 0)
 		{
+			const zvalue_t *lpz;
+			pixel_t		*lpdest;
+			zvalue_t	lzi;
 			int	pos_shift = (pspanpackage->v * vid_buffer_width) + pspanpackage->u;
 			qboolean	zdamaged = false;
 
@@ -685,7 +680,7 @@ R_PolysetDrawSpansConstant8_66(const entity_t *currententity, spanpackage_t *psp
 }
 
 void
-R_PolysetDrawSpans8_Opaque (const entity_t *currententity, spanpackage_t *pspanpackage)
+R_PolysetDrawSpans8_Opaque (const entity_t *currententity, const spanpackage_t *pspanpackage)
 {
 	do
 	{

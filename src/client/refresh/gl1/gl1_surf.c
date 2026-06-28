@@ -38,13 +38,10 @@ int c_visible_textures;
 static vec3_t modelorg; /* relative to viewpoint */
 msurface_t *r_alpha_surfaces;
 
-gllightmapstate_t gl_lms;
 extern int cur_lm_copy;
 byte minlight[256];
 
-void LM_InitBlock(void);
 void LM_UploadBlock(qboolean dynamic);
-qboolean LM_AllocBlock(int w, int h, int *x, int *y);
 
 static void
 R_DrawGLPoly(msurface_t *fa)
@@ -70,8 +67,8 @@ R_DrawGLPoly(msurface_t *fa)
 static void
 R_DrawTriangleOutlines(void)
 {
-	int i, j;
 	mpoly_t *p;
+	size_t i;
 
 	if (!r_showtris->value)
 	{
@@ -86,7 +83,7 @@ R_DrawTriangleOutlines(void)
 	{
 		msurface_t *surf;
 
-		for (surf = gl_lms.lightmap_surfaces[i];
+		for (surf = r_lms.lightmap_surfaces[i];
 			 surf != 0;
 			 surf = surf->lightmapchain)
 		{
@@ -94,6 +91,8 @@ R_DrawTriangleOutlines(void)
 
 			for ( ; p; p = p->chain)
 			{
+				size_t j;
+
 				for (j = 2; j < p->numverts; j++)
 				{
 					GLfloat vtx[12];
@@ -147,7 +146,7 @@ R_DrawGLPolyChain(mpoly_t *p, float soffset, float toffset)
 		// workaround for lack of VLAs (=> our workaround uses alloca() which is bad in loops)
 #ifdef _MSC_VER
 		int maxNumVerts = 0;
-		for (mpoly_t* tmp = p; tmp; tmp = tmp->chain)
+		for (const mpoly_t* tmp = p; tmp; tmp = tmp->chain)
 		{
 			if ( tmp->numverts > maxNumVerts )
 				maxNumVerts = tmp->numverts;
@@ -234,7 +233,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 	/* render static lightmaps first */
 	for (i = 1; i < MAX_LIGHTMAPS; i++)
 	{
-		if (gl_lms.lightmap_surfaces[i])
+		if (r_lms.lightmap_surfaces[i])
 		{
 			if (currentmodel == r_worldmodel)
 			{
@@ -243,7 +242,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 
 			R_Bind(gl_state.lightmap_textures + i);
 
-			for (surf = gl_lms.lightmap_surfaces[i];
+			for (surf = r_lms.lightmap_surfaces[i];
 				 surf != 0;
 				 surf = surf->lightmapchain)
 			{
@@ -267,7 +266,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 	{
 		msurface_t *newdrawsurf;
 
-		LM_InitBlock();
+		LM_InitBlock(gl_config.multitexture);
 
 		R_Bind(gl_state.lightmap_textures + 0);
 
@@ -276,9 +275,9 @@ R_BlendLightmaps(const model_t *currentmodel)
 			c_visible_lightmaps++;
 		}
 
-		newdrawsurf = gl_lms.lightmap_surfaces[0];
+		newdrawsurf = r_lms.lightmap_surfaces[0];
 
-		for (surf = gl_lms.lightmap_surfaces[0];
+		for (surf = r_lms.lightmap_surfaces[0];
 			 surf != 0;
 			 surf = surf->lightmapchain)
 		{
@@ -290,7 +289,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 
 			if (LM_AllocBlock(smax, tmax, &surf->dlight_s, &surf->dlight_t))
 			{
-				base = gl_lms.lightmap_buffer[0];
+				base = r_lms.lightmap_buffer[0];
 				base += (surf->dlight_t * BLOCK_WIDTH +
 						surf->dlight_s) * LIGHTMAP_BYTES;
 
@@ -328,7 +327,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 				newdrawsurf = drawsurf;
 
 				/* clear the block */
-				LM_InitBlock();
+				LM_InitBlock(gl_config.multitexture);
 
 				/* try uploading the block now */
 				if (!LM_AllocBlock(smax, tmax, &surf->dlight_s, &surf->dlight_t))
@@ -339,7 +338,7 @@ R_BlendLightmaps(const model_t *currentmodel)
 					return;
 				}
 
-				base = gl_lms.lightmap_buffer[0];
+				base = r_lms.lightmap_buffer[0];
 				base += (surf->dlight_t * BLOCK_WIDTH +
 						surf->dlight_s) * LIGHTMAP_BYTES;
 
@@ -383,7 +382,7 @@ static void
 R_RenderBrushPoly(msurface_t *fa)
 {
 	qboolean is_dynamic = false;
-	int maps;
+	size_t maps;
 
 	c_brush_polys++;
 
@@ -451,19 +450,19 @@ R_RenderBrushPoly(msurface_t *fa)
 			glTexSubImage2D(GL_TEXTURE_2D, 0, fa->light_s, fa->light_t,
 					smax, tmax, GL_LIGHTMAP_FORMAT, GL_UNSIGNED_BYTE, temp);
 
-			fa->lightmapchain = gl_lms.lightmap_surfaces[fa->lightmaptexturenum];
-			gl_lms.lightmap_surfaces[fa->lightmaptexturenum] = fa;
+			fa->lightmapchain = r_lms.lightmap_surfaces[fa->lightmaptexturenum];
+			r_lms.lightmap_surfaces[fa->lightmaptexturenum] = fa;
 		}
 		else
 		{
-			fa->lightmapchain = gl_lms.lightmap_surfaces[0];
-			gl_lms.lightmap_surfaces[0] = fa;
+			fa->lightmapchain = r_lms.lightmap_surfaces[0];
+			r_lms.lightmap_surfaces[0] = fa;
 		}
 	}
 	else
 	{
-		fa->lightmapchain = gl_lms.lightmap_surfaces[fa->lightmaptexturenum];
-		gl_lms.lightmap_surfaces[fa->lightmaptexturenum] = fa;
+		fa->lightmapchain = r_lms.lightmap_surfaces[fa->lightmaptexturenum];
+		r_lms.lightmap_surfaces[fa->lightmaptexturenum] = fa;
 	}
 }
 
@@ -546,7 +545,7 @@ R_RenderLightmappedPoly(msurface_t *surf)
 
 /* Add "adding" area to "obj" */
 static void
-R_JoinAreas(lmrect_t *adding, lmrect_t *obj)
+R_JoinAreas(const lmrect_t *adding, lmrect_t *obj)
 {
 	if (adding->top < obj->top)
 	{
@@ -600,7 +599,7 @@ R_RegenAllLightmaps()
 		byte *base;
 		qboolean affected_lightmap;
 
-		if (!gl_lms.lightmap_surfaces[i] || !gl_lms.lightmap_buffer[i])
+		if (!r_lms.lightmap_surfaces[i] || !r_lms.lightmap_buffer[i])
 		{
 			continue;
 		}
@@ -610,7 +609,7 @@ R_RegenAllLightmaps()
 		best.left = BLOCK_WIDTH;
 		best.bottom = best.right = 0;
 
-		for (surf = gl_lms.lightmap_surfaces[i];
+		for (surf = r_lms.lightmap_surfaces[i];
 			 surf != 0;
 			 surf = surf->lightmapchain)
 		{
@@ -644,7 +643,7 @@ dynamic_surf:
 			current.top = surf->light_t;
 			current.bottom = surf->light_t + (surf->extents[1] >> surf->lmshift) + 1;	// + tmax
 
-			base = gl_lms.lightmap_buffer[i];
+			base = r_lms.lightmap_buffer[i];
 			base += (current.top * BLOCK_WIDTH + current.left) * LIGHTMAP_BYTES;
 
 			R_BuildLightMap(surf, base, BLOCK_WIDTH * LIGHTMAP_BYTES,
@@ -708,7 +707,7 @@ dynamic_surf:
 #endif
 
 		// upload changes
-		base = gl_lms.lightmap_buffer[i];
+		base = r_lms.lightmap_buffer[i];
 
 #ifdef YQ2_GL1_GLES
 		base += (best.top * BLOCK_WIDTH) * LIGHTMAP_BYTES;
@@ -825,7 +824,6 @@ R_DrawInlineBModel(const entity_t *currententity, const model_t *currentmodel)
 {
 	int i;
 	msurface_t *psurf;
-	image_t *image;
 
 	/* calculate dynamic lighting for bmodel */
 	if (!gl_config.multitexture && !r_flashblend->value)
@@ -866,6 +864,8 @@ R_DrawInlineBModel(const entity_t *currententity, const model_t *currentmodel)
 			}
 			else
 			{
+				const image_t *image;
+
 				image = R_TextureAnimation(currententity, psurf->texinfo);
 
 				if (gl_config.multitexture && !(psurf->flags & SURF_DRAWTURB))
@@ -933,13 +933,13 @@ R_DrawBrushModel(entity_t *currententity, const model_t *currentmodel)
 		return;
 	}
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 	}
 
 	glColor4f(1, 1, 1, 1);
-	memset(gl_lms.lightmap_surfaces, 0, sizeof(gl_lms.lightmap_surfaces));
+	memset(r_lms.lightmap_surfaces, 0, sizeof(r_lms.lightmap_surfaces));
 
 	VectorSubtract(r_newrefdef.vieworg, currententity->origin, modelorg);
 
@@ -975,7 +975,7 @@ R_DrawBrushModel(entity_t *currententity, const model_t *currentmodel)
 
 	glPopMatrix();
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
@@ -1114,8 +1114,8 @@ R_RecursiveWorldNode(entity_t *currententity, mnode_t *node)
 
 			if (gl_config.multitexture && !(surf->texinfo->flags & SURF_WARP))	// needed for R_RegenAllLightmaps()
 			{
-				surf->lightmapchain = gl_lms.lightmap_surfaces[surf->lightmaptexturenum];
-				gl_lms.lightmap_surfaces[surf->lightmaptexturenum] = surf;
+				surf->lightmapchain = r_lms.lightmap_surfaces[surf->lightmaptexturenum];
+				r_lms.lightmap_surfaces[surf->lightmaptexturenum] = surf;
 			}
 		}
 	}
@@ -1201,8 +1201,8 @@ R_GetBrushesLighting(void)
 				(!(surf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 			{
 				surf->lmchain_frame = r_framecount;	// don't add this twice to the chain
-				surf->lightmapchain = gl_lms.lightmap_surfaces[surf->lightmaptexturenum];
-				gl_lms.lightmap_surfaces[surf->lightmaptexturenum] = surf;
+				surf->lightmapchain = r_lms.lightmap_surfaces[surf->lightmaptexturenum];
+				r_lms.lightmap_surfaces[surf->lightmaptexturenum] = surf;
 			}
 		}
 	}
@@ -1232,7 +1232,7 @@ R_DrawWorld(void)
 	gl_state.currenttextures[0] = gl_state.currenttextures[1] = -1;
 
 	glColor4f(1, 1, 1, 1);
-	memset(gl_lms.lightmap_surfaces, 0, sizeof(gl_lms.lightmap_surfaces));
+	memset(r_lms.lightmap_surfaces, 0, sizeof(r_lms.lightmap_surfaces));
 
 	RE_ClearSkyBox();
 	R_RecursiveWorldNode(&ent, r_worldmodel->nodes);
@@ -1242,110 +1242,4 @@ R_DrawWorld(void)
 	R_BlendLightmaps(r_worldmodel);
 	R_DrawSkyBox();
 	R_DrawTriangleOutlines();
-}
-
-/*
- * Mark the leaves and nodes that are
- * in the PVS for the current cluster
- */
-void
-R_MarkLeaves(void)
-{
-	const byte *vis;
-	byte *fatvis = NULL;
-	mnode_t *node;
-	int i;
-	mleaf_t *leaf;
-
-	if ((r_oldviewcluster == r_viewcluster) &&
-		(r_oldviewcluster2 == r_viewcluster2) &&
-		!r_novis->value &&
-		(r_viewcluster != -1))
-	{
-		return;
-	}
-
-	/* development aid to let you run around
-	   and see exactly where the pvs ends */
-	if (r_lockpvs->value)
-	{
-		return;
-	}
-
-	r_visframecount++;
-	r_oldviewcluster = r_viewcluster;
-	r_oldviewcluster2 = r_viewcluster2;
-
-	if (r_novis->value || (r_viewcluster == -1) || !r_worldmodel->vis)
-	{
-		/* mark everything */
-		for (i = 0; i < r_worldmodel->numleafs; i++)
-		{
-			r_worldmodel->leafs[i].visframe = r_visframecount;
-		}
-
-		for (i = 0; i < r_worldmodel->numnodes; i++)
-		{
-			r_worldmodel->nodes[i].visframe = r_visframecount;
-		}
-
-		return;
-	}
-
-	vis = Mod_ClusterPVS(r_viewcluster, r_worldmodel);
-
-	/* may have to combine two clusters because of solid water boundaries */
-	if (r_viewcluster2 != r_viewcluster)
-	{
-		int c;
-
-		fatvis = malloc(((r_worldmodel->numleafs + 31) / 32) * sizeof(int));
-		memcpy(fatvis, vis, (r_worldmodel->numleafs + 7) / 8);
-		vis = Mod_ClusterPVS(r_viewcluster2, r_worldmodel);
-		c = (r_worldmodel->numleafs + 31) / 32;
-
-		for (i = 0; i < c; i++)
-		{
-			((int *)fatvis)[i] |= ((int *)vis)[i];
-		}
-
-		vis = fatvis;
-	}
-
-	for (i = 0, leaf = r_worldmodel->leafs;
-		 i < r_worldmodel->numleafs;
-		 i++, leaf++)
-	{
-		int cluster;
-
-		cluster = leaf->cluster;
-
-		if (cluster == -1)
-		{
-			continue;
-		}
-
-		if (vis[cluster >> 3] & (1 << (cluster & 7)))
-		{
-			node = (mnode_t *)leaf;
-
-			do
-			{
-				if (node->visframe == r_visframecount)
-				{
-					break;
-				}
-
-				node->visframe = r_visframecount;
-				node = node->parent;
-			}
-			while (node);
-		}
-	}
-
-	/* clean combined buffer */
-	if (fatvis)
-	{
-		free(fatvis);
-	}
 }

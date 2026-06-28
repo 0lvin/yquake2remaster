@@ -97,7 +97,7 @@ vec3_t reinforcement_position[] = {
 	{0, -80, 0}
 };
 
-void
+static void
 cleanupHeal(edict_t *self, qboolean change_frame)
 {
 	if (!self)
@@ -120,12 +120,9 @@ cleanupHeal(edict_t *self, qboolean change_frame)
 	}
 }
 
-void
+static void
 abortHeal(edict_t *self, qboolean change_frame, qboolean gib, qboolean mark)
 {
-	int hurt;
-	static vec3_t pain_normal = {0, 0, 1};
-
 	if (!self)
 	{
 		return;
@@ -151,6 +148,9 @@ abortHeal(edict_t *self, qboolean change_frame, qboolean gib, qboolean mark)
 
 	if ((gib) && (self->enemy) && (self->enemy->inuse))
 	{
+		static const vec3_t pain_normal = {0, 0, 1};
+		int hurt;
+
 		if (self->enemy->gib_health)
 		{
 			hurt = -self->enemy->gib_health;
@@ -179,34 +179,7 @@ abortHeal(edict_t *self, qboolean change_frame, qboolean gib, qboolean mark)
 	self->monsterinfo.medicTries = 0;
 }
 
-qboolean
-canReach(edict_t *self, edict_t *other)
-{
-	vec3_t spot1;
-	vec3_t spot2;
-	trace_t trace;
-
-	if (!self || !other)
-	{
-		return false;
-	}
-
-	VectorCopy(self->s.origin, spot1);
-	spot1[2] += self->viewheight;
-	VectorCopy(other->s.origin, spot2);
-	spot2[2] += other->viewheight;
-	trace = gi.trace(spot1, vec3_origin, vec3_origin, spot2,
-			self, MASK_SHOT | MASK_WATER);
-
-	if ((trace.fraction == 1.0) || (trace.ent == other))
-	{
-		return true;
-	}
-
-	return false;
-}
-
-void
+static void
 medic_footstep(edict_t *self)
 {
 	if (!g_monsterfootsteps->value)
@@ -524,8 +497,7 @@ static mframe_t medic_frames_stand[] = {
 	{ai_stand, 0, NULL},
 };
 
-mmove_t medic_move_stand =
-{
+mmove_t medic_move_stand = {
 	FRAME_wait1,
 	FRAME_wait90,
 	medic_frames_stand,
@@ -558,8 +530,7 @@ static mframe_t medic_frames_walk[] = {
 	{ai_walk, 9.3, NULL}
 };
 
-mmove_t medic_move_walk =
-{
+mmove_t medic_move_walk = {
 	FRAME_walk1,
 	FRAME_walk12,
 	medic_frames_walk,
@@ -586,8 +557,7 @@ static mframe_t medic_frames_run[] = {
 	{ai_run, 35.6, NULL}
 };
 
-mmove_t medic_move_run =
-{
+mmove_t medic_move_run = {
 	FRAME_run1,
 	FRAME_run6,
 	medic_frames_run,
@@ -643,8 +613,7 @@ static mframe_t medic_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t medic_move_pain1 =
-{
+mmove_t medic_move_pain1 = {
 	FRAME_paina1,
 	FRAME_paina8,
 	medic_frames_pain1,
@@ -669,8 +638,7 @@ static mframe_t medic_frames_pain2[] = {
 	{ai_move, 0, medic_footstep}
 };
 
-mmove_t medic_move_pain2 =
-{
+mmove_t medic_move_pain2 = {
 	FRAME_painb1,
 	FRAME_painb15,
 	medic_frames_pain2,
@@ -730,7 +698,7 @@ medic_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 medic_fire_blaster(edict_t *self)
 {
 	vec3_t start;
@@ -768,7 +736,7 @@ medic_fire_blaster(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_MEDIC_BLASTER_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_MEDIC_BLASTER_1],
 			forward, right, start);
 
 	VectorCopy(self->enemy->s.origin, end);
@@ -793,7 +761,7 @@ medic_fire_blaster(edict_t *self)
 	}
 }
 
-void
+static void
 medic_dead(edict_t *self)
 {
 	if (!self)
@@ -803,6 +771,7 @@ medic_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -839,8 +808,7 @@ static mframe_t medic_frames_death[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t medic_move_death =
-{
+mmove_t medic_move_death = {
 	FRAME_death1,
 	FRAME_death30,
 	medic_frames_death,
@@ -850,10 +818,8 @@ mmove_t medic_move_death =
 void
 medic_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -868,6 +834,8 @@ medic_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"), 1, ATTN_NORM, 0);
 
 		for (n = 0; n < 2; n++)
@@ -907,7 +875,7 @@ medic_die(edict_t *self, edict_t *inflictor /* unused */,
 	self->monsterinfo.currentmove = &medic_move_death;
 }
 
-void
+static void
 medic_duck_down(edict_t *self)
 {
 	if (!self)
@@ -927,7 +895,7 @@ medic_duck_down(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 medic_duck_hold(edict_t *self)
 {
 	if (!self)
@@ -943,20 +911,6 @@ medic_duck_hold(edict_t *self)
 	{
 		self->monsterinfo.aiflags |= AI_HOLD_FRAME;
 	}
-}
-
-void
-medic_duck_up(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	self->monsterinfo.aiflags &= ~AI_DUCKED;
-	self->maxs[2] += 32;
-	self->takedamage = DAMAGE_AIM;
-	gi.linkentity(self);
 }
 
 static mframe_t medic_frames_duck[] = {
@@ -978,8 +932,7 @@ static mframe_t medic_frames_duck[] = {
 	{ai_move, -1, NULL}
 };
 
-mmove_t medic_move_duck =
-{
+mmove_t medic_move_duck = {
 	FRAME_duck1,
 	FRAME_duck16,
 	medic_frames_duck,
@@ -988,7 +941,7 @@ mmove_t medic_move_duck =
 
 void
 medic_dodge(edict_t *self, edict_t *attacker, float eta,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -1028,15 +981,14 @@ static mframe_t medic_frames_attackHyperBlaster[] = {
 	{ai_charge, 0, medic_fire_blaster}
 };
 
-mmove_t medic_move_attackHyperBlaster =
-{
+mmove_t medic_move_attackHyperBlaster = {
 	FRAME_attack15,
 	FRAME_attack30,
 	medic_frames_attackHyperBlaster,
 	medic_run
 };
 
-void
+static void
 medic_continue(edict_t *self)
 {
 	if (!self)
@@ -1070,15 +1022,14 @@ static mframe_t medic_frames_attackBlaster[] = {
 	{ai_charge, 0, medic_continue}
 };
 
-mmove_t medic_move_attackBlaster =
-{
+mmove_t medic_move_attackBlaster = {
 	FRAME_attack1,
 	FRAME_attack14,
 	medic_frames_attackBlaster,
 	medic_run
 };
 
-void
+static void
 medic_hook_launch(edict_t *self)
 {
 	if (!self)
@@ -1110,7 +1061,7 @@ static vec3_t medic_cable_offsets[] = {
 	{32.7, -19.7, 10.4}
 };
 
-void
+static void
 medic_cable_attack(edict_t *self)
 {
 	vec3_t offset, start, end, f, r;
@@ -1141,7 +1092,7 @@ medic_cable_attack(edict_t *self)
 
 	AngleVectors(self->s.angles, f, r, NULL);
 	VectorCopy(medic_cable_offsets[self->s.frame - FRAME_attack42], offset);
-	G_ProjectSource(self->s.origin, offset, f, r, start);
+	M_ProjectFlashSource(self, offset, f, r, start);
 
 	/* check for max distance */
 	VectorSubtract(start, self->enemy->s.origin, dir);
@@ -1319,7 +1270,7 @@ medic_cable_attack(edict_t *self)
 	gi.multicast(self->s.origin, MULTICAST_PVS);
 }
 
-void
+static void
 medic_hook_retract(edict_t *self)
 {
 	if (!self)
@@ -1389,15 +1340,14 @@ static mframe_t medic_frames_attackCable[] = {
 	{ai_move, 1.3, NULL}                      /* 60 */
 };
 
-mmove_t medic_move_attackCable =
-{
+mmove_t medic_move_attackCable = {
 	FRAME_attack33,
 	FRAME_attack60,
 	medic_frames_attackCable,
 	medic_run
 };
 
-void
+static void
 medic_start_spawn(edict_t *self)
 {
 	if (!self)
@@ -1409,7 +1359,7 @@ medic_start_spawn(edict_t *self)
 	self->monsterinfo.nextframe = FRAME_attack48;
 }
 
-void
+static void
 medic_determine_spawn(edict_t *self)
 {
 	vec3_t f, r, offset, startpoint, spawnpoint;
@@ -1476,7 +1426,7 @@ medic_determine_spawn(edict_t *self)
 		inc = count + (count % 2); /* 0, 2, 2, 4, 4 */
 		VectorCopy(reinforcement_position[count], offset);
 
-		G_ProjectSource(self->s.origin, offset, f, r, startpoint);
+		M_ProjectFlashSource(self, offset, f, r, startpoint);
 		startpoint[2] += 10;
 
 		if (FindSpawnPoint(startpoint, reinforcement_mins[summonStr - inc],
@@ -1502,7 +1452,7 @@ medic_determine_spawn(edict_t *self)
 			/* check behind */
 			offset[0] *= -1.0;
 			offset[1] *= -1.0;
-			G_ProjectSource(self->s.origin, offset, f, r, startpoint);
+			M_ProjectFlashSource(self, offset, f, r, startpoint);
 			/* a little off the ground */
 			startpoint[2] += 10;
 
@@ -1537,16 +1487,14 @@ medic_determine_spawn(edict_t *self)
 	}
 }
 
-void
+static void
 medic_spawngrows(edict_t *self)
 {
 	vec3_t f, r, offset, startpoint, spawnpoint;
 	int summonStr;
 	int count;
-	int inc;
 	int num_summoned; /* should be 1, 3, or 5 */
 	int num_success = 0;
-	float current_yaw;
 
 	if (!self)
 	{
@@ -1556,6 +1504,8 @@ medic_spawngrows(edict_t *self)
 	/* if we've been directed to turn around */
 	if (self->monsterinfo.aiflags & AI_MANUAL_STEERING)
 	{
+		float current_yaw;
+
 		current_yaw = anglemod(self->s.angles[YAW]);
 
 		if (fabs(current_yaw - self->ideal_yaw) > 0.1)
@@ -1583,10 +1533,12 @@ medic_spawngrows(edict_t *self)
 
 	for (count = 0; count < num_summoned; count++)
 	{
+		int inc;
+
 		inc = count + (count % 2); /* 0, 2, 2, 4, 4 */
 		VectorCopy(reinforcement_position[count], offset);
 
-		G_ProjectSource(self->s.origin, offset, f, r, startpoint);
+		M_ProjectFlashSource(self, offset, f, r, startpoint);
 		/* a little off the ground */
 		startpoint[2] += 10;
 
@@ -1616,14 +1568,13 @@ medic_spawngrows(edict_t *self)
 	}
 }
 
-void
+static void
 medic_finish_spawn(edict_t *self)
 {
 	edict_t *ent;
 	vec3_t f, r, offset, startpoint, spawnpoint;
 	int summonStr;
 	int count;
-	int inc;
 	int num_summoned; /* should be 1, 3, or 5 */
 	edict_t *designated_enemy;
 
@@ -1652,10 +1603,12 @@ medic_finish_spawn(edict_t *self)
 
 	for (count = 0; count < num_summoned; count++)
 	{
+		int inc;
+
 		inc = count + (count % 2); /* 0, 2, 2, 4, 4 */
 		VectorCopy(reinforcement_position[count], offset);
 
-		G_ProjectSource(self->s.origin, offset, f, r, startpoint);
+		M_ProjectFlashSource(self, offset, f, r, startpoint);
 
 		/* a little off the ground */
 		startpoint[2] += 10;
@@ -1789,7 +1742,7 @@ medic_attack(edict_t *self)
 
 	monster_done_dodge(self);
 
-	enemy_range = range(self, self->enemy);
+	enemy_range = ai_range(self, self->enemy);
 
 	/* signal from checkattack to spawn */
 	if (self->monsterinfo.aiflags & AI_BLOCKED)
@@ -1899,17 +1852,18 @@ medic_checkattack(edict_t *self)
 static void
 MedicCommanderCache(void)
 {
-	edict_t *newEnt;
 	int i;
 
 	/* better way to do this?  this is quick and dirty */
 	for (i = 0; i < 7; i++)
 	{
+		edict_t *newEnt;
+
 		newEnt = G_Spawn();
 
 		VectorCopy(vec3_origin, newEnt->s.origin);
 		VectorCopy(vec3_origin, newEnt->s.angles);
-		newEnt->classname = ED_NewString(reinforcements[i], true);
+		newEnt->classname = ED_NewString(reinforcements[i], true, TAG_LEVEL);
 
 		newEnt->monsterinfo.aiflags |= AI_DO_NOT_COUNT;
 
@@ -1984,10 +1938,7 @@ medic_sidestep(edict_t *self)
 		}
 	}
 
-	if (self->monsterinfo.currentmove != &medic_move_run)
-	{
-		self->monsterinfo.currentmove = &medic_move_run;
-	}
+	self->monsterinfo.currentmove = &medic_move_run;
 }
 
 qboolean

@@ -47,7 +47,7 @@ gl3state_t gl3state;
 
 unsigned gl3_rawpalette[256];
 
-gl3model_t *gl3_worldmodel;
+model_t *gl3_worldmodel;
 
 float gl3depthmin=0.0f, gl3depthmax=1.0f;
 
@@ -59,14 +59,11 @@ vec3_t vpn;
 vec3_t vright;
 vec3_t gl3_origin;
 
-int gl3_visframecount; /* bumped when going to a new PVS */
 int gl3_framecount; /* used for dlight push checking */
 
 int c_brush_polys, c_alias_polys;
 
 static float v_blend[4]; /* final blending color */
-
-int gl3_viewcluster, gl3_viewcluster2, gl3_oldviewcluster, gl3_oldviewcluster2;
 
 const hmm_mat4 gl3_identityMat4 = {{
 		{1, 0, 0, 0},
@@ -88,12 +85,9 @@ cvar_t *gl3_intensity_2D;
 cvar_t *gl3_overbrightbits;
 cvar_t *gl_nobind;
 cvar_t *gl_finish;
-cvar_t *gl_zfix;
 cvar_t *gl3_debugcontext;
 cvar_t *gl3_usebigvbo;
 cvar_t *gl3_usefbo;
-
-static cvar_t *gl_znear;
 
 // Yaw-Pitch-Roll
 // equivalent to R_z * R_y * R_x where R_x is the trans matrix for rotating around X axis for aroundXdeg
@@ -183,15 +177,13 @@ GL3_Register(void)
 	gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
 	gl3_intensity = ri.Cvar_Get("gl3_intensity", "1.5", CVAR_ARCHIVE);
 	gl3_intensity_2D = ri.Cvar_Get("gl3_intensity_2D", "1.5", CVAR_ARCHIVE);
-	gl3_overbrightbits = ri.Cvar_Get("gl3_overbrightbits", "1.3", CVAR_ARCHIVE);
-	gl_zfix = ri.Cvar_Get("gl_zfix", "0", 0);
 	gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
-	gl_znear = ri.Cvar_Get("gl_znear", "4", CVAR_ARCHIVE);
+
+	gl3_overbrightbits = ri.Cvar_Get("gl3_overbrightbits", "1.3", CVAR_ARCHIVE);
 
 	gl3_usefbo = ri.Cvar_Get("gl3_usefbo", "1", CVAR_ARCHIVE); // use framebuffer object for postprocess effects (water)
 
 #if 0 // TODO!
-	//gl_farsee = ri.Cvar_Get("gl_farsee", "0", CVAR_LATCH | CVAR_ARCHIVE);
 	//gl_overbrightbits = ri.Cvar_Get("gl_overbrightbits", "0", CVAR_ARCHIVE);
 
 	gl1_particle_min_size = ri.Cvar_Get("gl1_particle_min_size", "2", CVAR_ARCHIVE);
@@ -205,7 +197,6 @@ GL3_Register(void)
 	//gl_nobind = ri.Cvar_Get("gl_nobind", "0", 0);
 	gl_showbbox = Cvar_Get("gl_showbbox", "0", 0);
 	//gl1_ztrick = ri.Cvar_Get("gl1_ztrick", "0", 0); NOTE: dump this.
-	//gl_zfix = ri.Cvar_Get("gl_zfix", "0", 0);
 	//gl_finish = ri.Cvar_Get("gl_finish", "0", CVAR_ARCHIVE);
 
 	//gl_texturemode = ri.Cvar_Get("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE);
@@ -514,6 +505,8 @@ GL3_Init(void)
 
 	registration_sequence = 1; // from R_InitImages() (everything else from there shouldn't be needed anymore)
 
+	Scrap_Init();
+
 	R_VertBufferInit();
 
 	GL3_Mod_Init();
@@ -657,7 +650,6 @@ GL3_DrawBeam(entity_t *e)
 	vec3_t oldorigin, origin;
 
 	mvtx_t verts[NUM_BEAM_SEGS*4];
-	unsigned int pointb;
 
 	oldorigin[0] = e->oldorigin[0];
 	oldorigin[1] = e->oldorigin[1];
@@ -705,6 +697,8 @@ GL3_DrawBeam(entity_t *e)
 
 	for ( i = 0; i < NUM_BEAM_SEGS; i++ )
 	{
+		unsigned int pointb;
+
 		VectorCopy(start_points[i], verts[4*i+0].pos);
 		VectorCopy(end_points[i], verts[4*i+1].pos);
 
@@ -724,14 +718,14 @@ GL3_DrawBeam(entity_t *e)
 }
 
 static void
-GL3_DrawSpriteModel(entity_t *e, const gl3model_t *currentmodel)
+GL3_DrawSpriteModel(entity_t *e, const model_t *currentmodel)
 {
 	float alpha = 1.0F;
 	mvtx_t verts[4];
-	dsprframe_t *frame;
+	const dsprframe_t *frame;
 	float *up, *right;
 	dsprite_t *psprite;
-	gl3image_t *skin = NULL;
+	const gl3image_t *skin = NULL;
 	vec3_t scale;
 
 	VectorCopy(e->scale, scale);
@@ -847,9 +841,8 @@ GL3_DrawNullModel(entity_t *currententity)
 	}
 	else
 	{
-		R_LightPoint(gl3_worldmodel->grid, currententity,
-			gl3_worldmodel->surfaces, gl3_worldmodel->nodes, currententity->origin,
-			shadelight, r_modulate->value, lightspot);
+		R_LightPoint(gl3_worldmodel, currententity,
+			currententity->origin, shadelight, lightspot);
 	}
 
 	hmm_mat4 origModelMat = gl3state.uni3DData.transModelMat4;
@@ -1003,7 +996,7 @@ GL3_DrawEntitiesOnList(void)
 		}
 		else
 		{
-			gl3model_t *currentmodel = currententity->model;
+			model_t *currentmodel = currententity->model;
 
 			if (!currentmodel)
 			{
@@ -1055,7 +1048,7 @@ GL3_DrawEntitiesOnList(void)
 		}
 		else
 		{
-			gl3model_t *currentmodel = currententity->model;
+			model_t *currentmodel = currententity->model;
 
 			if (!currentmodel)
 			{
@@ -1090,8 +1083,6 @@ GL3_DrawEntitiesOnList(void)
 static void
 SetupFrame(void)
 {
-	mleaf_t *leaf;
-
 	gl3_framecount++;
 
 	/* build the transformation matrix for the given view angles */
@@ -1099,54 +1090,9 @@ SetupFrame(void)
 
 	AngleVectors(r_newrefdef.viewangles, vpn, vright, vup);
 
-	/* current viewcluster */
-	if (!(r_newrefdef.rdflags & RDF_NOWORLDMODEL))
-	{
-		if (!gl3_worldmodel)
-		{
-			Com_Error(ERR_DROP, "%s: bad world model", __func__);
-			return;
-		}
+	R_SetClusters(gl3_worldmodel, gl3_origin);
 
-		gl3_oldviewcluster = gl3_viewcluster;
-		gl3_oldviewcluster2 = gl3_viewcluster2;
-		leaf = Mod_PointInLeaf(gl3_origin, gl3_worldmodel->nodes);
-		gl3_viewcluster = gl3_viewcluster2 = leaf->cluster;
-
-		/* check above and below so crossing solid water doesn't draw wrong */
-		if (!leaf->contents)
-		{
-			/* look down a bit */
-			vec3_t temp;
-
-			VectorCopy(gl3_origin, temp);
-			temp[2] -= 16;
-			leaf = Mod_PointInLeaf(temp, gl3_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-		else
-		{
-			/* look up a bit */
-			vec3_t temp;
-
-			VectorCopy(gl3_origin, temp);
-			temp[2] += 16;
-			leaf = Mod_PointInLeaf(temp, gl3_worldmodel->nodes);
-
-			if (!(leaf->contents & CONTENTS_SOLID) &&
-				(leaf->cluster != gl3_viewcluster2))
-			{
-				gl3_viewcluster2 = leaf->cluster;
-			}
-		}
-	}
-
-	R_CombineBlendWithFog(v_blend, false);
+	R_CombineBlendWithFog(v_blend, true);
 
 	c_brush_polys = 0;
 	c_alias_polys = 0;
@@ -1232,8 +1178,8 @@ hmm_mat4
 GL3_SetPerspective(GLdouble fovy)
 {
 	// gluPerspective() / R_MYgluPerspective() style parameters
-	const GLdouble zNear = Q_max(gl_znear->value, 0.1f);
-	const GLdouble zFar = (r_farsee->value) ? (gl3_worldmodel->radius * 2) : 4096.0f;
+	const GLdouble zNear = R_GetNearValue();
+	const GLdouble zFar = R_GetFarValue(gl3_worldmodel);
 	const GLdouble aspect = (GLdouble)r_newrefdef.width / r_newrefdef.height;
 
 	// calculation of left, right, bottom, top is from R_MYgluPerspective() of old gl backend
@@ -1399,6 +1345,32 @@ SetupGL(void)
 
 	gl3state.uni3DData.time = r_newrefdef.time;
 
+	/* Set up fog parameters from server data */
+	gl3state.uni3DData.fogColor = HMM_Vec4(
+		r_newrefdef.fog.red / 255.0f,
+		r_newrefdef.fog.green / 255.0f,
+		r_newrefdef.fog.blue / 255.0f,
+		r_newrefdef.fog.density / 64.0f
+	);
+
+	/* Height fog parameters */
+	gl3state.uni3DData.heightfog_start = HMM_Vec4(
+		r_newrefdef.fog.hf_start_r / 255.0f,
+		r_newrefdef.fog.hf_start_g / 255.0f,
+		r_newrefdef.fog.hf_start_b / 255.0f,
+		(float)r_newrefdef.fog.hf_start_dist
+	);
+
+	gl3state.uni3DData.heightfog_end = HMM_Vec4(
+		r_newrefdef.fog.hf_end_r / 255.0f,
+		r_newrefdef.fog.hf_end_g / 255.0f,
+		r_newrefdef.fog.hf_end_b / 255.0f,
+		(float)r_newrefdef.fog.hf_end_dist
+	);
+
+	gl3state.uni3DData.heightfog_density = r_newrefdef.fog.hf_density;
+	gl3state.uni3DData.heightfog_falloff = r_newrefdef.fog.hf_falloff;
+
 	GL3_UpdateUBO3D();
 
 	/* set drawing parms */
@@ -1420,7 +1392,7 @@ extern int c_visible_lightmaps, c_visible_textures;
  * r_newrefdef must be set before the first call
  */
 static void
-GL3_RenderView(refdef_t *fd)
+GL3_RenderView(const refdef_t *fd)
 {
 #if 0 // TODO: keep stereo stuff?
 	if ((gl_state.stereo_mode != STEREO_MODE_NONE) && gl_state.camera_separation) {
@@ -1565,7 +1537,7 @@ GL3_RenderView(refdef_t *fd)
 
 	SetupGL();
 
-	GL3_MarkLeaves(); /* done here so we know if we're in water */
+	R_MarkLeaves(gl3_worldmodel); /* done here so we know if we're in water */
 
 	GL3_DrawWorld();
 
@@ -1626,7 +1598,7 @@ GL3_GetSpecialBufferModeForStereoMode(enum stereo_modes stereo_mode) {
 #endif // 0
 
 static void
-GL3_SetLightLevel(entity_t *currententity)
+GL3_SetLightLevel(const entity_t *currententity)
 {
 	vec3_t shadelight = {0};
 
@@ -1636,9 +1608,8 @@ GL3_SetLightLevel(entity_t *currententity)
 	}
 
 	/* save off light value for server to look at */
-	R_LightPoint(gl3_worldmodel->grid, currententity,
-		gl3_worldmodel->surfaces, gl3_worldmodel->nodes, r_newrefdef.vieworg,
-		shadelight, r_modulate->value, lightspot);
+	R_LightPoint(gl3_worldmodel, currententity,
+		r_newrefdef.vieworg, shadelight, lightspot);
 
 	/* pick the greatest component, which should be the
 	 * same as the mono value returned by software */
@@ -1667,7 +1638,7 @@ GL3_SetLightLevel(entity_t *currententity)
 }
 
 static void
-GL3_RenderFrame(refdef_t *fd)
+GL3_RenderFrame(const refdef_t *fd)
 {
 	GL3_RenderView(fd);
 	GL3_SetLightLevel(NULL);
@@ -1677,6 +1648,7 @@ GL3_RenderFrame(refdef_t *fd)
 		glBindFramebuffer(GL_FRAMEBUFFER, 0); // now render to default framebuffer
 		gl3state.ppFBObound = false;
 	}
+
 	GL3_SetGL2D();
 
 	int x = (vid.width - r_newrefdef.width)/2;
@@ -1721,7 +1693,7 @@ GL3_Clear(void)
 
 	glDepthRange(gl3depthmin, gl3depthmax);
 
-	if (gl_zfix->value)
+	if (r_zfix->value)
 	{
 		if (gl3depthmax > gl3depthmin)
 		{
@@ -1855,7 +1827,7 @@ GL3_BeginFrame(float camera_separation)
 }
 
 static void
-GL3_SetPalette(const unsigned char *palette)
+GL3_SetPalette(const byte *palette)
 {
 	int i;
 	byte *rp = (byte *)gl3_rawpalette;
@@ -1928,6 +1900,7 @@ GetRefAPI(refimport_t imp)
 	re.DrawGetPicSize = GL3_Draw_GetPicSize;
 
 	re.DrawPicScaled = GL3_Draw_PicScaled;
+	re.DrawPicScaledCol = GL3_Draw_PicScaledCol;
 	re.DrawStretchPic = GL3_Draw_StretchPic;
 
 	re.DrawCharScaled = GL3_Draw_CharScaled;

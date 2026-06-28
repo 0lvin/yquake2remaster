@@ -29,17 +29,15 @@
 #include "../header/client.h"
 #include "header/qmenu.h"
 
-void IN_GetClipboardText(char *out, size_t n);
-int IN_SetClipboardText(const char *s);
-
 static void Action_Draw(menuaction_s *a);
 static void Menu_DrawStatusBar(const char *string);
 static void MenuList_Draw(menulist_s *l);
 static void Separator_Draw(menuseparator_s *s);
-static void Slider_DoSlide(menuslider_s *s, int dir);
 static void Slider_Draw(menuslider_s *s);
 static void SpinControl_Draw(menulist_s *s);
-static void SpinControl_DoSlide(menulist_s *s, int dir);
+
+static qboolean Slider_DoSlide(menuslider_s *s, int dir);
+static qboolean SpinControl_DoSlide(menulist_s *s, int dir);
 
 extern viddef_t viddef;
 
@@ -115,7 +113,7 @@ Bitmap_Draw(menubitmap_s * item)
 	}
 }
 
-void
+static void
 Action_Draw(menuaction_s *a)
 {
 	float scale = SCR_GetMenuScale();
@@ -245,7 +243,7 @@ Field_ResetCursor(menuframework_s *m)
 }
 
 qboolean
-Field_Key(menufield_s *f, int key)
+Field_Key(menufield_s *field, int key)
 {
 	char txt[256];
 
@@ -253,24 +251,24 @@ Field_Key(menufield_s *f, int key)
 	{
 		if (key == 'l')
 		{
-			*f->buffer = '\0';
-			f->cursor = 0;
+			*field->buffer = '\0';
+			field->cursor = 0;
 
 			return true;
 		}
 
 		if (key == 'c' || key == 'x')
 		{
-			if (*f->buffer != '\0')
+			if (*field->buffer != '\0')
 			{
-				if (IN_SetClipboardText(f->buffer))
+				if (IN_SetClipboardText(field->buffer))
 				{
 					Com_Printf("Copying menu field to clipboard failed.\n");
 				}
 				else if (key == 'x')
 				{
-					*f->buffer = '\0';
-					f->cursor = 0;
+					*field->buffer = '\0';
+					field->cursor = 0;
 				}
 			}
 
@@ -283,12 +281,12 @@ Field_Key(menufield_s *f, int key)
 
 			if (*txt != '\0')
 			{
-				if ((f->generic.flags & QMF_NUMBERSONLY) && !Q_strisnum(txt))
+				if ((field->generic.flags & QMF_NUMBERSONLY) && !Q_strisnum(txt))
 				{
 					return false;
 				}
 
-				f->cursor += Q_strins(f->buffer, txt, f->cursor, f->length);
+				field->cursor += Q_strins(field->buffer, txt, field->cursor, field->length);
 			}
 		}
 
@@ -299,44 +297,44 @@ Field_Key(menufield_s *f, int key)
 	{
 		case K_KP_LEFTARROW:
 		case K_LEFTARROW:
-			if (f->cursor > 0)
+			if (field->cursor > 0)
 			{
-				f->cursor--;
+				field->cursor--;
 			}
 			break;
 
 		case K_KP_RIGHTARROW:
 		case K_RIGHTARROW:
-			if (f->buffer[f->cursor] != '\0')
+			if (field->buffer[field->cursor] != '\0')
 			{
-				f->cursor++;
+				field->cursor++;
 			}
 			break;
 
 		case K_BACKSPACE:
-			if (f->cursor > 0)
+			if (field->cursor > 0)
 			{
-				Q_strdel(f->buffer, f->cursor - 1, 1);
-				f->cursor--;
+				Q_strdel(field->buffer, field->cursor - 1, 1);
+				field->cursor--;
 			}
 			break;
 
 		case K_END:
-			if (f->buffer[f->cursor] == '\0')
+			if (field->buffer[field->cursor] == '\0')
 			{
-				f->cursor = 0;
+				field->cursor = 0;
 			}
 			else
 			{
-				f->cursor = strlen(f->buffer);
+				field->cursor = strlen(field->buffer);
 			}
 			break;
 
 		case K_KP_DEL:
 		case K_DEL:
-			if (f->buffer[f->cursor] != '\0')
+			if (field->buffer[field->cursor] != '\0')
 			{
-				Q_strdel(f->buffer, f->cursor, 1);
+				Q_strdel(field->buffer, field->cursor, 1);
 			}
 			break;
 
@@ -352,7 +350,7 @@ Field_Key(menufield_s *f, int key)
 				return false;
 			}
 
-			if (!isdigit(key) && (f->generic.flags & QMF_NUMBERSONLY))
+			if (!isdigit(key) && (field->generic.flags & QMF_NUMBERSONLY))
 			{
 				return false;
 			}
@@ -360,7 +358,7 @@ Field_Key(menufield_s *f, int key)
 			*txt = key;
 			*(txt + 1) = '\0';
 
-			f->cursor += Q_strins(f->buffer, txt, f->cursor, f->length);
+			field->cursor += Q_strins(field->buffer, txt, field->cursor, field->length);
 	}
 
 	return true;
@@ -383,14 +381,14 @@ Menu_AddItem(menuframework_s *menu, void *item)
  * slot.
  */
 void
-Menu_AdjustCursor(menuframework_s *m, int dir)
+Menu_AdjustCursor(menuframework_s *menu, int dir)
 {
-	menucommon_s *citem = NULL;
+	const menucommon_s *citem = NULL;
 
 	/* see if it's in a valid spot */
-	if ((m->cursor >= 0) && (m->cursor < m->nitems))
+	if ((menu->cursor >= 0) && (menu->cursor < menu->nitems))
 	{
-		if ((citem = Menu_ItemAtCursor(m)) != 0)
+		if ((citem = Menu_ItemAtCursor(menu)) != NULL)
 		{
 			if (citem->type != MTYPE_SEPARATOR &&
 				(citem->flags & QMF_INACTIVE) != QMF_INACTIVE)
@@ -402,31 +400,31 @@ Menu_AdjustCursor(menuframework_s *m, int dir)
 
 	/* it's not in a valid spot, so crawl in the direction
 	   indicated until we find a valid spot */
-    int cursor = m->nitems;
+    int cursor = menu->nitems;
 
     while (cursor-- > 0)
     {
-		citem = Menu_ItemAtCursor(m);
+		citem = Menu_ItemAtCursor(menu);
 
 		if (citem)
 		{
 			if (citem->type != MTYPE_SEPARATOR &&
-			(citem->flags & QMF_INACTIVE) != QMF_INACTIVE)
+				(citem->flags & QMF_INACTIVE) != QMF_INACTIVE)
 			{
 				break;
 			}
 		}
 
-		m->cursor += dir;
+		menu->cursor += dir;
 
-		if (m->cursor >= m->nitems)
+		if (menu->cursor >= menu->nitems)
 		{
-			m->cursor = 0;
+			menu->cursor = 0;
 		}
 
-		if (m->cursor < 0)
+		if (menu->cursor < 0)
 		{
-			m->cursor = m->nitems - 1;
+			menu->cursor = menu->nitems - 1;
 		}
 	}
 }
@@ -529,7 +527,7 @@ Menu_Draw(menuframework_s *menu)
 	}
 }
 
-void
+static void
 Menu_DrawStatusBar(const char *string)
 {
 	float scale = SCR_GetMenuScale();
@@ -595,7 +593,7 @@ Menu_ItemAtCursor(menuframework_s *m)
 {
 	if ((m->cursor < 0) || (m->cursor >= m->nitems))
 	{
-		return 0;
+		return NULL;
 	}
 
 	return m->items[m->cursor];
@@ -617,31 +615,33 @@ Menu_SelectItem(menuframework_s *s)
 }
 
 void
-Menu_SetStatusBar(menuframework_s *m, const char *string)
+Menu_SetStatusBar(menuframework_s *menu, const char *string)
 {
-	m->statusbar = string;
+	menu->statusbar = string;
 }
 
-void
+qboolean
 Menu_SlideItem(menuframework_s *s, int dir)
 {
 	menucommon_s *item = (menucommon_s *)Menu_ItemAtCursor(s);
 
-	if (item)
+	if (!item)
 	{
-		switch (item->type)
-		{
-			case MTYPE_SLIDER:
-				Slider_DoSlide((menuslider_s *)item, dir);
-				break;
-			case MTYPE_SPINCONTROL:
-				SpinControl_DoSlide((menulist_s *)item, dir);
-				break;
-		}
+		return false;
 	}
+
+	switch (item->type)
+	{
+		case MTYPE_SLIDER:
+			return Slider_DoSlide((menuslider_s *)item, dir);
+		case MTYPE_SPINCONTROL:
+			return SpinControl_DoSlide((menulist_s *)item, dir);
+	}
+
+	return false;
 }
 
-void
+static void
 MenuList_Draw(menulist_s *l)
 {
 	const char **n;
@@ -670,7 +670,7 @@ MenuList_Draw(menulist_s *l)
 	}
 }
 
-void
+static void
 Separator_Draw(menuseparator_s *s)
 {
 	int x = 0;
@@ -686,17 +686,32 @@ Separator_Draw(menuseparator_s *s)
 	}
 }
 
-void
+static qboolean
 Slider_DoSlide(menuslider_s *s, int dir)
 {
 	const float step = (s->slidestep)? s->slidestep : 0.1f;
-	float value = Cvar_VariableValue(s->cvar);
+	float value;
 	float sign = 1.0f;
+
+	if (!s->cvar)
+	{
+		return false;
+	}
+
+	value = Cvar_VariableValue(s->cvar);
 
 	if (s->abs && value < 0)	// absolute value treatment
 	{
 		value = -value;
 		sign = -1.0f;
+	}
+
+	dir = (dir <= 0) ? -1 : 1;
+
+	if ((value == s->minvalue && dir == -1) ||
+		(value == s->maxvalue && dir == 1))
+	{
+		return false;
 	}
 
 	value += dir * step;
@@ -706,30 +721,29 @@ Slider_DoSlide(menuslider_s *s, int dir)
 	{
 		s->generic.callback(s);
 	}
+
+	return true;
 }
 
 #define SLIDER_RANGE 10
 
-void
+static void
 Slider_Draw(menuslider_s *s)
 {
-	const float scale = SCR_GetMenuScale();
-	const int x = s->generic.parent->x + s->generic.x;
-	const int y = s->generic.parent->y + s->generic.y;
-	const int x_rcol = x + (RCOLUMN_OFFSET * scale);
+	float scale;
+	int x, x_rcol, y;
 	int i;
-	char buffer[5];
 
-	float value = Cvar_VariableValue(s->cvar);
-	if (s->abs && value < 0)	// absolute value
+	scale = SCR_GetMenuScale();
+	x = s->generic.parent->x + s->generic.x;
+	x_rcol = x + (RCOLUMN_OFFSET * scale);
+	y = s->generic.parent->y + s->generic.y;
+
+	if (s->generic.name)
 	{
-		value = -value;
+		Menu_DrawStringR2LDark(x + (LCOLUMN_OFFSET * scale),
+			y, SV_LocalizationUIMessage(s->generic.alttext, s->generic.name));
 	}
-	const float range = (ClampCvar(s->minvalue, s->maxvalue, value) - s->minvalue) /
-			(s->maxvalue - s->minvalue);
-
-	Menu_DrawStringR2LDark(x + (LCOLUMN_OFFSET * scale),
-		y, SV_LocalizationUIMessage(s->generic.alttext, s->generic.name));
 
 	Draw_CharScaled(x_rcol,
 		y * scale, 128, scale);
@@ -742,44 +756,72 @@ Slider_Draw(menuslider_s *s)
 
 	Draw_CharScaled(x_rcol + (i * 8) + 8,
 		y * scale, 130, scale);
-	Draw_CharScaled(x_rcol + (int)((SLIDER_RANGE * scale - 1) * 8 * range) + 8,
-		y * scale, 131, scale);
 
-	snprintf(buffer, 5, (s->printformat)? s->printformat : "%.1f", value);
-	Menu_DrawString(x_rcol + ((SLIDER_RANGE + 2) * scale * 8),
-		y, buffer);
+	if (s->cvar)
+	{
+		float value, range;
+		char buffer[5];
+
+		value = Cvar_VariableValue(s->cvar);
+		if (s->abs && value < 0)
+		{
+			value = -value;
+		}
+
+		range = (ClampCvar(s->minvalue, s->maxvalue, value) - s->minvalue) /
+			(s->maxvalue - s->minvalue);
+
+		Draw_CharScaled(x_rcol + (int)((SLIDER_RANGE * scale - 1) * 8 * range) + 8,
+			y * scale, 131, scale);
+
+		Com_sprintf(buffer, sizeof(buffer),
+			(s->printformat)? s->printformat : "%.1f", value);
+		Menu_DrawString(x_rcol + ((SLIDER_RANGE + 2) * scale * 8),
+			y, buffer);
+	}
 }
 
-void
+static qboolean
 SpinControl_DoSlide(menulist_s *s, int dir)
 {
-	s->curvalue += dir;
+	if (!s->itemnames)
+	{
+		return false;
+	}
 
-	if (s->curvalue < 0)
+	if ((s->curvalue < 0) || (!s->itemnames[s->curvalue]))
 	{
 		s->curvalue = 0;
-		return;
 	}
-	else if (s->itemnames[s->curvalue] == 0)
+	else
 	{
-		s->curvalue--;
-		return;
+		dir = (dir <= 0) ? -1 : 1;
+
+		if ((s->curvalue == 0 && dir == -1) ||
+			(!s->itemnames[s->curvalue + 1] && dir == 1))
+		{
+			return false;
+		}
+
+		s->curvalue += dir;
 	}
 
 	if (s->generic.callback)
 	{
 		s->generic.callback(s);
 	}
+
+	return true;
 }
 
-void
+static void
 SpinControl_Draw(menulist_s *s)
 {
-	char buffer[100];
-	float scale = SCR_GetMenuScale();
-	int x = 0;
-	int y = 0;
+	const char *item, *nl;
+	float scale;
+	int x, y;
 
+	scale = SCR_GetMenuScale();
 	x = s->generic.parent->x + s->generic.x;
 	y = s->generic.parent->y + s->generic.y;
 
@@ -789,30 +831,40 @@ SpinControl_Draw(menulist_s *s)
 			y, SV_LocalizationUIMessage(s->generic.alttext, s->generic.name));
 	}
 
-	if (!strchr(s->itemnames[s->curvalue], '\n'))
+	if (!s->itemnames)
 	{
-		Menu_DrawString(x + (RCOLUMN_OFFSET * scale),
-			y, s->itemnames[s->curvalue]);
+		item = "(empty)";
 	}
 	else
 	{
-		char *newline = NULL;
+		item = ((s->curvalue < 0) || (!s->itemnames[s->curvalue])) ?
+			"(invalid)" : s->itemnames[s->curvalue];
+	}
 
-		Q_strlcpy(buffer, s->itemnames[s->curvalue], sizeof(buffer));
+	nl = strchr(item, '\n');
 
-		/* buffer smaller than item and could lose new line */
-		newline = strchr(buffer, '\n');
-		if (newline)
+	if (!nl)
+	{
+		Menu_DrawString(x + (RCOLUMN_OFFSET * scale),
+			y, item);
+	}
+	else
+	{
+		char buffer[100];
+
+		if (Q_strlcpy(buffer, item, sizeof(buffer)) < sizeof(buffer))
 		{
-			*newline = 0;
+			char *nlb;
+
+			nlb = buffer + (nl - item);
+			*nlb = '\0';
+
+			Menu_DrawString(x + (RCOLUMN_OFFSET * scale),
+				y + 10, nlb + 1);
 		}
 
 		Menu_DrawString(x + (RCOLUMN_OFFSET * scale),
 			y, buffer);
-		Q_strlcpy(buffer, strchr(s->itemnames[s->curvalue], '\n') + 1,
-			sizeof(buffer));
-		Menu_DrawString(x + (RCOLUMN_OFFSET * scale),
-			y + 10, buffer);
 	}
 }
 

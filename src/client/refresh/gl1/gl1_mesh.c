@@ -226,11 +226,10 @@ static void
 R_DrawAliasShadowCommand(const entity_t *currententity, int *order, const int *order_end,
 	float height, float lheight, vec4_t *s_lerped, const float *shadevector)
 {
-	vec3_t point;
-	int count;
-
 	while (1)
 	{
+		int count;
+
 		/* get the vertex count and primitive type */
 		count = *order++;
 
@@ -251,6 +250,8 @@ R_DrawAliasShadowCommand(const entity_t *currententity, int *order, const int *o
 
 		do
 		{
+			vec3_t point;
+
 			/* normals and vertexes come from the frame list */
 			memcpy(point, s_lerped[order[2]], sizeof(point));
 
@@ -313,37 +314,6 @@ R_DrawAliasShadow(entity_t *currententity, dmdx_t *paliashdr, int posenum,
 	}
 }
 
-static qboolean
-R_CullAliasModel(const model_t *currentmodel, vec3_t bbox[8], entity_t *e)
-{
-	dmdx_t *paliashdr;
-
-	paliashdr = (dmdx_t *)currentmodel->extradata;
-	if (!paliashdr)
-	{
-		Com_Printf("%s %s: Model is not fully loaded\n",
-				__func__, currentmodel->name);
-		return true;
-	}
-
-	if ((e->frame >= paliashdr->num_frames) || (e->frame < 0))
-	{
-		Com_DPrintf("%s %s: no such frame %d\n",
-				__func__, currentmodel->name, e->frame);
-		e->frame = 0;
-	}
-
-	if ((e->oldframe >= paliashdr->num_frames) || (e->oldframe < 0))
-	{
-		Com_DPrintf("%s %s: no such oldframe %d\n",
-				__func__, currentmodel->name, e->oldframe);
-		e->oldframe = 0;
-	}
-
-	return R_CullAliasMeshModel(paliashdr, frustum, e->frame, e->oldframe,
-		e->angles, e->origin, bbox);
-}
-
 void
 R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 {
@@ -357,7 +327,7 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 
 	if (!(currententity->flags & RF_WEAPONMODEL))
 	{
-		if (R_CullAliasModel(currentmodel, bbox, currententity))
+		if (R_CullAliasModel(currentmodel, frustum, bbox, currententity))
 		{
 			return;
 		}
@@ -382,131 +352,19 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 
 	paliashdr = (dmdx_t *)currentmodel->extradata;
 
-	/* get lighting information */
-	if (currententity->flags &
-		(RF_SHELL_HALF_DAM | RF_SHELL_GREEN | RF_SHELL_RED |
-		 RF_SHELL_BLUE | RF_SHELL_DOUBLE))
+	if (r_worldmodel)
 	{
-		VectorClear(shadelight);
-
-		if (currententity->flags & RF_SHELL_HALF_DAM)
-		{
-			shadelight[0] = 0.56;
-			shadelight[1] = 0.59;
-			shadelight[2] = 0.45;
-		}
-
-		if (currententity->flags & RF_SHELL_DOUBLE)
-		{
-			shadelight[0] = 0.9;
-			shadelight[1] = 0.7;
-		}
-
-		if (currententity->flags & RF_SHELL_RED)
-		{
-			shadelight[0] = 1.0;
-		}
-
-		if (currententity->flags & RF_SHELL_GREEN)
-		{
-			shadelight[1] = 1.0;
-		}
-
-		if (currententity->flags & RF_SHELL_BLUE)
-		{
-			shadelight[2] = 1.0;
-		}
-	}
-	else if (currententity->flags & RF_FULLBRIGHT)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			shadelight[i] = 1.0;
-		}
+		R_ApplyModelLight(r_worldmodel, currententity, shadelight,
+			lightspot, r_worldmodel->lightdata);
 	}
 	else
 	{
-		if (!r_worldmodel || !r_worldmodel->lightdata)
-		{
-			shadelight[0] = shadelight[1] = shadelight[2] = 1.0F;
-		}
-		else
-		{
-			R_LightPoint(r_worldmodel->grid, currententity, r_worldmodel->surfaces,
-				r_worldmodel->nodes, currententity->origin, shadelight,
-				r_modulate->value, lightspot);
-		}
-
-		/* player lighting hack for communication back to server */
-		if (currententity->flags & RF_WEAPONMODEL)
-		{
-			/* pick the greatest component, which should be
-			   the same as the mono value returned by software */
-			if (shadelight[0] > shadelight[1])
-			{
-				if (shadelight[0] > shadelight[2])
-				{
-					r_lightlevel->value = 150 * shadelight[0];
-				}
-				else
-				{
-					r_lightlevel->value = 150 * shadelight[2];
-				}
-			}
-			else
-			{
-				if (shadelight[1] > shadelight[2])
-				{
-					r_lightlevel->value = 150 * shadelight[1];
-				}
-				else
-				{
-					r_lightlevel->value = 150 * shadelight[2];
-				}
-			}
-		}
+		R_ApplyModelLight(NULL, currententity, shadelight,
+			lightspot, NULL);
 	}
 
-	if (currententity->flags & RF_MINLIGHT)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			if (shadelight[i] > 0.1)
-			{
-				break;
-			}
-		}
-
-		if (i == 3)
-		{
-			shadelight[0] = 0.1;
-			shadelight[1] = 0.1;
-			shadelight[2] = 0.1;
-		}
-	}
-
-	if (currententity->flags & RF_GLOW)
-	{
-		/* bonus items will pulse with time */
-		float scale;
-
-		scale = 0.1 * sin(r_newrefdef.time * 7);
-
-		for (i = 0; i < 3; i++)
-		{
-			float	min;
-
-			min = shadelight[i] * 0.8;
-			shadelight[i] += scale;
-
-			if (shadelight[i] < min)
-			{
-				shadelight[i] = min;
-			}
-		}
-	}
-
-	// Apply gl1_overbrightbits to the mesh. If we don't do this they will appear slightly dimmer relative to walls.
+	/* Apply gl1_overbrightbits to the mesh. If we don't do this they will
+	 * appear slightly dimmer relative to walls. */
 	if (gl1_overbrightbits->value)
 	{
 		for (i = 0; i < 3; ++i)
@@ -516,8 +374,8 @@ R_DrawAliasModel(entity_t *currententity, const model_t *currentmodel)
 	}
 
 	/* ir goggles color override */
-	if (r_newrefdef.rdflags & RDF_IRGOGGLES && currententity->flags &
-		RF_IR_VISIBLE)
+	if ((r_newrefdef.rdflags & RDF_IRGOGGLES) &&
+		(currententity->flags & RF_IR_VISIBLE))
 	{
 		shadelight[0] = 1.0;
 		shadelight[1] = 0.0;

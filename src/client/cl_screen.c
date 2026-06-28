@@ -66,6 +66,9 @@ static int crosshair_width, crosshair_height;
 
 extern cvar_t *cl_showfps;
 extern cvar_t *crosshair_scale;
+extern cvar_t *crosshair_color_r;
+extern cvar_t *crosshair_color_g;
+extern cvar_t *crosshair_color_b;
 extern cvar_t *cl_showspeed;
 extern float GetPlayerSpeed(float *, float *);
 
@@ -134,9 +137,7 @@ SCR_DebugGraph(float value, int color)
 static void
 SCR_DrawDebugGraph(void)
 {
-	int a, x, y, w, i, h;
-	float v;
-	int color;
+	int a, x, y, w;
 
 	/* draw the graph */
 	w = scr_vrect.width;
@@ -148,6 +149,9 @@ SCR_DrawDebugGraph(void)
 
 	for (a = 0; a < w; a++)
 	{
+		int color, i, h;
+		float v;
+
 		i = (current - 1 - a + 1024) & 1023;
 		v = values[i].value;
 		color = values[i].color;
@@ -221,10 +225,10 @@ SCR_CopyUtf8(const char *src, char *dst, int limit)
  * Called for important messages that should stay
  * in the center of the screen for a few moments
  */
-void
-SCR_CenterPrint(char *str)
+static void
+SCR_CenterPrintOnScreenAndConsole(const char *str)
 {
-	char *s;
+	const char *s;
 
 	Q_strlcpy(scr_centerstring, str, sizeof(scr_centerstring));
 	scr_centertime_off = scr_centertime->value;
@@ -278,10 +282,61 @@ SCR_CenterPrint(char *str)
 	Con_ClearNotify();
 }
 
+void
+SCR_CenterPrint(const char *str)
+{
+	char action_message[1024], text_message[1024];
+
+	action_message[0] = 0;
+
+	while (!strncmp(str, "%bind:", 6))
+	{
+		/* parse string like "%bind:+movedown:$m_crouch%Crouch here." */
+		const char *next_column;
+
+		next_column = strchr(str + 6, ':');
+		if (next_column)
+		{
+			const char *bind, *end_message;
+			char binding[MAX_QPATH];
+			size_t len;
+
+			len = Q_min(sizeof(binding), next_column - str - 5);
+			Q_strlcpy(binding, str + 6, len);
+
+			bind = CL_GetBindByAction(binding);
+
+			end_message = strchr(next_column + 1, '%');
+			if (end_message)
+			{
+				char bind_message[MAX_QPATH];
+
+				len = Q_min(sizeof(bind_message), end_message - next_column);
+				Q_strlcpy(bind_message, next_column + 1, len);
+
+				Q_strlcat(action_message, bind, sizeof(action_message));
+				Q_strlcat(action_message, " / ", sizeof(action_message));
+				Q_strlcat(action_message, SV_LocalizationMessage(bind_message, NULL),
+					sizeof(action_message));
+				Q_strlcat(action_message, "\n", sizeof(action_message));
+				str = end_message + 1;
+			}
+		}
+	}
+
+	text_message[0] = 0;
+
+	Q_strlcat(text_message, str, sizeof(text_message));
+	Q_strlcat(text_message, "\n\n", sizeof(text_message));
+	Q_strlcat(text_message, action_message, sizeof(text_message));
+
+	SCR_CenterPrintOnScreenAndConsole(text_message);
+}
+
 static void
 SCR_DrawCenterString(void)
 {
-	char *start;
+	const char *start;
 	float scale;
 	int y;
 
@@ -741,10 +796,6 @@ SCR_DirtyScreen(void)
 static void
 SCR_TileClear(void)
 {
-	int i;
-	int top, bottom, left, right;
-	dirty_t clear;
-
 	if (scr_con_current == 1.0)
 	{
 		return; /* full screen console */
@@ -760,7 +811,6 @@ SCR_TileClear(void)
 		return; /* full screen cinematic */
 	}
 
-
 	/* This highly complicated pseudo damage tracking is very effective
 	   with the soft render, it gives about 10% speedup. On the GL
 	   renderers the speedup is negligible, but in introduce a bug:
@@ -768,7 +818,8 @@ SCR_TileClear(void)
 	   which the damage tracking doesn't take into account. Fix this
 	   by not using the damage tracking when running somethinge else
 	   than the soft renderer. Just redraw the borders every frame. */
-	if (strcmp(vid_renderer->string, "soft") != 0) {
+	if (strcmp(vid_renderer->string, "soft") != 0)
+	{
 		// Top
 		Draw_TileClear(scr_vrect.x, 0, scr_vrect.width, scr_vrect.y, "backtile");
 
@@ -780,7 +831,12 @@ SCR_TileClear(void)
 
 		// Right
 		Draw_TileClear(scr_vrect.x + scr_vrect.width, 0, viddef.width, viddef.height, "backtile");
-	} else {
+	}
+	else
+	{
+		int top, bottom, left, right, i;
+		dirty_t clear;
+
 		/* erase rect will be the union of the past three
 		   frames so tripple buffering works properly */
 		clear = scr_dirty;
@@ -867,7 +923,6 @@ SCR_TileClear(void)
 			i = clear.x1 > right + 1 ? clear.x1 : right + 1;
 			Draw_TileClear(i, clear.y1,
 					clear.x2 - i + 1, clear.y2 - clear.y1 + 1, "backtile");
-			clear.x2 = right;
 		}
 	}
 }
@@ -932,9 +987,9 @@ DrawHUDStringScaled(const char *string, int x, int y, int centerwidth, qboolean 
 static void
 SCR_DrawFieldScaled(int x, int y, int color, int width, int value, float factor)
 {
-	char num[16], *ptr;
-	int l;
-	int frame;
+	const char *ptr;
+	char num[16];
+	int l, frame;
 
 	if (width < 1)
 	{
@@ -1130,7 +1185,7 @@ SCR_ExecuteLayoutString(char *s)
 		{
 			/* draw a deathmatch client block */
 			int score, ping, time, value;
-			clientinfo_t *ci;
+			const clientinfo_t *ci;
 
 			token = COM_Parse(&s);
 			x = viddef.width / 2 - scale * 160 + scale * (int)strtol(token, (char **)NULL, 10);
@@ -1179,7 +1234,7 @@ SCR_ExecuteLayoutString(char *s)
 		{
 			/* draw a ctf client block */
 			int score, ping, value;
-			clientinfo_t *ci;
+			const clientinfo_t *ci;
 			char block[80];
 
 			token = COM_Parse(&s);
@@ -1383,6 +1438,19 @@ SCR_ExecuteLayoutString(char *s)
 			continue;
 		}
 
+		if (!strcmp(token, "story"))
+		{
+			char message[241]; /* utf string could by 4 bytes per char */
+			int l, x;
+
+			token = cl.configstrings[CS_STORY];
+			l = SCR_CopyUtf8(SV_LocalizationMessage(token, NULL), message, 60);
+			x = (viddef.width - (l * CHAR_SIZE * scale)) / 2;
+
+			Draw_StringScaled(x, viddef.width / 2, scale, false, message);
+			continue;
+		}
+
 		if (!strcmp(token, "if"))
 		{
 			int index, value;
@@ -1433,8 +1501,6 @@ SCR_DrawStats(void)
 {
 	SCR_ExecuteLayoutString(cl.configstrings[CS_STATUSBAR]);
 }
-
-#define STAT_LAYOUTS 13
 
 static void
 SCR_DrawLayout(void)
@@ -1712,12 +1778,12 @@ SCR_UpdateScreen(void)
 			SCR_DrawStats();
 			SCR_DrawSpeed();
 
-			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & 1)
+			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & LAYOUTS_LAYOUT)
 			{
 				SCR_DrawLayout();
 			}
 
-			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & 2)
+			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & LAYOUTS_INVENTORY)
 			{
 				CL_DrawInventory();
 			}
@@ -1796,6 +1862,7 @@ SCR_GetDefaultScale(void)
 void
 SCR_DrawCrosshair(void)
 {
+	vec3_t color;
 	float scale;
 
 	if (!crosshair->value)
@@ -1823,9 +1890,13 @@ SCR_DrawCrosshair(void)
 		scale = SCR_ClampScale(crosshair_scale->value);
 	}
 
-	Draw_PicScaledAltText(scr_vrect.x + (scr_vrect.width - crosshair_width * scale) / 2,
+	color[0] = crosshair_color_r->value;
+	color[1] = crosshair_color_g->value;
+	color[2] = crosshair_color_b->value;
+
+	Draw_PicScaledCol(scr_vrect.x + (scr_vrect.width - crosshair_width * scale) / 2,
 			scr_vrect.y + (scr_vrect.height - crosshair_height * scale) / 2,
-			crosshair_pic, scale, "+");
+			crosshair_pic, scale, color, "+");
 }
 
 float

@@ -276,6 +276,8 @@ DynamicSpawnUpdate(edict_t *self, dynamicentity_t *data)
 		VectorCopy(data->scale, self->rrs.scale);
 	}
 
+	self->rrs.alpha = 1.0;
+
 	self->monsterinfo.scale = (
 		data->scale[0] +
 		data->scale[1] +
@@ -318,8 +320,8 @@ DynamicSpawnUpdate(edict_t *self, dynamicentity_t *data)
 }
 
 void
-dynamicspawn_touch(edict_t *self, edict_t *other, cplane_t *plane /* unused */,
-		csurface_t *surf /* unused */)
+dynamicspawn_touch(edict_t *self, edict_t *other, const cplane_t *plane /* unused */,
+		const csurface_t *surf /* unused */)
 {
 	if (!self || !other)
 	{
@@ -478,17 +480,23 @@ Spawn_CheckCoop_MapHacks(edict_t *ent)
 
 	if (!Q_stricmp(level.mapname, "xsewer1"))
 	{
-		if (ent->classname && !Q_stricmp(ent->classname, "trigger_relay") && ent->target && !Q_stricmp(ent->target, "t3") && ent->targetname && !Q_stricmp(ent->targetname, "t2"))
+		if (ent->classname && !Q_stricmp(ent->classname, "trigger_relay") &&
+			ent->target && !Q_stricmp(ent->target, "t3") &&
+			ent->targetname && !Q_stricmp(ent->targetname, "t2"))
 		{
 			return true;
 		}
-		if (ent->classname && !Q_stricmp(ent->classname, "func_button") && ent->target && !Q_stricmp(ent->target, "t16") && ent->model && !Q_stricmp(ent->model, "*71"))
+
+		if (ent->classname && !Q_stricmp(ent->classname, "func_button") &&
+			ent->target && !Q_stricmp(ent->target, "t16") &&
+			ent->model && !Q_stricmp(ent->model, "*71"))
 		{
 			ent->message = "Overflow valve maintenance\nhatch A opened.";
 			return false;
 		}
 
-		if (ent->classname && !Q_stricmp(ent->classname, "trigger_once") && ent->model && !Q_stricmp(ent->model, "*3"))
+		if (ent->classname && !Q_stricmp(ent->classname, "trigger_once") &&
+			ent->model && !Q_stricmp(ent->model, "*3"))
 		{
 			ent->message = "Overflow valve maintenance\nhatch B opened.";
 			return false;
@@ -577,6 +585,12 @@ ED_CallSpawn(edict_t *ent)
 		ent->classname = (FindItem("Plasma Beam"))->classname;
 	}
 
+	/* Infinity mod fix */
+	if (!strcmp(ent->classname, "item_pistol"))
+	{
+		ent->classname = "weapon_pistol";
+	}
+
 	/* search dynamic definitions */
 	dyn_id = -1;
 	if (dynamicentities && ndynamicentities)
@@ -603,7 +617,7 @@ ED_CallSpawn(edict_t *ent)
 	}
 
 	/* check item spawn functions */
-	for (i = 0, item = itemlist; i < game.num_items; i++, item++)
+	for (i = 0, item = itemlist; i < itemlist_len; i++, item++)
 	{
 		if (!item->classname)
 		{
@@ -665,7 +679,7 @@ ED_CallSpawn(edict_t *ent)
 }
 
 char *
-ED_NewString(const char *string, qboolean raw)
+ED_NewString(const char *string, qboolean raw, unsigned short tag)
 {
 	char *newb;
 	size_t l;
@@ -677,7 +691,7 @@ ED_NewString(const char *string, qboolean raw)
 
 	l = strlen(string) + 1;
 
-	newb = gi.TagMalloc(l, TAG_LEVEL);
+	newb = gi.TagMalloc(l, tag);
 
 	if (!raw)
 	{
@@ -688,7 +702,7 @@ ED_NewString(const char *string, qboolean raw)
 
 		for (i = 0; i < l; i++)
 		{
-			if ((string[i] == '\\') && (i < l - 1))
+			if ((i < l - 1) && (string[i] == '\\'))
 			{
 				i++;
 
@@ -765,6 +779,24 @@ ED_ParseColorField(const char *value)
 	return atoi(value);
 }
 
+static void
+ED_ParseScaleField(vec_t *vec, const char *value, const char* name, const edict_t *ent)
+{
+	int count;
+
+	count = sscanf(value, "%f %f %f", &vec[0], &vec[1], &vec[2]);
+	if (count == 1)
+	{
+		vec[2] = vec[1] = vec[0];
+	}
+	else if(count != 3)
+	{
+		memset(vec, 0, sizeof(vec3_t));
+		gi.dprintf("%s: entity %d: incomplete '%s' field value '%s'\n",
+			__func__, ent->s.number, name, value);
+	}
+}
+
 /*
  * Takes a key/value pair and sets
  * the binary values in an edict
@@ -772,71 +804,75 @@ ED_ParseColorField(const char *value)
 static void
 ED_ParseField(const char *key, const char *value, edict_t *ent)
 {
-	field_t *f;
-	byte *b;
-	float v;
-	vec3_t vec;
+	const field_t *f;
+	void *b;
+	vec_t *vec;
 
 	if (!ent || !value || !key)
 	{
 		return;
 	}
 
-	for (f = fields; f->name; f++)
+	f = FindSpawntempField(key);
+	if (f)
 	{
-		if (!(f->flags & FFL_NOSPAWN) && !Q_strcasecmp(f->name, (char *)key))
+		b = (byte *)&st + f->ofs;
+	}
+	else
+	{
+		f = FindSpawnfield(key);
+		if (!f)
 		{
-			/* found it */
-			if (f->flags & FFL_SPAWNTEMP)
-			{
-				b = (byte *)&st;
-			}
-			else
-			{
-				b = (byte *)ent;
-			}
-
-			switch (f->type)
-			{
-				case F_LRAWSTRING:
-					*(char **)(b + f->ofs) = ED_NewString(value, true);
-					break;
-				case F_LSTRING:
-					*(char **)(b + f->ofs) = ED_NewString(value, false);
-					break;
-				case F_VECTOR:
-					VectorClear(vec);
-					sscanf(value, "%f %f %f", &vec[0], &vec[1], &vec[2]);
-					((float *)(b + f->ofs))[0] = vec[0];
-					((float *)(b + f->ofs))[1] = vec[1];
-					((float *)(b + f->ofs))[2] = vec[2];
-					break;
-				case F_INT:
-					*(int *)(b + f->ofs) = (int)strtol(value, (char **)NULL, 10);
-					break;
-				case F_FLOAT:
-					*(float *)(b + f->ofs) = (float)strtod(value, (char **)NULL);
-					break;
-				case F_ANGLEHACK:
-					v = (float)strtod(value, (char **)NULL);
-					((float *)(b + f->ofs))[0] = 0;
-					((float *)(b + f->ofs))[1] = v;
-					((float *)(b + f->ofs))[2] = 0;
-					break;
-				case F_RGBA:
-					*(unsigned *)(b + f->ofs) = ED_ParseColorField(value);
-					break;
-				case F_IGNORE:
-					break;
-				default:
-					break;
-			}
-
+			gi.dprintf("'%s' is not a field. Value is '%s'\n", key, value);
 			return;
 		}
+
+		b = (byte *)ent + f->ofs;
 	}
 
-	gi.dprintf("'%s' is not a field. Value is '%s'\n", key, value);
+	switch (f->type)
+	{
+		case F_GRAWSTRING:
+			*(char **)b = ED_NewString(value, true, TAG_GAME);
+			break;
+		case F_LRAWSTRING:
+			*(char **)b = ED_NewString(value, true, TAG_LEVEL);
+			break;
+		case F_LSTRING:
+			*(char **)b = ED_NewString(value, false, TAG_LEVEL);
+			break;
+		case F_VECTOR:
+			vec = b;
+			if (sscanf(value, "%f %f %f", &vec[0], &vec[1], &vec[2]) != 3)
+			{
+				memset(vec, 0, sizeof(vec3_t));
+				gi.dprintf("%s: entity %d: incomplete '%s' field value '%s'\n",
+					__func__, ent->s.number, f->name, value);
+			}
+			break;
+		case F_INT:
+			*(int *)b = (int)strtol(value, (char **)NULL, 10);
+			break;
+		case F_FLOAT:
+			*(float *)b = (float)strtod(value, (char **)NULL);
+			break;
+		case F_ANGLEHACK:
+			vec = b;
+			vec[0] = 0;
+			vec[1] = (vec_t)strtod(value, (char **)NULL);
+			vec[2] = 0;
+			break;
+		case F_RGBA:
+			*(unsigned *)b = ED_ParseColorField(value);
+			break;
+		case F_SCALE:
+			ED_ParseScaleField(b, value, f->name, ent);
+			break;
+		case F_IGNORE:
+			break;
+		default:
+			break;
+	}
 }
 
 /*
@@ -1101,6 +1137,61 @@ SpawnEntitiesCount(const char *entities)
 	return num_ent;
 }
 
+/* inhibit entities from game based on cvars & spawnflags */
+static qboolean
+G_InhibitEntity(edict_t *ent)
+{
+	if (deathmatch->value)
+	{
+		if (ent->spawnflags & SPAWNFLAG_NOT_DEATHMATCH)
+		{
+			return true;
+		}
+	}
+	else if (coop->value && !coop_baseq2->value)
+	{
+		if (ent->spawnflags & SPAWNFLAG_NOT_COOP)
+		{
+			return true;
+		}
+
+		/* stuff marked !easy & !med & !hard are coop only, all levels */
+		if (!((ent->spawnflags & SPAWNFLAG_NOT_EASY) &&
+			  (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM) &&
+			  (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
+		{
+			if (((skill->value == SKILL_EASY) && (ent->spawnflags & SPAWNFLAG_NOT_EASY)) ||
+				((skill->value == SKILL_MEDIUM) && (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
+				(((skill->value == SKILL_HARD) || (skill->value == SKILL_HARDPLUS)) &&
+				  (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
+			{
+				return true;
+			}
+		}
+	}
+	else if (!coop->value && (ent->spawnflags & SPAWNFLAG_COOP_ONLY))
+	{
+		return true;
+	}
+	else
+	{
+		if (Spawn_CheckCoop_MapHacks(ent) || (
+			((skill->value == SKILL_EASY) &&
+			 (ent->spawnflags & SPAWNFLAG_NOT_EASY)) ||
+			((skill->value == SKILL_MEDIUM) &&
+			 (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
+			(((skill->value == SKILL_HARD) ||
+			  (skill->value == SKILL_HARDPLUS)) &&
+			 (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
+			)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /*
  * Creates a server's entity / program execution context by
  * parsing textual entity definitions out of an ent file.
@@ -1110,7 +1201,6 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 {
 	edict_t *ent;
 	int inhibit;
-	const char *com_token;
 	int i;
 	float skill_level;
 
@@ -1146,6 +1236,7 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 	memset(g_edicts, 0, game.maxentities * sizeof(g_edicts[0]));
 
 	Q_strlcpy(level.mapname, mapname, sizeof(level.mapname));
+	level.is_n64 = !strncmp(level.mapname, "q64/", 4);
 	Q_strlcpy(game.spawnpoint, spawnpoint, sizeof(game.spawnpoint));
 
 	/* set client fields on player ents */
@@ -1160,6 +1251,8 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 	/* parse ents */
 	while (1)
 	{
+		const char *com_token;
+
 		/* parse the opening brace */
 		com_token = COM_Parse(&entities);
 
@@ -1219,60 +1312,16 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 		   different skill levels or deathmatch */
 		if (ent != g_edicts)
 		{
-			if (deathmatch->value)
+			if (G_InhibitEntity(ent))
 			{
-				if (ent->spawnflags & SPAWNFLAG_NOT_DEATHMATCH)
-				{
-					G_FreeEdict(ent);
-					inhibit++;
-					continue;
-				}
-			}
-			else if (coop->value && !coop_baseq2->value)
-			{
-				if (ent->spawnflags & SPAWNFLAG_NOT_COOP)
-				{
-					G_FreeEdict(ent);
-					inhibit++;
-					continue;
-				}
-
-				/* stuff marked !easy & !med & !hard are coop only, all levels */
-				if (!((ent->spawnflags & SPAWNFLAG_NOT_EASY) &&
-					  (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM) &&
-					  (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
-				{
-					if (((skill->value == SKILL_EASY) && (ent->spawnflags & SPAWNFLAG_NOT_EASY)) ||
-						((skill->value == SKILL_MEDIUM) && (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
-						(((skill->value == SKILL_HARD) || (skill->value == SKILL_HARDPLUS)) && (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
-					{
-						G_FreeEdict(ent);
-						inhibit++;
-						continue;
-					}
-				}
-			}
-			else
-			{
-				if (Spawn_CheckCoop_MapHacks(ent) || (
-					((skill->value == SKILL_EASY) &&
-					 (ent->spawnflags & SPAWNFLAG_NOT_EASY)) ||
-					((skill->value == SKILL_MEDIUM) &&
-					 (ent->spawnflags & SPAWNFLAG_NOT_MEDIUM)) ||
-					(((skill->value == SKILL_HARD) ||
-					  (skill->value == SKILL_HARDPLUS)) &&
-					 (ent->spawnflags & SPAWNFLAG_NOT_HARD)))
-					)
-				{
-					G_FreeEdict(ent);
-					inhibit++;
-					continue;
-				}
+				G_FreeEdict(ent);
+				inhibit++;
+				continue;
 			}
 
 			ent->spawnflags &=
 				~(SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM |
-				  SPAWNFLAG_NOT_HARD |
+				  SPAWNFLAG_NOT_HARD | SPAWNFLAG_COOP_ONLY |
 				  SPAWNFLAG_NOT_COOP | SPAWNFLAG_NOT_DEATHMATCH);
 		}
 
@@ -1319,7 +1368,7 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 		CTFSpawn();
 	}
 
-	AI_NewMap();//JABot
+	AI_NewMap(); //JABot
 
 	/* setup server-side shadow lights */
 	setup_shadow_lights();
@@ -1533,12 +1582,12 @@ static char *roarke_statusbar =
  * QUAKED worldspawn (0 0 0) ?
  *
  * Only used for the world.
- * "sky"	environment map name
- * "skyaxis"	vector axis for rotating sky
- * "skyrotate"	speed of rotation in degrees/second
- * "sounds"	music cd track number
- * "gravity"	800 is default gravity
- * "message"	text to print at user logon
+ *  "sky"       environment map name
+ *  "skyaxis"	vector axis for rotating sky
+ *  "skyrotate"	speed of rotation in degrees/second
+ *  "sounds"	music cd track number
+ *  "gravity"	800 is default gravity
+ *  "message"	text to print at user logon
  */
 void
 SP_worldspawn(edict_t *ent)
@@ -1551,7 +1600,7 @@ SP_worldspawn(edict_t *ent)
 	ent->movetype = MOVETYPE_PUSH;
 	ent->solid = SOLID_BSP;
 	ent->inuse = true; /* since the world doesn't use G_Spawn() */
-	ent->s.modelindex = 1; /* world model is always index 1 */
+	ent->s.modelindex = MODELINDEX_WORLD; /* world model is always index 1 */
 
 	/* --------------- */
 
@@ -1812,7 +1861,7 @@ SP_worldspawn(edict_t *ent)
  */
 
 static edict_t *
-CreateMonster(vec3_t origin, vec3_t angles, char *classname)
+CreateMonster(vec3_t origin, vec3_t angles, const char *classname)
 {
 	edict_t *newEnt;
 
@@ -1825,7 +1874,7 @@ CreateMonster(vec3_t origin, vec3_t angles, char *classname)
 
 	VectorCopy(origin, newEnt->s.origin);
 	VectorCopy(angles, newEnt->s.angles);
-	newEnt->classname = ED_NewString(classname, true);
+	newEnt->classname = ED_NewString(classname, true, TAG_LEVEL);
 	newEnt->monsterinfo.aiflags |= AI_DO_NOT_COUNT;
 
 	VectorSet(newEnt->gravityVector, 0, 0, -1);
@@ -1836,7 +1885,7 @@ CreateMonster(vec3_t origin, vec3_t angles, char *classname)
 }
 
 static void
-DetermineBBox(char *classname, vec3_t mins, vec3_t maxs)
+DetermineBBox(const char *classname, vec3_t mins, vec3_t maxs)
 {
 	edict_t *newEnt;
 
@@ -1849,7 +1898,7 @@ DetermineBBox(char *classname, vec3_t mins, vec3_t maxs)
 
 	VectorCopy(vec3_origin, newEnt->s.origin);
 	VectorCopy(vec3_origin, newEnt->s.angles);
-	newEnt->classname = ED_NewString(classname, true);
+	newEnt->classname = ED_NewString(classname, true, TAG_LEVEL);
 	newEnt->monsterinfo.aiflags |= AI_DO_NOT_COUNT;
 
 	ED_CallSpawn(newEnt);
@@ -1869,7 +1918,7 @@ DetermineBBox(char *classname, vec3_t mins, vec3_t maxs)
 
 edict_t *
 CreateFlyMonster(vec3_t origin, vec3_t angles, vec3_t mins,
-		vec3_t maxs, char *classname)
+		vec3_t maxs, const char *classname)
 {
 	if (!classname)
 	{
@@ -1892,7 +1941,7 @@ CreateFlyMonster(vec3_t origin, vec3_t angles, vec3_t mins,
 
 edict_t *
 CreateGroundMonster(vec3_t origin, vec3_t angles, vec3_t entMins,
-		vec3_t entMaxs, char *classname, int height)
+		vec3_t entMaxs, const char *classname, int height)
 {
 	edict_t *newEnt;
 	vec3_t mins, maxs;
@@ -1931,17 +1980,18 @@ CreateGroundMonster(vec3_t origin, vec3_t angles, vec3_t entMins,
 }
 
 qboolean
-FindSpawnPoint(vec3_t startpoint, vec3_t mins, vec3_t maxs,
+FindSpawnPoint(vec3_t startpoint, const vec3_t mins, const vec3_t maxs,
 		vec3_t spawnpoint, float maxMoveUp)
 {
 	trace_t tr;
-	vec3_t top;
 
 	tr = gi.trace(startpoint, mins, maxs, startpoint,
 			NULL, MASK_MONSTERSOLID | CONTENTS_PLAYERCLIP);
 
 	if ((tr.startsolid || tr.allsolid) || (tr.ent != world))
 	{
+		vec3_t top;
+
 		VectorCopy(startpoint, top);
 		top[2] += maxMoveUp;
 
@@ -1965,7 +2015,7 @@ FindSpawnPoint(vec3_t startpoint, vec3_t mins, vec3_t maxs,
 }
 
 qboolean
-CheckSpawnPoint(vec3_t origin, vec3_t mins, vec3_t maxs)
+CheckSpawnPoint(const vec3_t origin, const vec3_t mins, const vec3_t maxs)
 {
 	trace_t tr;
 
@@ -1991,7 +2041,7 @@ CheckSpawnPoint(vec3_t origin, vec3_t mins, vec3_t maxs)
 }
 
 qboolean
-CheckGroundSpawnPoint(vec3_t origin, vec3_t entMins, vec3_t entMaxs,
+CheckGroundSpawnPoint(const vec3_t origin, const vec3_t entMins, const vec3_t entMaxs,
 		float height, float gravity)
 {
 	trace_t tr;
@@ -2129,9 +2179,9 @@ spawngrow_think(edict_t *self)
 
 	for (i = 0; i < 2; i++)
 	{
-		self->s.angles[PITCH] = rand() % 360;
-		self->s.angles[YAW] = rand() % 360;
-		self->s.angles[ROLL] = rand() % 360;
+		self->s.angles[PITCH] = frandk() * 360;
+		self->s.angles[YAW] = frandk() * 360;
+		self->s.angles[ROLL] = frandk() * 360;
 	}
 
 	if ((level.time < self->wait) && (self->s.frame < 2))
@@ -2161,7 +2211,7 @@ spawngrow_think(edict_t *self)
 }
 
 void
-SpawnGrow_Spawn(vec3_t startpos, int size)
+SpawnGrow_Spawn(const vec3_t startpos, int size)
 {
 	edict_t *ent;
 	int i;
@@ -2172,9 +2222,9 @@ SpawnGrow_Spawn(vec3_t startpos, int size)
 
 	for (i = 0; i < 2; i++)
 	{
-		ent->s.angles[PITCH] = rand() % 360;
-		ent->s.angles[YAW] = rand() % 360;
-		ent->s.angles[ROLL] = rand() % 360;
+		ent->s.angles[PITCH] = frandk() * 360;
+		ent->s.angles[YAW] = frandk() * 360;
+		ent->s.angles[ROLL] = frandk() * 360;
 	}
 
 	ent->solid = SOLID_NOT;
@@ -2309,7 +2359,7 @@ widowlegs_think(edict_t *self)
 }
 
 void
-Widowlegs_Spawn(vec3_t startpos, vec3_t angles)
+Widowlegs_Spawn(const vec3_t startpos, vec3_t angles)
 {
 	edict_t *ent;
 
@@ -2331,7 +2381,8 @@ Widowlegs_Spawn(vec3_t startpos, vec3_t angles)
 static char *
 DynamicStringParse(char *line, char *field, int size, char separator)
 {
-	char *next_section, *current_section;
+	const char *current_section;
+	char *next_section;
 
 	/* search line end */
 	current_section = line;
@@ -2371,7 +2422,8 @@ DynamicFloatParse(char *line, float *field, int size, char separator)
 
 	for (i = 0; i < size; i++)
 	{
-		char *next_section, *current_section;
+		const char *current_section;
+		char *next_section;
 
 		current_section = line;
 		next_section = strchr(line, separator);
@@ -2407,7 +2459,7 @@ DynamicSkipParse(char *line, int size, char separator)
 static int
 DynamicSort(const void *p1, const void *p2)
 {
-	dynamicentity_t *ent1, *ent2;
+	const dynamicentity_t *ent1, *ent2;
 
 	ent1 = (dynamicentity_t*)p1;
 	ent2 = (dynamicentity_t*)p2;
@@ -2434,17 +2486,19 @@ DynamicSpawnInit(void)
 	{
 		if (len_ai > 4 && !strncmp(raw, "CVSC", 4))
 		{
-			int i;
-
 			len_ai -= 4;
 			buf_ai = malloc(len_ai + 1);
 			if (buf_ai)
 			{
+				int i;
+
 				memcpy(buf_ai, raw + 4, len_ai);
+
 				for (i = 0; i < len_ai; i++)
 				{
 					buf_ai[i] = buf_ai[i] ^ 0x96;
 				}
+
 				buf_ai[len_ai] = 0;
 			}
 		}
@@ -2481,7 +2535,7 @@ DynamicSpawnInit(void)
 			size_t linesize = 0;
 
 			linesize = strcspn(curr, "\n\r");
-			if (*curr &&  *curr != '\n' && *curr != '\r' && *curr != ',')
+			if (*curr != '\n' && *curr != '\r' && *curr != ',')
 			{
 				ndynamicentities ++;
 			}
@@ -2508,7 +2562,7 @@ DynamicSpawnInit(void)
 			size_t linesize = 0;
 
 			linesize = strcspn(curr, "\n\r");
-			if (*curr && strncmp(curr, "//", 2) &&
+			if (strncmp(curr, "//", 2) &&
 				*curr != '\n' && *curr != '\r' && *curr != ';')
 			{
 				ndynamicentities ++;
@@ -2605,7 +2659,7 @@ DynamicSpawnInit(void)
 				line = DynamicSkipParse(line, 2, ',');
 				line = DynamicFloatParse(line, dynamicentities[curr_pos].damage_aim, 3, ',');
 				line = DynamicIntParse(line, &dynamicentities[curr_pos].damage, ',');
-				line = DynamicIntParse(line, &dynamicentities[curr_pos].damage_range, ',');
+				DynamicIntParse(line, &dynamicentities[curr_pos].damage_range, ',');
 				/*
 				 * Ignored fields:
 					* spread x
@@ -2711,7 +2765,7 @@ DynamicSpawnInit(void)
 				line = DynamicIntParse(line, &dynamicentities[curr_pos].damage_range, '|');
 				line = DynamicFloatParse(line, dynamicentities[curr_pos].damage_aim, 3, '|');
 				line = DynamicStringParse(line, gib_type, MAX_QPATH, '|');
-				line = DynamicIntParse(line, &dynamicentities[curr_pos].gib_health, '|');
+				DynamicIntParse(line, &dynamicentities[curr_pos].gib_health, '|');
 
 				dynamicentities[curr_pos].gib = DynamicSpawnGibFromName(gib_type);
 
@@ -2790,7 +2844,7 @@ GetDynamicItems(int *count)
 
 	for (i = 0; i < ndynamicentities; i++)
 	{
-		char* classname;
+		const char *classname;
 
 		if (strncmp(dynamicentities[i].classname, "item_", 5) &&
 			strncmp(dynamicentities[i].classname, "weapon_", 7) &&
@@ -2843,7 +2897,7 @@ GetDynamicItems(int *count)
 static int
 StaticSort(const void *p1, const void *p2)
 {
-	spawn_t *ent1, *ent2;
+	const spawn_t *ent1, *ent2;
 
 	ent1 = (spawn_t*)p1;
 	ent2 = (spawn_t*)p2;

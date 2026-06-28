@@ -594,10 +594,9 @@ R_ClipPolyFace(int nump, const clipplane_t *pclipplane)
 */
 // iswater was qboolean. changed to allow passing more flags
 static void
-R_PolygonDrawSpans(espan_t *pspan, int iswater, float d_ziorigin, float d_zistepu, float d_zistepv)
+R_PolygonDrawSpans(const espan_t *pspan, int iswater, float d_ziorigin, float d_zistepu, float d_zistepv)
 {
 	int	snext, tnext;
-	float	sdivz, tdivz, zi, z, du, dv, spancountminus1;
 	float	sdivzspanletstepu, tdivzspanletstepu, zispanletstepu;
 	int	*r_turb_turb;
 
@@ -631,6 +630,8 @@ R_PolygonDrawSpans(espan_t *pspan, int iswater, float d_ziorigin, float d_zistep
 
 		if (count > 0)
 		{
+			float sdivz, tdivz, zi, z, du, dv;
+
 			// transparent spans damage z buffer
 			VID_DamageZBuffer(pspan->u, pspan->v);
 			VID_DamageZBuffer(pspan->u + count, pspan->v);
@@ -705,6 +706,8 @@ R_PolygonDrawSpans(espan_t *pspan, int iswater, float d_ziorigin, float d_zistep
 				}
 				else
 				{
+					float spancountminus1;
+
 					// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
 					// can't step off polygon), clamp, calculate s and t steps across
 					// span by division, biasing steps low so we don't run off the
@@ -769,9 +772,9 @@ static void
 R_PolygonScanLeftEdge (espan_t *s_polygon_spans)
 {
 	const emitpoint_t *pvert, *pnext;
-	float du, dv, vtop, u_step;
 	int i, lmaxindex;
 	espan_t *pspan;
+	float vtop, vvert;
 
 	pspan = s_polygon_spans;
 	i = s_minindex;
@@ -782,27 +785,51 @@ R_PolygonScanLeftEdge (espan_t *s_polygon_spans)
 	if (lmaxindex == 0)
 		lmaxindex = r_polydesc.nump;
 
-	vtop = ceil (r_polydesc.pverts[i].v);
+	vvert = r_polydesc.pverts[i].v;
+	if (vvert < r_refdef.fvrecty_adj)
+		vvert = r_refdef.fvrecty_adj;
+	if (vvert > r_refdef.fvrectbottom_adj)
+		vvert = r_refdef.fvrectbottom_adj;
+
+	vtop = ceil (vvert);
 
 	do
 	{
-		float vbottom;
+		float vbottom, vnext;
 
 		pvert = &r_polydesc.pverts[i];
 		pnext = pvert - 1;
+		vnext = pnext->v;
+		if (vnext < r_refdef.fvrecty_adj)
+			vnext = r_refdef.fvrecty_adj;
+		if (vnext > r_refdef.fvrectbottom_adj)
+			vnext = r_refdef.fvrectbottom_adj;
 
-		vbottom = ceil (pnext->v);
+		vbottom = ceil (vnext);
 
 		if (vtop < vbottom)
 		{
 			int v, u, istep, itop, ibottom;
+			float du, dv, u_step, uvert, unext;
 
-			du = pnext->u - pvert->u;
-			dv = pnext->v - pvert->v;
+			uvert = pvert->u;
+			if (uvert < r_refdef.fvrectx_adj)
+				uvert = r_refdef.fvrectx_adj;
+			if (uvert > r_refdef.fvrectright_adj)
+				uvert = r_refdef.fvrectright_adj;
+
+			unext = pnext->u;
+			if (unext < r_refdef.fvrectx_adj)
+				unext = r_refdef.fvrectx_adj;
+			if (unext > r_refdef.fvrectright_adj)
+				unext = r_refdef.fvrectright_adj;
+
+			du = unext - uvert;
+			dv = vnext - vvert;
 
 			u_step = (du * SHIFT16XYZ_MULT) / dv;
 			// adjust u to ceil the integer portion
-			u = (int)((pvert->u * SHIFT16XYZ_MULT) + u_step * (vtop - pvert->v)) +
+			u = (int)((uvert * SHIFT16XYZ_MULT) + u_step * (vtop - vvert)) +
 				(SHIFT16XYZ_MULT - 1);
 			itop = (int)vtop;
 			ibottom = (int)vbottom;
@@ -818,6 +845,7 @@ R_PolygonScanLeftEdge (espan_t *s_polygon_spans)
 		}
 
 		vtop = vbottom;
+		vvert = vnext;
 
 		i--;
 		if (i == 0)
@@ -837,7 +865,7 @@ R_PolygonScanLeftEdge (espan_t *s_polygon_spans)
 static void
 R_PolygonScanRightEdge(espan_t *s_polygon_spans)
 {
-	float du, dv, vtop, u_step, uvert, unext, vvert;
+	float vtop, vvert;
 	const emitpoint_t *pnext;
 	emitpoint_t *pvert;
 	espan_t *pspan;
@@ -871,6 +899,7 @@ R_PolygonScanRightEdge(espan_t *s_polygon_spans)
 
 		if (vtop < vbottom)
 		{
+			float du, dv, u_step, uvert, unext;
 			int v, u, istep, itop, ibottom;
 
 			uvert = pvert->u;
@@ -1034,8 +1063,10 @@ R_ClipAndDrawPoly(float alpha, int isturbulent, qboolean textured)
 }
 
 /*
-** R_BuildPolygonFromSurface
-*/
+ * R_BuildPolygonFromSurface
+ *
+ * FIX: reuse R_BuildLMPolygonFromSurface
+ */
 static void
 R_BuildPolygonFromSurface(const entity_t *currententity, const model_t *currentmodel, msurface_t *fa)
 {
@@ -1070,7 +1101,7 @@ R_BuildPolygonFromSurface(const entity_t *currententity, const model_t *currentm
 			vec = currentmodel->vertexes[r_pedge->v[1]].position;
 		}
 
-		VectorCopy (vec, pverts[i] );
+		VectorCopy(vec, pverts[i] );
 	}
 
 	VectorCopy( fa->texinfo->vecs[0], r_polydesc.vright );

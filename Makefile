@@ -481,12 +481,12 @@ endif
 # ----------
 
 # Phony targets
-.PHONY : all client game icon server ref_gl1 ref_gl3 ref_gles1 ref_gles3 ref_soft ref_vk ref_gl4
+.PHONY : all client game icon server ref_gl1 ref_gl3 ref_gles1 ref_gles3 ref_soft ref_vk ref_gl4 xatrix rogue ctf pakextract
 
 # ----------
 
 # Builds everything but the GLES1 renderer
-all: config client server game ref_gl1 ref_gl3 ref_gles3 ref_soft ref_vk ref_gl4 xatrix rogue ctf
+all: config client server game ref_gl1 ref_gl3 ref_gles3 ref_soft ref_vk ref_gl4 xatrix rogue ctf pakextract
 
 # ----------
 
@@ -686,6 +686,46 @@ endif
 
 ifeq ($(WITH_XDG),yes)
 $(BINDIR)/q2ded : CFLAGS += -DUSE_XDG
+endif
+
+endif
+
+# ----------
+
+# The pakextact
+ifeq ($(YQ2_OSTYPE), Windows)
+pakextract:
+	@echo "===> Building pakextract"
+	${Q}mkdir -p $(BINDIR)
+	$(MAKE) $(BINDIR)/pakextract.exe
+
+$(BUILDDIR)/pakextract/%.o: %.c
+	@if [ -z $(QUIET) ]; then\
+		echo "===> CC $<";\
+	fi
+	${Q}mkdir -p $(@D)
+	${Q}$(CC) -c $(CFLAGS) $(ZIPCFLAGS) $(INCLUDE) -o $@ $<
+
+$(BINDIR)/pakextract.exe : CFLAGS += -DDEDICATED_ONLY
+
+else # not Windows
+
+pakextract:
+	@echo "===> Building pakextract"
+	${Q}mkdir -p $(BINDIR)
+	$(MAKE) $(BINDIR)/pakextract
+
+$(BUILDDIR)/pakextract/%.o: %.c
+	@if [ -z $(QUIET) ]; then\
+		echo "===> CC $<";\
+	fi
+	${Q}mkdir -p $(@D)
+	${Q}$(CC) -c $(CFLAGS) $(ZIPCFLAGS) $(INCLUDE) -o $@ $<
+
+$(BINDIR)/pakextract : CFLAGS += -DDEDICATED_ONLY -Wno-unused-result
+
+ifeq ($(YQ2_OSTYPE), FreeBSD)
+$(BINDIR)/pakextract : LDLIBS += -lexecinfo
 endif
 
 endif
@@ -1285,6 +1325,7 @@ endif
 
 REFGL1_OBJS_ := \
 	src/client/refresh/gl1/qgl.o \
+	src/client/refresh/gl1/gl1_buffer.o \
 	src/client/refresh/gl1/gl1_draw.o \
 	src/client/refresh/gl1/gl1_image.o \
 	src/client/refresh/gl1/gl1_light.o \
@@ -1293,16 +1334,16 @@ REFGL1_OBJS_ := \
 	src/client/refresh/gl1/gl1_mesh.o \
 	src/client/refresh/gl1/gl1_misc.o \
 	src/client/refresh/gl1/gl1_model.o \
-	src/client/refresh/gl1/gl1_scrap.o \
 	src/client/refresh/gl1/gl1_surf.o \
 	src/client/refresh/gl1/gl1_warp.o \
 	src/client/refresh/gl1/gl1_sdl.o \
+	src/client/refresh/files/scrap.o \
 	src/client/refresh/files/mesh.o \
 	src/client/refresh/files/light.o \
-	src/client/refresh/gl1/gl1_buffer.o \
 	src/client/refresh/files/common.o \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/maps.o \
+	src/client/refresh/files/lightmap.o \
 	src/client/refresh/files/models.o \
 	src/client/refresh/files/stb.o \
 	src/client/refresh/files/wal.o \
@@ -1345,6 +1386,7 @@ REFGL3_OBJS_ := \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/maps.o \
 	src/client/refresh/files/models.o \
+	src/client/refresh/files/scrap.o \
 	src/client/refresh/files/stb.o \
 	src/client/refresh/files/wal.o \
 	src/client/refresh/files/warp.o \
@@ -1389,6 +1431,7 @@ REFGL4_OBJS_ := \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/maps.o \
 	src/client/refresh/files/models.o \
+	src/client/refresh/files/scrap.o \
 	src/client/refresh/files/stb.o \
 	src/client/refresh/files/wal.o \
 	src/client/refresh/files/warp.o \
@@ -1474,9 +1517,11 @@ REFVK_OBJS_ := \
 	src/client/refresh/vk/vk_warp.o \
 	src/client/refresh/vk/vk_util.o \
 	src/client/refresh/vk/volk/volk.o \
+	src/client/refresh/files/scrap.o \
 	src/client/refresh/files/common.o \
 	src/client/refresh/files/mesh.o \
 	src/client/refresh/files/light.o \
+	src/client/refresh/files/lightmap.o \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/maps.o \
 	src/client/refresh/files/models.o \
@@ -1568,6 +1613,14 @@ endif
 
 # ----------
 
+# Used by the pakextract
+PAKEXTRACT_OBJS_ := \
+	src/common/glob.o \
+	src/common/shared/shared.o \
+	src/pakextract/pakextract.o
+
+# ----------
+
 # Rewrite paths to our object directory.
 CLIENT_OBJS = $(patsubst %,$(BUILDDIR)/client/%,$(CLIENT_OBJS_))
 REFGL1_OBJS = $(patsubst %,$(BUILDDIR)/ref_gl1/%,$(REFGL1_OBJS_))
@@ -1582,6 +1635,7 @@ REFGL4_OBJS += $(patsubst %,$(BUILDDIR)/ref_gl4/%,$(REFGL4_OBJS_GLADE_))
 REFSOFT_OBJS = $(patsubst %,$(BUILDDIR)/ref_soft/%,$(REFSOFT_OBJS_))
 REFVK_OBJS = $(patsubst %,$(BUILDDIR)/ref_vk/%,$(REFVK_OBJS_))
 SERVER_OBJS = $(patsubst %,$(BUILDDIR)/server/%,$(SERVER_OBJS_))
+PAKEXTRACT_OBJS = $(patsubst %,$(BUILDDIR)/pakextract/%,$(PAKEXTRACT_OBJS_))
 GAME_OBJS = $(patsubst %,$(BUILDDIR)/baseq2/%,$(GAME_OBJS_))
 
 # ----------
@@ -1597,6 +1651,7 @@ REFGL4_DEPS= $(REFGL4_OBJS:.o=.d)
 REFSOFT_DEPS= $(REFSOFT_OBJS:.o=.d)
 REFVK_DEPS= $(REFVK_OBJS:.o=.d)
 SERVER_DEPS= $(SERVER_OBJS:.o=.d)
+PAKEXTRACT_DEPS= $(PAKEXTRACT_OBJS:.o=.d)
 
 # Suck header dependencies in.
 -include $(CLIENT_DEPS)
@@ -1608,6 +1663,7 @@ SERVER_DEPS= $(SERVER_OBJS:.o=.d)
 -include $(REFGL4_DEPS)
 -include $(REFVK_DEPS)
 -include $(SERVER_DEPS)
+-include $(PAKEXTRACT_DEPS)
 
 # ----------
 
@@ -1636,6 +1692,18 @@ else
 $(BINDIR)/q2ded : $(SERVER_OBJS)
 	@echo "===> LD $@"
 	${Q}$(CC) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@
+endif
+
+# pakextract
+ifeq ($(YQ2_OSTYPE), Windows)
+$(BINDIR)/pakextract.exe : $(PAKEXTRACT_OBJS) icon
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(BUILDROOT)/icon/icon.res $(PAKEXTRACT_OBJS) $(LDLIBS) -o $@
+	$(Q)strip $@
+else
+$(BINDIR)/pakextract : $(PAKEXTRACT_OBJS)
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(PAKEXTRACT_OBJS) $(LDLIBS) -o $@
 endif
 
 # ref_gl1.so
@@ -2066,7 +2134,6 @@ CTF_OBJS_ = \
 	src/g_misc.o \
 	src/g_monster.o \
 	src/g_phys.o \
-	src/g_save.o \
 	src/g_spawn.o \
 	src/g_svcmds.o \
 	src/g_target.o \
@@ -2080,6 +2147,8 @@ CTF_OBJS_ = \
 	src/player/trail.o \
 	src/player/view.o \
 	src/player/weapon.o \
+	src/savegame/savegame.o \
+	src/shared/rand.o \
 	src/shared/shared.o
 
 # ----------

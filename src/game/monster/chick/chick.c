@@ -32,9 +32,9 @@
 
 void chick_stand(edict_t *self);
 void chick_run(edict_t *self);
-void chick_reslash(edict_t *self);
-void chick_rerocket(edict_t *self);
-void chick_attack1(edict_t *self);
+static void chick_reslash(edict_t *self);
+static void chick_rerocket(edict_t *self);
+static void chick_attack1(edict_t *self);
 
 static int sound_missile_prelaunch;
 static int sound_missile_launch;
@@ -51,12 +51,10 @@ static int sound_pain2;
 static int sound_pain3;
 static int sound_sight;
 static int sound_search;
+static int sound_step;
+static int sound_step2;
 
-static int  sound_step;
-static int  sound_step2;
-
-
-void
+static void
 chick_footstep(edict_t *self)
 {
 	if (!g_monsterfootsteps->value)
@@ -79,8 +77,7 @@ chick_footstep(edict_t *self)
 	}
 }
 
-
-void
+static void
 ChickMoan(edict_t *self)
 {
 	if (!self)
@@ -131,15 +128,14 @@ static mframe_t chick_frames_fidget[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t chick_move_fidget =
-{
+mmove_t chick_move_fidget = {
 	FRAME_stand201,
 	FRAME_stand230,
 	chick_frames_fidget,
 	chick_stand
 };
 
-void
+static void
 chick_fidget(edict_t *self)
 {
 	if (!self)
@@ -191,8 +187,7 @@ static mframe_t chick_frames_stand[] = {
 	{ai_stand, 0, chick_fidget},
 };
 
-mmove_t chick_move_stand =
-{
+mmove_t chick_move_stand = {
 	FRAME_stand101,
 	FRAME_stand130,
 	chick_frames_stand,
@@ -223,8 +218,7 @@ static mframe_t chick_frames_start_run[] = {
 	{ai_run, 3, NULL}
 };
 
-mmove_t chick_move_start_run =
-{
+mmove_t chick_move_start_run = {
 	FRAME_walk01,
 	FRAME_walk10,
 	chick_frames_start_run,
@@ -244,13 +238,23 @@ static mframe_t chick_frames_run[] = {
 	{ai_run, 7, NULL}
 };
 
-mmove_t chick_move_run =
-{
+mmove_t chick_move_run = {
 	FRAME_walk11,
 	FRAME_walk20,
 	chick_frames_run,
 	NULL
 };
+
+void
+chick_search(edict_t *self)
+{
+	if (!self)
+	{
+		return;
+	}
+
+	gi.sound(self, CHAN_VOICE, sound_search, 1, ATTN_NORM, 0);
+}
 
 static mframe_t chick_frames_walk[] = {
 	{ai_walk, 6, NULL},
@@ -265,8 +269,7 @@ static mframe_t chick_frames_walk[] = {
 	{ai_walk, 7, NULL}
 };
 
-mmove_t chick_move_walk =
-{
+mmove_t chick_move_walk = {
 	FRAME_walk11,
 	FRAME_walk20,
 	chick_frames_walk,
@@ -319,8 +322,7 @@ static mframe_t chick_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t chick_move_pain1 =
-{
+mmove_t chick_move_pain1 = {
 	FRAME_pain101,
 	FRAME_pain105,
 	chick_frames_pain1,
@@ -335,8 +337,7 @@ static mframe_t chick_frames_pain2[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t chick_move_pain2 =
-{
+mmove_t chick_move_pain2 = {
 	FRAME_pain201,
 	FRAME_pain205,
 	chick_frames_pain2,
@@ -367,8 +368,7 @@ static mframe_t chick_frames_pain3[] = {
 	{ai_move, 2, NULL}
 };
 
-mmove_t chick_move_pain3 =
-{
+mmove_t chick_move_pain3 = {
 	FRAME_pain301,
 	FRAME_pain321,
 	chick_frames_pain3,
@@ -443,7 +443,7 @@ chick_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 chick_dead(edict_t *self)
 {
 	if (!self)
@@ -453,7 +453,20 @@ chick_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, 0);
 	VectorSet(self->maxs, 16, 16, 16);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
+}
+
+static void
+chick_fall_down(edict_t *self)
+{
+	if (!self)
+	{
+		return;
+	}
+
+	/* CHAN_VOICE so gibbing the body cancels this sound */
+	gi.sound(self, CHAN_VOICE, sound_fall_down, 1, ATTN_NORM, 0);
 }
 
 static mframe_t chick_frames_death2[] = {
@@ -478,12 +491,11 @@ static mframe_t chick_frames_death2[] = {
 	{ai_move, -5, NULL},
 	{ai_move, 4, NULL},
 	{ai_move, 15, NULL},
-	{ai_move, 14, NULL},
+	{ai_move, 14, chick_fall_down},
 	{ai_move, 1, NULL}
 };
 
-mmove_t chick_move_death2 =
-{
+mmove_t chick_move_death2 = {
 	FRAME_death201,
 	FRAME_death223,
 	chick_frames_death2,
@@ -505,8 +517,7 @@ static mframe_t chick_frames_death1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t chick_move_death1 =
-{
+mmove_t chick_move_death1 = {
 	FRAME_death101,
 	FRAME_death112,
 	chick_frames_death1,
@@ -516,10 +527,8 @@ mmove_t chick_move_death1 =
 void
 chick_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage,
-		vec3_t point /*unused */)
+		const vec3_t point /* unused */)
 {
-	int n;
-
 	if (!self)
 	{
 		return;
@@ -528,6 +537,8 @@ chick_die(edict_t *self, edict_t *inflictor /* unused */,
 	/* check for gib */
 	if (self->health <= self->gib_health)
 	{
+		int n;
+
 		gi.sound(self, CHAN_VOICE, gi.soundindex("misc/udeath.wav"),
 				1, ATTN_NORM, 0);
 
@@ -568,7 +579,7 @@ chick_die(edict_t *self, edict_t *inflictor /* unused */,
 	}
 }
 
-void
+static void
 chick_duck_down(edict_t *self)
 {
 	if (!self)
@@ -588,7 +599,7 @@ chick_duck_down(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 chick_duck_hold(edict_t *self)
 {
 	if (!self)
@@ -606,7 +617,7 @@ chick_duck_hold(edict_t *self)
 	}
 }
 
-void
+static void
 chick_duck_up(edict_t *self)
 {
 	if (!self)
@@ -630,8 +641,7 @@ static mframe_t chick_frames_duck[] = {
 	{ai_move, 1, NULL}
 };
 
-mmove_t chick_move_duck =
-{
+mmove_t chick_move_duck = {
 	FRAME_duck01,
 	FRAME_duck07,
 	chick_frames_duck,
@@ -640,7 +650,7 @@ mmove_t chick_move_duck =
 
 void
 chick_dodge(edict_t *self, edict_t *attacker, float eta /* unused */,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	if (!self || !attacker)
 	{
@@ -661,7 +671,7 @@ chick_dodge(edict_t *self, edict_t *attacker, float eta /* unused */,
 	self->monsterinfo.currentmove = &chick_move_duck;
 }
 
-void
+static void
 ChickSlash(edict_t *self)
 {
 	vec3_t aim;
@@ -676,16 +686,14 @@ ChickSlash(edict_t *self)
 	fire_hit(self, aim, (10 + (randk() % 6)), 100);
 }
 
-void
+static void
 ChickRocket(edict_t *self)
 {
 	vec3_t forward, right;
 	vec3_t start;
 	vec3_t dir;
 	vec3_t vec;
-	trace_t trace; /* check target */
 	int rocketSpeed;
-	float dist;
 	vec3_t target;
 	qboolean blindfire = false;
 
@@ -709,7 +717,7 @@ ChickRocket(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_CHICK_ROCKET_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_CHICK_ROCKET_1],
 			forward, right, start);
 
 	rocketSpeed = 500 + (100 * skill->value); /* rock & roll.... :) */
@@ -746,7 +754,7 @@ ChickRocket(edict_t *self)
 	/* lead target (not when blindfiring) */
 	if ((!blindfire) && ((random() < (0.2 + ((3 - skill->value) * 0.15)))))
 	{
-		float time;
+		float time, dist;
 
 		dist = VectorLength(dir);
 		time = dist / rocketSpeed;
@@ -766,6 +774,8 @@ ChickRocket(edict_t *self)
 	}
 	else
 	{
+		trace_t trace; /* check target */
+
 		trace = gi.trace(start, vec3_origin, vec3_origin, vec, self, MASK_SHOT);
 
 		if (((trace.ent != self->enemy) && (trace.ent != world)) ||
@@ -785,7 +795,7 @@ ChickRocket(edict_t *self)
 	}
 }
 
-void
+static void
 Chick_PreAttack1(edict_t *self)
 {
 	if (!self)
@@ -796,7 +806,7 @@ Chick_PreAttack1(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_missile_prelaunch, 1, ATTN_NORM, 0);
 }
 
-void
+static void
 ChickReload(edict_t *self)
 {
 	if (!self)
@@ -823,8 +833,7 @@ static mframe_t chick_frames_start_attack1[] = {
 	{ai_charge, 0, chick_attack1}
 };
 
-mmove_t chick_move_start_attack1 =
-{
+mmove_t chick_move_start_attack1 = {
 	FRAME_attak101,
 	FRAME_attak113,
 	chick_frames_start_attack1,
@@ -848,8 +857,7 @@ static mframe_t chick_frames_attack1[] = {
 	{ai_charge, 3, chick_rerocket}
 };
 
-mmove_t chick_move_attack1 =
-{
+mmove_t chick_move_attack1 = {
 	FRAME_attak114,
 	FRAME_attak127,
 	chick_frames_attack1,
@@ -864,15 +872,14 @@ static mframe_t chick_frames_end_attack1[] = {
 	{ai_charge, -2, chick_footstep}
 };
 
-mmove_t chick_move_end_attack1 =
-{
+mmove_t chick_move_end_attack1 = {
 	FRAME_attak128,
 	FRAME_attak132,
 	chick_frames_end_attack1,
 	chick_run
 };
 
-void
+static void
 chick_rerocket(edict_t *self)
 {
 	if (!self)
@@ -889,7 +896,7 @@ chick_rerocket(edict_t *self)
 
 	if (self->enemy->health > 0)
 	{
-		if (range(self, self->enemy) > RANGE_MELEE)
+		if (ai_range(self, self->enemy) > RANGE_MELEE)
 		{
 			if (visible(self, self->enemy))
 			{
@@ -905,7 +912,7 @@ chick_rerocket(edict_t *self)
 	self->monsterinfo.currentmove = &chick_move_end_attack1;
 }
 
-void
+static void
 chick_attack1(edict_t *self)
 {
 	if (!self)
@@ -928,8 +935,7 @@ static mframe_t chick_frames_slash[] = {
 	{ai_charge, -2, chick_reslash}
 };
 
-mmove_t chick_move_slash =
-{
+mmove_t chick_move_slash = {
 	FRAME_attak204,
 	FRAME_attak212,
 	chick_frames_slash,
@@ -943,15 +949,14 @@ static mframe_t chick_frames_end_slash[] = {
 	{ai_charge, 0, chick_footstep}
 };
 
-mmove_t chick_move_end_slash =
-{
+mmove_t chick_move_end_slash = {
 	FRAME_attak213,
 	FRAME_attak216,
 	chick_frames_end_slash,
 	chick_run
 };
 
-void
+static void
 chick_reslash(edict_t *self)
 {
 	if (!self)
@@ -961,7 +966,7 @@ chick_reslash(edict_t *self)
 
 	if (self->enemy->health > 0)
 	{
-		if (range(self, self->enemy) == RANGE_MELEE)
+		if (ai_range(self, self->enemy) == RANGE_MELEE)
 		{
 			if (random() <= 0.9)
 			{
@@ -979,7 +984,7 @@ chick_reslash(edict_t *self)
 	self->monsterinfo.currentmove = &chick_move_end_slash;
 }
 
-void
+static void
 chick_slash(edict_t *self)
 {
 	if (!self)
@@ -996,8 +1001,7 @@ static mframe_t chick_frames_start_slash[] = {
 	{ai_charge, 3, chick_footstep}
 };
 
-mmove_t chick_move_start_slash =
-{
+mmove_t chick_move_start_slash = {
 	FRAME_attak201,
 	FRAME_attak203,
 	chick_frames_start_slash,
@@ -1018,8 +1022,6 @@ chick_melee(edict_t *self)
 void
 chick_attack(edict_t *self)
 {
-	float r, chance;
-
 	if (!self)
 	{
 		return;
@@ -1029,6 +1031,8 @@ chick_attack(edict_t *self)
 
 	if (self->monsterinfo.attack_state == AS_BLIND)
 	{
+		float r, chance;
+
 		/* setup shot probabilities */
 		if (self->monsterinfo.blind_fire_delay < 1.0)
 		{
@@ -1153,10 +1157,7 @@ chick_sidestep(edict_t *self)
 		}
 	}
 
-	if (self->monsterinfo.currentmove != &chick_move_run)
-	{
-		self->monsterinfo.currentmove = &chick_move_run;
-	}
+	self->monsterinfo.currentmove = &chick_move_run;
 }
 
 /*
@@ -1220,6 +1221,7 @@ SP_monster_chick(edict_t *self)
 	self->monsterinfo.attack = chick_attack;
 	self->monsterinfo.melee = chick_melee;
 	self->monsterinfo.sight = chick_sight;
+	self->monsterinfo.search = chick_search;
 	self->monsterinfo.blocked = chick_blocked;
 
 	gi.linkentity(self);

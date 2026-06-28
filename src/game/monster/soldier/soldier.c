@@ -89,16 +89,16 @@ mmove_t soldierh_move_duck = {0};
 mmove_t soldierh_move_death1 = {0};
 mmove_t soldierh_move_death4 = {0};
 
-void soldier_duck_up(edict_t *self);
+static void soldier_fire(edict_t *self, int in_flash_number);
+static void soldier_duck_up(edict_t *self);
 void soldier_stand(edict_t *self);
 void soldier_run(edict_t *self);
-void soldier_fire(edict_t *self, int);
 void soldier_blind(edict_t *self);
 void soldierh_stand(edict_t *self);
 void soldierh_run(edict_t *self);
 extern void brain_dabeam(edict_t *self);
 
-void
+static void
 soldier_footstep(edict_t *self)
 {
 	if (!g_monsterfootsteps->value)
@@ -134,7 +134,7 @@ soldier_footstep(edict_t *self)
 	}
 }
 
-void
+static void
 soldier_start_charge(edict_t *self)
 {
 	if (!self)
@@ -145,7 +145,7 @@ soldier_start_charge(edict_t *self)
 	self->monsterinfo.aiflags |= AI_CHARGING;
 }
 
-void
+static void
 soldier_stop_charge(edict_t *self)
 {
 	if (!self)
@@ -156,7 +156,7 @@ soldier_stop_charge(edict_t *self)
 	self->monsterinfo.aiflags &= ~AI_CHARGING;
 }
 
-void
+static void
 soldier_idle(edict_t *self)
 {
 	if (!self)
@@ -170,7 +170,7 @@ soldier_idle(edict_t *self)
 	}
 }
 
-void
+static void
 soldier_cock(edict_t *self)
 {
 	if (!self)
@@ -223,8 +223,7 @@ static mframe_t soldier_frames_stand1[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t soldier_move_stand1_static =
-{
+static const mmove_t soldier_move_stand1_static = {
 	FRAME_stand101,
 	FRAME_stand130,
 	soldier_frames_stand1,
@@ -276,8 +275,7 @@ static mframe_t soldier_frames_stand3[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t soldier_move_stand3_static =
-{
+static const mmove_t soldier_move_stand3_static = {
 	FRAME_stand301,
 	FRAME_stand339,
 	soldier_frames_stand3,
@@ -303,7 +301,7 @@ soldier_stand(edict_t *self)
 	}
 }
 
-void
+static void
 soldier_walk1_random(edict_t *self)
 {
 	if (!self)
@@ -353,8 +351,7 @@ static mframe_t soldier_frames_walk1[] = {
 	{ai_walk, 0, NULL}
 };
 
-static const mmove_t soldier_move_walk1_static =
-{
+static const mmove_t soldier_move_walk1_static = {
 	FRAME_walk101,
 	FRAME_walk133,
 	soldier_frames_walk1,
@@ -374,8 +371,7 @@ static mframe_t soldier_frames_walk2[] = {
 	{ai_walk, 7, NULL}
 };
 
-static const mmove_t soldier_move_walk2_static =
-{
+static const mmove_t soldier_move_walk2_static = {
 	FRAME_walk209,
 	FRAME_walk218,
 	soldier_frames_walk2,
@@ -405,27 +401,12 @@ static mframe_t soldier_frames_start_run[] = {
 	{ai_run, 5, NULL}
 };
 
-static const mmove_t soldier_move_start_run_static =
-{
+static const mmove_t soldier_move_start_run_static = {
 	FRAME_run01,
 	FRAME_run02,
 	soldier_frames_start_run,
 	soldier_run
 };
-
-void
-soldier_fire_run(edict_t *self)
-{
-	if (!self)
-	{
-		return;
-	}
-
-	if ((self->s.skinnum <= 1) && (self->enemy) && visible(self, self->enemy))
-	{
-		soldier_fire(self, 0);
-	}
-}
 
 static mframe_t soldier_frames_run[] = {
 	{ai_run, 10, NULL},
@@ -436,8 +417,7 @@ static mframe_t soldier_frames_run[] = {
 	{ai_run, 15, NULL}
 };
 
-static const mmove_t soldier_move_run_static =
-{
+static const mmove_t soldier_move_run_static = {
 	FRAME_run03,
 	FRAME_run08,
 	soldier_frames_run,
@@ -480,8 +460,7 @@ static mframe_t soldier_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_pain1_static =
-{
+static const mmove_t soldier_move_pain1_static = {
 	FRAME_pain101,
 	FRAME_pain105,
 	soldier_frames_pain1,
@@ -498,8 +477,7 @@ static mframe_t soldier_frames_pain2[] = {
 	{ai_move, 2, NULL}
 };
 
-static const mmove_t soldier_move_pain2_static =
-{
+static const mmove_t soldier_move_pain2_static = {
 	FRAME_pain201,
 	FRAME_pain207,
 	soldier_frames_pain2,
@@ -527,8 +505,7 @@ static mframe_t soldier_frames_pain3[] = {
 	{ai_move, 2, soldier_footstep}
 };
 
-static const mmove_t soldier_move_pain3_static =
-{
+static const mmove_t soldier_move_pain3_static = {
 	FRAME_pain301,
 	FRAME_pain318,
 	soldier_frames_pain3,
@@ -555,8 +532,7 @@ static mframe_t soldier_frames_pain4[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_pain4_static =
-{
+static const mmove_t soldier_move_pain4_static = {
 	FRAME_pain401,
 	FRAME_pain417,
 	soldier_frames_pain4,
@@ -697,27 +673,21 @@ static int machinegun_flash[] =
 	MZ2_SOLDIER_MACHINEGUN_8
 };
 
-void
+static void
 soldier_fire(edict_t *self, int in_flash_number)
 {
 	vec3_t start;
-	vec3_t forward, right, up;
+	vec3_t forward, right;
 	vec3_t aim;
-	vec3_t dir;
 	vec3_t end;
-	float r, u;
 	int flash_index;
 	int flash_number;
+	vec3_t aim_good = {0};
 
 	if (!self)
 	{
 		return;
 	}
-
-	vec3_t aim_norm;
-	float angle;
-	trace_t tr;
-	vec3_t aim_good;
 
 	if ((!self->enemy) || (!self->enemy->inuse))
 	{
@@ -748,15 +718,23 @@ soldier_fire(edict_t *self, int in_flash_number)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_index],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_index],
 			forward, right, start);
 
 	if ((flash_number == 5) || (flash_number == 6)) /* he's dead */
 	{
+		if (self->spawnflags & SPAWNFLAG_MONSTER_DEAD)
+		{
+			return;
+		}
+
 		VectorCopy(forward, aim);
 	}
 	else
 	{
+		vec3_t dir, up;
+		float r, u;
+
 		VectorCopy(self->enemy->s.origin, end);
 		end[2] += self->enemy->viewheight;
 		VectorSubtract(end, start, aim);
@@ -764,6 +742,9 @@ soldier_fire(edict_t *self, int in_flash_number)
 
 		if (in_flash_number < 0)
 		{
+			vec3_t aim_norm;
+			float angle;
+
 			VectorCopy(aim, aim_norm);
 			VectorNormalize(aim_norm);
 			angle = DotProduct(aim_norm, forward);
@@ -798,6 +779,8 @@ soldier_fire(edict_t *self, int in_flash_number)
 
 	if (!((flash_number == 5) || (flash_number == 6))) /* he's dead */
 	{
+		trace_t tr;
+
 		tr = gi.trace(start, NULL, NULL, aim_good, self, MASK_SHOT);
 
 		if ((tr.ent != self->enemy) && (tr.ent != world))
@@ -840,7 +823,7 @@ soldier_fire(edict_t *self, int in_flash_number)
 }
 
 /* ATTACK1 (blaster/shotgun) */
-void
+static void
 soldier_fire1(edict_t *self)
 {
 	if (!self)
@@ -851,7 +834,7 @@ soldier_fire1(edict_t *self)
 	soldier_fire(self, 0);
 }
 
-void
+static void
 soldier_attack1_refire1(edict_t *self)
 {
 	if (!self)
@@ -881,7 +864,7 @@ soldier_attack1_refire1(edict_t *self)
 	}
 
 	if (((skill->value == SKILL_HARDPLUS) &&
-		 (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+		 (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldier_move_attack1.firstframe + 1;
 	}
@@ -891,7 +874,7 @@ soldier_attack1_refire1(edict_t *self)
 	}
 }
 
-void
+static void
 soldier_attack1_refire2(edict_t *self)
 {
 	if (!self)
@@ -915,7 +898,7 @@ soldier_attack1_refire2(edict_t *self)
 	}
 
 	if (((skill->value == SKILL_HARDPLUS) &&
-		 (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+		 (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldier_move_attack1.firstframe + 1;
 	}
@@ -936,8 +919,7 @@ static mframe_t soldier_frames_attack1[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldier_move_attack1_static =
-{
+static const mmove_t soldier_move_attack1_static = {
 	FRAME_attak101,
 	FRAME_attak112,
 	soldier_frames_attack1,
@@ -945,7 +927,7 @@ static const mmove_t soldier_move_attack1_static =
 };
 
 /* ATTACK2 (blaster/shotgun) */
-void
+static void
 soldier_fire2(edict_t *self)
 {
 	if (!self)
@@ -956,7 +938,7 @@ soldier_fire2(edict_t *self)
 	soldier_fire(self, 1);
 }
 
-void
+static void
 soldier_attack2_refire1(edict_t *self)
 {
 	if (!self)
@@ -980,7 +962,7 @@ soldier_attack2_refire1(edict_t *self)
 	}
 
 	if (((skill->value == SKILL_HARDPLUS) &&
-		 (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+		 (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldier_move_attack2.firstframe + 3;
 	}
@@ -990,7 +972,7 @@ soldier_attack2_refire1(edict_t *self)
 	}
 }
 
-void
+static void
 soldier_attack2_refire2(edict_t *self)
 {
 	if (!self)
@@ -1014,7 +996,7 @@ soldier_attack2_refire2(edict_t *self)
 	}
 
 	if (((skill->value == SKILL_HARDPLUS) &&
-		 (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+		 (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldier_move_attack2.firstframe + 3;
 	}
@@ -1041,8 +1023,7 @@ static mframe_t soldier_frames_attack2[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldier_move_attack2_static =
-{
+static const mmove_t soldier_move_attack2_static = {
 	FRAME_attak201,
 	FRAME_attak218,
 	soldier_frames_attack2,
@@ -1050,7 +1031,7 @@ static const mmove_t soldier_move_attack2_static =
 };
 
 /* ATTACK3 (duck and shoot) */
-void
+static void
 soldier_duck_down(edict_t *self)
 {
 	if (!self)
@@ -1070,7 +1051,7 @@ soldier_duck_down(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 soldier_duck_up(edict_t *self)
 {
 	if (!self)
@@ -1084,7 +1065,7 @@ soldier_duck_up(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 soldier_fire3(edict_t *self)
 {
 	if (!self)
@@ -1096,7 +1077,7 @@ soldier_fire3(edict_t *self)
 	soldier_fire(self, 2);
 }
 
-void
+static void
 soldier_attack3_refire(edict_t *self)
 {
 	if (!self)
@@ -1122,8 +1103,7 @@ static mframe_t soldier_frames_attack3[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldier_move_attack3_static =
-{
+static const mmove_t soldier_move_attack3_static = {
 	FRAME_attak301,
 	FRAME_attak309,
 	soldier_frames_attack3,
@@ -1131,7 +1111,7 @@ static const mmove_t soldier_move_attack3_static =
 };
 
 /* ATTACK4 (machinegun) */
-void
+static void
 soldier_fire4(edict_t *self)
 {
 	if (!self)
@@ -1151,8 +1131,7 @@ static mframe_t soldier_frames_attack4[] = {
 	{ai_charge, 0, soldier_footstep}
 };
 
-static const mmove_t soldier_move_attack4_static =
-{
+static const mmove_t soldier_move_attack4_static = {
 	FRAME_attak401,
 	FRAME_attak406,
 	soldier_frames_attack4,
@@ -1160,7 +1139,7 @@ static const mmove_t soldier_move_attack4_static =
 };
 
 /* ATTACK6 (run & shoot) */
-void
+static void
 soldier_fire8(edict_t *self)
 {
 	if (!self)
@@ -1171,7 +1150,7 @@ soldier_fire8(edict_t *self)
 	soldier_fire(self, 7);
 }
 
-void
+static void
 soldier_attack6_refire(edict_t *self)
 {
 	if (!self)
@@ -1193,7 +1172,7 @@ soldier_attack6_refire(edict_t *self)
 		return;
 	}
 
-	if (range(self, self->enemy) < RANGE_NEAR)
+	if (ai_range(self, self->enemy) < RANGE_NEAR)
 	{
 		return;
 	}
@@ -1221,8 +1200,7 @@ static mframe_t soldier_frames_attack6[] = {
 	{ai_run, 17, soldier_attack6_refire}
 };
 
-static const mmove_t soldier_move_attack6_static =
-{
+static const mmove_t soldier_move_attack6_static = {
 	FRAME_runs01,
 	FRAME_runs14,
 	soldier_frames_attack6,
@@ -1232,7 +1210,7 @@ static const mmove_t soldier_move_attack6_static =
 void
 soldier_attack(edict_t *self)
 {
-	float r, chance;
+	float r;
 
 	if (!self)
 	{
@@ -1244,6 +1222,8 @@ soldier_attack(edict_t *self)
 	/* blindfire! */
 	if (self->monsterinfo.attack_state == AS_BLIND)
 	{
+		float chance;
+
 		/* setup shot probabilities */
 		if (self->monsterinfo.blind_fire_delay < 1.0)
 		{
@@ -1285,7 +1265,7 @@ soldier_attack(edict_t *self)
 	r = random();
 
 	if ((!(self->monsterinfo.aiflags & (AI_BLOCKED | AI_STAND_GROUND))) &&
-		(range(self, self->enemy) >= RANGE_NEAR) &&
+		(ai_range(self, self->enemy) >= RANGE_NEAR) &&
 		((r < (skill->value * 0.25)) &&
 		 (self->s.skinnum <= 3)))
 	{
@@ -1329,7 +1309,7 @@ soldier_sight(edict_t *self, edict_t *other /* unused */)
 	}
 
 	if ((skill->value > SKILL_EASY) && (self->enemy) &&
-		(range(self, self->enemy) >= RANGE_NEAR))
+		(ai_range(self, self->enemy) >= RANGE_NEAR))
 	{
 		/*	don't let machinegunners run & shoot */
 		if ((random() > 0.75) && (self->s.skinnum <= 3))
@@ -1339,7 +1319,7 @@ soldier_sight(edict_t *self, edict_t *other /* unused */)
 	}
 }
 
-void
+static void
 soldier_duck_hold(edict_t *self)
 {
 	if (!self)
@@ -1365,8 +1345,7 @@ static mframe_t soldier_frames_duck[] = {
 	{ai_move, 5, NULL}
 };
 
-static const mmove_t soldier_move_duck_static =
-{
+static const mmove_t soldier_move_duck_static = {
 	FRAME_duck01,
 	FRAME_duck05,
 	soldier_frames_duck,
@@ -1398,7 +1377,7 @@ soldier_blocked(edict_t *self, float dist)
 
 void
 soldier_dodge(edict_t *self, edict_t *attacker, float eta,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	float r;
 
@@ -1460,7 +1439,7 @@ soldier_dodge(edict_t *self, edict_t *attacker, float eta,
 	self->monsterinfo.currentmove = &soldier_move_attack3;
 }
 
-void
+static void
 soldier_fire6(edict_t *self)
 {
 	if (!self)
@@ -1471,7 +1450,7 @@ soldier_fire6(edict_t *self)
 	soldier_fire(self, 5);
 }
 
-void
+static void
 soldier_fire7(edict_t *self)
 {
 	if (!self)
@@ -1482,7 +1461,7 @@ soldier_fire7(edict_t *self)
 	soldier_fire(self, 6);
 }
 
-void
+static void
 soldier_dead(edict_t *self)
 {
 	if (!self)
@@ -1492,10 +1471,11 @@ soldier_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
-void
+static void
 soldier_dead2(edict_t *self)
 {
 	vec3_t tempmins, tempmaxs, temporg;
@@ -1529,6 +1509,7 @@ soldier_dead2(edict_t *self)
 		VectorCopy(tempmaxs, self->maxs);
 	}
 
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
@@ -1574,8 +1555,7 @@ static mframe_t soldier_frames_death1[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_death1_static =
-{
+static const mmove_t soldier_move_death1_static = {
 	FRAME_death101,
 	FRAME_death136,
 	soldier_frames_death1,
@@ -1623,8 +1603,7 @@ static mframe_t soldier_frames_death2[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_death2_static =
-{
+static const mmove_t soldier_move_death2_static = {
 	FRAME_death201,
 	FRAME_death235,
 	soldier_frames_death2,
@@ -1683,8 +1662,7 @@ static mframe_t soldier_frames_death3[] = {
 	{ai_move, 0, NULL},
 };
 
-static const mmove_t soldier_move_death3_static =
-{
+static const mmove_t soldier_move_death3_static = {
 	FRAME_death301,
 	FRAME_death345,
 	soldier_frames_death3,
@@ -1752,8 +1730,7 @@ static mframe_t soldier_frames_death4[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_death4_static =
-{
+static const mmove_t soldier_move_death4_static = {
 	FRAME_death401,
 	FRAME_death453,
 	soldier_frames_death4,
@@ -1789,8 +1766,7 @@ static mframe_t soldier_frames_death5[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_death5_static =
-{
+static const mmove_t soldier_move_death5_static = {
 	FRAME_death501,
 	FRAME_death524,
 	soldier_frames_death5,
@@ -1810,8 +1786,7 @@ static mframe_t soldier_frames_death6[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_death6_static =
-{
+static const mmove_t soldier_move_death6_static = {
 	FRAME_death601,
 	FRAME_death610,
 	soldier_frames_death6,
@@ -1821,7 +1796,7 @@ static const mmove_t soldier_move_death6_static =
 void
 soldier_die(edict_t *self, edict_t *inflictor /* unused */,
 		edict_t *attacker /* unused */, int damage,
-		vec3_t point /* unused */)
+		const vec3_t point /* unused */)
 {
 	int n;
 
@@ -1910,17 +1885,11 @@ soldier_sidestep(edict_t *self)
 
 	if (self->s.skinnum <= 3)
 	{
-		if (self->monsterinfo.currentmove != &soldier_move_attack6)
-		{
-			self->monsterinfo.currentmove = &soldier_move_attack6;
-		}
+		self->monsterinfo.currentmove = &soldier_move_attack6;
 	}
 	else
 	{
-		if (self->monsterinfo.currentmove != &soldier_move_start_run)
-		{
-			self->monsterinfo.currentmove = &soldier_move_start_run;
-		}
+		self->monsterinfo.currentmove = &soldier_move_start_run;
 	}
 }
 
@@ -1993,8 +1962,7 @@ static mframe_t soldier_frames_blind[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldier_move_blind_static =
-{
+static const mmove_t soldier_move_blind_static = {
 	FRAME_stand101,
 	FRAME_stand130,
 	soldier_frames_blind,
@@ -2012,8 +1980,7 @@ soldier_blind(edict_t *self)
 	self->monsterinfo.currentmove = &soldier_move_blind;
 }
 
-static const mmove_t soldierh_move_stand1_static =
-{
+static const mmove_t soldierh_move_stand1_static = {
 	FRAME_stand101,
 	FRAME_stand130,
 	soldier_frames_stand1,
@@ -2065,8 +2032,7 @@ static mframe_t soldierh_frames_stand3[] = {
 	{ai_stand, 0, NULL}
 };
 
-static const mmove_t soldierh_move_stand3_static =
-{
+static const mmove_t soldierh_move_stand3_static = {
 	FRAME_stand301,
 	FRAME_stand339,
 	soldierh_frames_stand3,
@@ -2127,8 +2093,7 @@ static mframe_t soldierh_frames_walk1[] = {
 	{ai_walk, 0, NULL}
 };
 
-static const mmove_t soldierh_move_walk1_static =
-{
+static const mmove_t soldierh_move_walk1_static = {
 	FRAME_walk101,
 	FRAME_walk133,
 	soldierh_frames_walk1,
@@ -2148,8 +2113,7 @@ static mframe_t soldierh_frames_walk2[] = {
 	{ai_walk, 7, NULL}
 };
 
-static const mmove_t soldierh_move_walk2_static =
-{
+static const mmove_t soldierh_move_walk2_static = {
 	FRAME_walk209,
 	FRAME_walk218,
 	soldierh_frames_walk2,
@@ -2174,8 +2138,7 @@ soldierh_walk(edict_t *self)
 	}
 }
 
-static const mmove_t soldierh_move_start_run_static =
-{
+static const mmove_t soldierh_move_start_run_static = {
 	FRAME_run01,
 	FRAME_run02,
 	soldier_frames_start_run,
@@ -2224,16 +2187,14 @@ soldierh_run(edict_t *self)
 	}
 }
 
-static const mmove_t soldierh_move_pain1_static =
-{
+static const mmove_t soldierh_move_pain1_static = {
 	FRAME_pain101,
 	FRAME_pain105,
 	soldier_frames_pain1,
 	soldierh_run
 };
 
-static const mmove_t soldierh_move_pain2_static =
-{
+static const mmove_t soldierh_move_pain2_static = {
 	FRAME_pain201,
 	FRAME_pain207,
 	soldier_frames_pain2,
@@ -2261,16 +2222,14 @@ static mframe_t soldierh_frames_pain3[] = {
 	{ai_move, 2, NULL}
 };
 
-static const mmove_t soldierh_move_pain3_static =
-{
+static const mmove_t soldierh_move_pain3_static = {
 	FRAME_pain301,
 	FRAME_pain318,
 	soldierh_frames_pain3,
 	soldierh_run
 };
 
-static const mmove_t soldierh_move_pain4_static =
-{
+static const mmove_t soldierh_move_pain4_static = {
 	FRAME_pain401,
 	FRAME_pain417,
 	soldier_frames_pain4,
@@ -2351,7 +2310,7 @@ soldierh_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 soldierh_laserbeam(edict_t *self, int flash_index)
 {
 	vec3_t forward, right, up;
@@ -2405,15 +2364,13 @@ soldierh_laserbeam(edict_t *self, int flash_index)
 	monster_dabeam(ent);
 }
 
-void
+static void
 soldierh_fire(edict_t *self, int flash_number)
 {
 	vec3_t start;
-	vec3_t forward, right, up;
+	vec3_t forward, right;
 	vec3_t aim;
-	vec3_t dir;
 	vec3_t end;
-	float r, u;
 	int flash_index;
 
 	if (!self)
@@ -2435,15 +2392,23 @@ soldierh_fire(edict_t *self, int flash_number)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[flash_index],
+	M_ProjectFlashSource(self, monster_flash_offset[flash_index],
 			forward, right, start);
 
 	if ((flash_number == 5) || (flash_number == 6))
 	{
+		if (self->spawnflags & SPAWNFLAG_MONSTER_DEAD)
+		{
+			return;
+		}
+
 		VectorCopy(forward, aim);
 	}
 	else
 	{
+		vec3_t dir, up;
+		float r, u;
+
 		VectorCopy(self->enemy->s.origin, end);
 		end[2] += self->enemy->viewheight;
 		VectorSubtract(end, start, aim);
@@ -2474,7 +2439,7 @@ soldierh_fire(edict_t *self, int flash_number)
 	{
 		if (!(self->monsterinfo.aiflags & AI_HOLD_FRAME))
 		{
-			self->monsterinfo.pausetime = level.time + (3 + rand() % 8) * FRAMETIME;
+			self->monsterinfo.pausetime = level.time + (3 + randk() % 8) * FRAMETIME;
 		}
 
 		soldierh_laserbeam(self, flash_index);
@@ -2490,7 +2455,7 @@ soldierh_fire(edict_t *self, int flash_number)
 	}
 }
 
-void
+static void
 soldierh_hyper_refire1(edict_t *self)
 {
 	if (!self)
@@ -2515,7 +2480,7 @@ soldierh_hyper_refire1(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_ripper1(edict_t *self)
 {
 	if (!self)
@@ -2533,7 +2498,7 @@ soldierh_ripper1(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_fire1(edict_t *self)
 {
 	if (!self)
@@ -2544,7 +2509,7 @@ soldierh_fire1(edict_t *self)
 	soldierh_fire(self, 0);
 }
 
-void
+static void
 soldierh_attack1_refire1(edict_t *self)
 {
 	if (!self)
@@ -2562,7 +2527,7 @@ soldierh_attack1_refire1(edict_t *self)
 		return;
 	}
 
-	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldierh_move_attack1.firstframe + 1;
 	}
@@ -2572,7 +2537,7 @@ soldierh_attack1_refire1(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_attack1_refire2(edict_t *self)
 {
 	if (!self)
@@ -2590,13 +2555,13 @@ soldierh_attack1_refire2(edict_t *self)
 		return;
 	}
 
-	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldierh_move_attack1.firstframe + 1;
 	}
 }
 
-void
+static void
 soldierh_hyper_sound(edict_t *self)
 {
 	if (!self)
@@ -2633,15 +2598,14 @@ static mframe_t soldierh_frames_attack1[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldierh_move_attack1_static =
-{
+static const mmove_t soldierh_move_attack1_static = {
 	FRAME_attak101,
 	FRAME_attak112,
 	soldierh_frames_attack1,
 	soldierh_run
 };
 
-void
+static void
 soldierh_hyper_refire2(edict_t *self)
 {
 	if (!self)
@@ -2666,7 +2630,7 @@ soldierh_hyper_refire2(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_ripper2(edict_t *self)
 {
 	if (!self)
@@ -2684,7 +2648,7 @@ soldierh_ripper2(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_fire2(edict_t *self)
 {
 	if (!self)
@@ -2695,7 +2659,7 @@ soldierh_fire2(edict_t *self)
 	soldierh_fire(self, 1);
 }
 
-void
+static void
 soldierh_attack2_refire1(edict_t *self)
 {
 	if (!self)
@@ -2713,7 +2677,7 @@ soldierh_attack2_refire1(edict_t *self)
 		return;
 	}
 
-	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (range(self, self->enemy) == RANGE_MELEE))
+	if (((skill->value == SKILL_HARDPLUS) && (random() < 0.5)) || (ai_range(self, self->enemy) == RANGE_MELEE))
 	{
 		self->monsterinfo.nextframe = soldierh_move_attack2.firstframe + 3;
 	}
@@ -2723,7 +2687,7 @@ soldierh_attack2_refire1(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_attack2_refire2(edict_t *self)
 {
 	if (!self)
@@ -2743,7 +2707,7 @@ soldierh_attack2_refire2(edict_t *self)
 
 	if (((skill->value == SKILL_HARDPLUS) &&
 		 (random() < 0.5)) ||
-		((range(self, self->enemy) == RANGE_MELEE) && (self->s.skinnum < 4)))
+		((ai_range(self, self->enemy) == RANGE_MELEE) && (self->s.skinnum < 4)))
 	{
 		self->monsterinfo.nextframe = soldierh_move_attack2.firstframe + 3;
 	}
@@ -2770,15 +2734,14 @@ static mframe_t soldierh_frames_attack2[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldierh_move_attack2_static =
-{
+static const mmove_t soldierh_move_attack2_static = {
 	FRAME_attak201,
 	FRAME_attak218,
 	soldierh_frames_attack2,
 	soldierh_run
 };
 
-void
+static void
 soldierh_duck_down(edict_t *self)
 {
 	if (!self)
@@ -2798,7 +2761,7 @@ soldierh_duck_down(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 soldierh_duck_up(edict_t *self)
 {
 	if (!self)
@@ -2812,7 +2775,7 @@ soldierh_duck_up(edict_t *self)
 	gi.linkentity(self);
 }
 
-void
+static void
 soldierh_fire3(edict_t *self)
 {
 	if (!self)
@@ -2824,7 +2787,7 @@ soldierh_fire3(edict_t *self)
 	soldierh_fire(self, 2);
 }
 
-void
+static void
 soldierh_attack3_refire(edict_t *self)
 {
 	if (!self)
@@ -2850,15 +2813,14 @@ static mframe_t soldierh_frames_attack3[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldierh_move_attack3_static =
-{
+static const mmove_t soldierh_move_attack3_static = {
 	FRAME_attak301,
 	FRAME_attak309,
 	soldierh_frames_attack3,
 	soldierh_run
 };
 
-void
+static void
 soldierh_fire4(edict_t *self)
 {
 	if (!self)
@@ -2878,15 +2840,14 @@ static mframe_t soldierh_frames_attack4[] = {
 	{ai_charge, 0, NULL}
 };
 
-static const mmove_t soldierh_move_attack4_static =
-{
+static const mmove_t soldierh_move_attack4_static = {
 	FRAME_attak401,
 	FRAME_attak406,
 	soldierh_frames_attack4,
 	soldierh_run
 };
 
-void
+static void
 soldierh_fire8(edict_t *self)
 {
 	if (!self)
@@ -2897,7 +2858,7 @@ soldierh_fire8(edict_t *self)
 	soldierh_fire(self, 7);
 }
 
-void
+static void
 soldierh_attack6_refire(edict_t *self)
 {
 	if (!self)
@@ -2910,7 +2871,7 @@ soldierh_attack6_refire(edict_t *self)
 		return;
 	}
 
-	if (range(self, self->enemy) < RANGE_MID)
+	if (ai_range(self, self->enemy) < RANGE_MID)
 	{
 		return;
 	}
@@ -2938,8 +2899,7 @@ static mframe_t soldierh_frames_attack6[] = {
 	{ai_charge, 17, soldierh_attack6_refire}
 };
 
-static const mmove_t soldierh_move_attack6_static =
-{
+static const mmove_t soldierh_move_attack6_static = {
 	FRAME_runs01,
 	FRAME_runs14,
 	soldierh_frames_attack6,
@@ -2988,7 +2948,7 @@ soldierh_sight(edict_t *self, edict_t *other /* unused */)
 		gi.sound(self, CHAN_VOICE, sound_sight2, 1, ATTN_NORM, 0);
 	}
 
-	if ((skill->value > SKILL_EASY) && (range(self, self->enemy) >= RANGE_MID))
+	if ((skill->value > SKILL_EASY) && (ai_range(self, self->enemy) >= RANGE_MID))
 	{
 		if (random() > 0.5)
 		{
@@ -3004,7 +2964,7 @@ soldierh_sight(edict_t *self, edict_t *other /* unused */)
 	}
 }
 
-void
+static void
 soldierh_duck_hold(edict_t *self)
 {
 	if (!self)
@@ -3030,8 +2990,7 @@ static mframe_t soldierh_frames_duck[] = {
 	{ai_move, 5, NULL}
 };
 
-static const mmove_t soldierh_move_duck_static =
-{
+static const mmove_t soldierh_move_duck_static = {
 	FRAME_duck01,
 	FRAME_duck05,
 	soldierh_frames_duck,
@@ -3040,7 +2999,7 @@ static const mmove_t soldierh_move_duck_static =
 
 void
 soldierh_dodge(edict_t *self, edict_t *attacker, float eta,
-	trace_t *tr /* unused */)
+	trace_t *trace /* unused */)
 {
 	float r;
 
@@ -3101,7 +3060,7 @@ soldierh_dodge(edict_t *self, edict_t *attacker, float eta,
 	self->monsterinfo.currentmove = &soldierh_move_attack3;
 }
 
-void
+static void
 soldierh_fire6(edict_t *self)
 {
 	if (!self)
@@ -3116,7 +3075,7 @@ soldierh_fire6(edict_t *self)
 	}
 }
 
-void
+static void
 soldierh_fire7(edict_t *self)
 {
 	if (!self)
@@ -3173,16 +3132,14 @@ static mframe_t soldierh_frames_death1[] = {
 	{ai_move, 0, NULL}
 };
 
-static const mmove_t soldierh_move_death1_static =
-{
+static const mmove_t soldierh_move_death1_static = {
 	FRAME_death101,
 	FRAME_death136,
 	soldierh_frames_death1,
 	soldier_dead
 };
 
-static const mmove_t soldierh_move_death4_static =
-{
+static const mmove_t soldierh_move_death4_static = {
 	FRAME_death401,
 	FRAME_death453,
 	soldier_frames_death4,
@@ -3191,7 +3148,7 @@ static const mmove_t soldierh_move_death4_static =
 
 void
 soldierh_die(edict_t *self, edict_t *inflictor /* unused */,
-		edict_t *attacker /* unused */, int damage, vec3_t point)
+		edict_t *attacker /* unused */, int damage, const vec3_t point)
 {
 	int n;
 
@@ -3247,7 +3204,7 @@ soldierh_die(edict_t *self, edict_t *inflictor /* unused */,
 		return;
 	}
 
-	n = (self->s.skinnum < 4) ? (rand() % 5) : (1 + (rand() % 4));
+	n = (self->s.skinnum < 4) ? (randk() % 5) : (1 + (randk() % 4));
 
 	if (n == 0)
 	{

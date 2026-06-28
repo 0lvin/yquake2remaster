@@ -36,12 +36,10 @@ static int sound_pain1;
 static int sound_pain2;
 static int sound_sight;
 
-void floater_dead(edict_t *self);
-void floater_die(edict_t *self, edict_t *inflictor, edict_t *attacker,
-		int damage, vec3_t point);
+static void floater_dead(edict_t *self);
 void floater_run(edict_t *self);
-void floater_wham(edict_t *self);
-void floater_zap(edict_t *self);
+static void floater_wham(edict_t *self);
+static void floater_zap(edict_t *self);
 
 void
 floater_sight(edict_t *self, edict_t *other /* unused */)
@@ -65,7 +63,7 @@ floater_idle(edict_t *self)
 	gi.sound(self, CHAN_VOICE, sound_idle, 1, ATTN_IDLE, 0);
 }
 
-void
+static void
 floater_fire_blaster(edict_t *self)
 {
 	vec3_t start;
@@ -89,7 +87,7 @@ floater_fire_blaster(edict_t *self)
 	}
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, monster_flash_offset[MZ2_FLOAT_BLASTER_1],
+	M_ProjectFlashSource(self, monster_flash_offset[MZ2_FLOAT_BLASTER_1],
 			forward, right, start);
 
 	VectorCopy(self->enemy->s.origin, end);
@@ -154,8 +152,7 @@ static mframe_t floater_frames_stand1[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t floater_move_stand1 =
-{
+mmove_t floater_move_stand1 = {
 	FRAME_stand101,
 	FRAME_stand152,
 	floater_frames_stand1,
@@ -217,8 +214,7 @@ static mframe_t floater_frames_stand2[] = {
 	{ai_stand, 0, NULL}
 };
 
-mmove_t floater_move_stand2 =
-{
+mmove_t floater_move_stand2 = {
 	FRAME_stand201,
 	FRAME_stand252,
 	floater_frames_stand2,
@@ -276,8 +272,7 @@ static mframe_t floater_frames_activate[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t floater_move_activate =
-{
+mmove_t floater_move_activate = {
 	FRAME_actvat01,
 	FRAME_actvat31,
 	floater_frames_activate,
@@ -301,8 +296,7 @@ static mframe_t floater_frames_attack1[] = {
 	{ai_charge, 0, NULL} /*	-- LOOP Ends */
 };
 
-mmove_t floater_move_attack1 =
-{
+mmove_t floater_move_attack1 = {
 	FRAME_attak101,
 	FRAME_attak114,
 	floater_frames_attack1,
@@ -328,8 +322,7 @@ static mframe_t floater_frames_attack1a[] =
 	{ai_charge, 10, NULL}			//							-- LOOP Ends
 };
 
-mmove_t floater_move_attack1a =
-{
+mmove_t floater_move_attack1a = {
 	FRAME_attak101,
 	FRAME_attak114,
 	floater_frames_attack1a,
@@ -364,8 +357,7 @@ static mframe_t floater_frames_attack2[] = {
 	{ai_charge, 0, NULL}
 };
 
-mmove_t floater_move_attack2 =
-{
+mmove_t floater_move_attack2 = {
 	FRAME_attak201,
 	FRAME_attak225,
 	floater_frames_attack2,
@@ -409,8 +401,7 @@ static mframe_t floater_frames_attack3[] = {
 	{ai_charge, 0, NULL}
 };
 
-mmove_t floater_move_attack3 =
-{
+mmove_t floater_move_attack3 = {
 	FRAME_attak301,
 	FRAME_attak334,
 	floater_frames_attack3,
@@ -433,8 +424,7 @@ static mframe_t floater_frames_death[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t floater_move_death =
-{
+mmove_t floater_move_death = {
 	FRAME_death01,
 	FRAME_death13,
 	floater_frames_death,
@@ -451,8 +441,7 @@ static mframe_t floater_frames_pain1[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t floater_move_pain1 =
-{
+mmove_t floater_move_pain1 = {
 	FRAME_pain101,
 	FRAME_pain107,
 	floater_frames_pain1,
@@ -470,8 +459,7 @@ static mframe_t floater_frames_pain2[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t floater_move_pain2 =
-{
+mmove_t floater_move_pain2 = {
 	FRAME_pain201,
 	FRAME_pain208,
 	floater_frames_pain2,
@@ -493,8 +481,7 @@ static mframe_t floater_frames_pain3[] = {
 	{ai_move, 0, NULL}
 };
 
-mmove_t floater_move_pain3 =
-{
+mmove_t floater_move_pain3 = {
 	FRAME_pain301,
 	FRAME_pain312,
 	floater_frames_pain3,
@@ -556,8 +543,7 @@ static mframe_t floater_frames_walk[] = {
 	{ai_walk, 5, NULL}
 };
 
-mmove_t floater_move_walk =
-{
+mmove_t floater_move_walk = {
 	FRAME_stand101,
 	FRAME_stand152,
 	floater_frames_walk,
@@ -619,8 +605,7 @@ static mframe_t floater_frames_run[] = {
 	{ai_run, 13, NULL}
 };
 
-mmove_t floater_move_run =
-{
+mmove_t floater_move_run = {
 	FRAME_stand101,
 	FRAME_stand152,
 	floater_frames_run,
@@ -656,7 +641,7 @@ floater_walk(edict_t *self)
 	self->monsterinfo.currentmove = &floater_move_walk;
 }
 
-void
+static void
 floater_wham(edict_t *self)
 {
 	static vec3_t aim = {MELEE_DISTANCE, 0, 0};
@@ -670,7 +655,7 @@ floater_wham(edict_t *self)
 	fire_hit(self, aim, 5 + randk() % 6, -50);
 }
 
-void
+static void
 floater_zap(edict_t *self)
 {
 	vec3_t forward, right;
@@ -687,7 +672,7 @@ floater_zap(edict_t *self)
 
 	AngleVectors(self->s.angles, forward, right, NULL);
 	VectorSet(offset, 18.5, -0.9, 10);
-	G_ProjectSource(self->s.origin, offset, forward, right, origin);
+	M_ProjectFlashSource(self, offset, forward, right, origin);
 
 	gi.sound(self, CHAN_WEAPON, sound_attack2, 1, ATTN_NORM, 0);
 
@@ -699,7 +684,7 @@ floater_zap(edict_t *self)
 	gi.WriteByte(1); /* sparks */
 	gi.multicast(origin, MULTICAST_PVS);
 
-	if (range(self, self->enemy) == RANGE_MELEE && infront(self, self->enemy) &&
+	if (ai_range(self, self->enemy) == RANGE_MELEE && infront(self, self->enemy) &&
 			visible(self, self->enemy))
 	{
 		T_Damage(self->enemy, self, self, dir, self->enemy->s.origin,
@@ -808,7 +793,7 @@ floater_pain(edict_t *self, edict_t *other /* unused */,
 	}
 }
 
-void
+static void
 floater_dead(edict_t *self)
 {
 	if (!self)
@@ -818,12 +803,13 @@ floater_dead(edict_t *self)
 
 	VectorSet(self->mins, -16, -16, -24);
 	VectorSet(self->maxs, 16, 16, -8);
+	monster_sync_scale_mins_maxs(self);
 	monster_dynamic_dead(self);
 }
 
 void
 floater_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /* unused */,
-		int damage /* unused */, vec3_t point /* unused */)
+		int damage /* unused */, const vec3_t point /* unused */)
 {
 	if (!self)
 	{
@@ -832,12 +818,6 @@ floater_die(edict_t *self, edict_t *inflictor /* unused */, edict_t *attacker /*
 
 	gi.sound(self, CHAN_VOICE, sound_death1, 1, ATTN_NORM, 0);
 	BecomeExplosion1(self);
-}
-
-qboolean
-floater_blocked(edict_t *self, float dist)
-{
-	return false;
 }
 
 /*

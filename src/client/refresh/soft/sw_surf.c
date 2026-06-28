@@ -25,11 +25,11 @@
 
 static int		sourcetstep;
 static void		*prowdestbase;
-static unsigned char	*pbasesource;
+static byte	*pbasesource;
 static int		r_stepback;
 static int		r_lightwidth;
 static int		r_numvblocks;
-static unsigned char	*r_source, *r_sourcemax;
+static byte	*r_source, *r_sourcemax;
 static light_t		*r_lightptr;
 
 void RI_BuildLightMap(drawsurf_t* drawsurf, const refdef_t *r_newrefdef,
@@ -58,7 +58,7 @@ R_GreyscaledLight(const light3_t light)
 }
 
 static void
-R_DrawSurfaceBlock_Light (pixel_t *prowdest, pixel_t *psource, size_t size,
+R_DrawSurfaceBlock_Light (pixel_t *prowdest, const pixel_t *psource, size_t size,
 						int level, light3_t lightleft, light3_t lightright)
 {
 	int light_masked_right, light_masked_left;
@@ -72,8 +72,8 @@ R_DrawSurfaceBlock_Light (pixel_t *prowdest, pixel_t *psource, size_t size,
 	// Full same light from both side
 	if (light_masked_right != LIGHTMASK && light_masked_left == light_masked_right)
 	{
-		const pixel_t *dest_max;
-		pixel_t *dest, *src;
+		const pixel_t *dest_max, *src;
+		pixel_t *dest;
 
 		dest = prowdest;
 		dest_max = prowdest + size;
@@ -92,20 +92,20 @@ R_DrawSurfaceBlock_Light (pixel_t *prowdest, pixel_t *psource, size_t size,
 
 	// same color light shades
 	{
-		int b, j;
+		int b;
 		light3_t lightstep, light;
 
-		for (j=0; j<3; j++)
+		for (b = 0; b < 3; b++)
 		{
 			int lighttemp;
 
-			lighttemp = lightleft[j] - lightright[j];
-			lightstep[j] = lighttemp >> level;
+			lighttemp = lightleft[b] - lightright[b];
+			lightstep[b] = lighttemp >> level;
 		}
 
 		memcpy(light, lightright, sizeof(light3_t));
 
-		for (b=(size-1); b>=0; b--)
+		for (b = (size - 1); b >= 0; b--)
 		{
 			pixel_t pix;
 			int j;
@@ -113,8 +113,10 @@ R_DrawSurfaceBlock_Light (pixel_t *prowdest, pixel_t *psource, size_t size,
 			pix = psource[b];
 			prowdest[b] = R_ApplyLight(pix, light);
 
-			for (j=0; j<3; j++)
+			for (j = 0; j < 3; j++)
+			{
 				light[j] += lightstep[j];
+			}
 		}
 	}
 }
@@ -180,14 +182,14 @@ R_DrawSurface
 ===============
 */
 static void
-R_DrawSurface (drawsurf_t *drawsurf, light_t *blocklights, light_t *blocklight_max)
+R_DrawSurface (drawsurf_t *drawsurf, light_t *blocklights, const light_t *blocklight_max)
 {
-	unsigned char	*basetptr;
+	byte	*basetptr;
 	int		smax, tmax, twidth;
 	int		u;
 	int		soffset, basetoffset, texwidth;
 	int		blocksize;
-	unsigned char	*pcolumndest;
+	byte	*pcolumndest;
 	image_t		*mt;
 	int		blockdivshift;
 	int		r_numhblocks;
@@ -263,7 +265,7 @@ R_InitCaches
 ================
 */
 void
-R_InitCaches (void)
+R_InitCaches(void)
 {
 	int		size;
 	// calculate size to allocate
@@ -314,7 +316,7 @@ D_FlushCaches
 ==================
 */
 void
-D_FlushCaches (void)
+D_FlushCaches(void)
 {
 	surfcache_t     *c;
 

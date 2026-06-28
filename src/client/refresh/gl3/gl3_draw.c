@@ -34,7 +34,6 @@ static float gl3_font_size = 8.0;
 static int gl3_font_height = 128;
 gl3image_t *draw_chars = NULL;
 static gl3image_t *draw_font = NULL;
-static gl3image_t *draw_font_alt = NULL;
 static stbtt_bakedchar *draw_fontcodes = NULL;
 static qboolean draw_chars_has_alt;
 
@@ -42,18 +41,20 @@ static GLuint vbo2D = 0, vao2D = 0, vao2Dcolor = 0; // vao2D is for textured ren
 
 void R_LoadTTFFont(const char *ttffont, int vid_height, float *r_font_size,
 	int *r_font_height, stbtt_bakedchar **draw_fontcodes,
-	struct image_s **draw_font, struct image_s **draw_font_alt,
+	struct image_s **draw_font,
 	loadimage_t R_LoadPic);
 
 void
 GL3_Draw_InitLocal(void)
 {
 	R_LoadTTFFont(r_ttffont->string, vid.height, &gl3_font_size, &gl3_font_height,
-		&draw_fontcodes, &draw_font, &draw_font_alt, (loadimage_t)GL3_LoadPic);
+		&draw_fontcodes, &draw_font, (loadimage_t)GL3_LoadPic);
 
 	draw_chars = R_LoadConsoleChars((findimage_t)GL3_FindImage);
 	/* Heretic 2 uses more than 128 symbols in image */
-	draw_chars_has_alt = !(draw_chars && !strcmp(draw_chars->name, "pics/misc/conchars.m32"));
+	draw_chars_has_alt = (draw_chars && (
+		strcmp(draw_chars->name, "pics/misc/conchars.m8") &&
+		strcmp(draw_chars->name, "pics/misc/conchars.m32")));
 
 	// set up attribute layout for 2D textured rendering
 	glGenVertexArrays(1, &vao2D);
@@ -144,6 +145,7 @@ GL3_Draw_CharScaled(int x, int y, int num, float scale)
 {
 	int row, col;
 	float frow, fcol, size, scaledSize;
+
 	num &= 255;
 
 	if ((num & 127) == 32)
@@ -163,13 +165,22 @@ GL3_Draw_CharScaled(int x, int y, int num, float scale)
 	fcol = col * 0.0625;
 	size = 0.0625;
 
-	scaledSize = 8*scale;
+	scaledSize = 8 * scale;
 
 	// TODO: batchen?
 
+	if (draw_chars->scrap)
+	{
+		GL3_Scrap_Upload();
+	}
+
 	GL3_UseProgram(gl3state.si2D.shaderProgram);
 	GL3_Bind(draw_chars->texnum);
-	drawTexturedRectangle(x, y, scaledSize, scaledSize, fcol, frow, fcol+size, frow+size);
+	drawTexturedRectangle(x, y, scaledSize, scaledSize,
+		draw_chars->sl + fcol * (draw_chars->sh - draw_chars->sl),
+		draw_chars->tl + frow * (draw_chars->th - draw_chars->tl),
+		draw_chars->sl + (fcol + size) * (draw_chars->sh - draw_chars->sl),
+		draw_chars->tl + (frow + size) * (draw_chars->th - draw_chars->tl));
 }
 
 void
@@ -179,7 +190,7 @@ GL3_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messa
 	{
 		unsigned value = R_NextUTF8Code(&message);
 
-		if (draw_fontcodes && draw_font && draw_font_alt)
+		if (draw_fontcodes && draw_font)
 		{
 			float font_scale;
 
@@ -193,6 +204,12 @@ GL3_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messa
 				stbtt_GetBakedQuad(draw_fontcodes, gl3_font_height, gl3_font_height,
 					value - 32, &xf, &yf, &q, 1);
 
+				if (alt)
+				{
+					q.t0 += 0.5;
+					q.t1 += 0.5;
+				}
+
 				xdiff = (8 - xf / font_scale) / 2;
 				if (xdiff < 0)
 				{
@@ -200,7 +217,7 @@ GL3_Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *messa
 				}
 
 				GL3_UseProgram(gl3state.si2D.shaderProgram);
-				GL3_Bind(alt ? draw_font_alt->texnum : draw_font->texnum);
+				GL3_Bind(draw_font->texnum);
 				drawTexturedRectangle(
 					(float)(x + (xdiff + q.x0 / font_scale) * scale),
 					(float)(y + q.y0 * scale / font_scale + 8 * scale),
@@ -239,7 +256,7 @@ GL3_Draw_FindPic(const char *name)
 void
 GL3_Draw_GetPicSize(int *w, int *h, const char *pic)
 {
-	gl3image_t *gl;
+	const gl3image_t *gl;
 
 	gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
 
@@ -256,12 +273,18 @@ GL3_Draw_GetPicSize(int *w, int *h, const char *pic)
 void
 GL3_Draw_StretchPic(int x, int y, int w, int h, const char *pic)
 {
-	gl3image_t *gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
+	const gl3image_t *gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
 
 	if (!gl)
 	{
-		Com_Printf("Can't find pic: %s\n", pic);
+		Com_Printf("%s(): Can't find pic: %s\n", __func__, pic);
 		return;
+	}
+
+	if (gl->scrap)
+	{
+		/* Upload any pending scrap textures before rendering 2D elements */
+		GL3_Scrap_Upload();
 	}
 
 	GL3_UseProgram(gl3state.si2D.shaderProgram);
@@ -273,7 +296,7 @@ GL3_Draw_StretchPic(int x, int y, int w, int h, const char *pic)
 void
 GL3_Draw_PicScaled(int x, int y, const char *pic, float factor, const char *alttext)
 {
-	gl3image_t *gl;
+	const gl3image_t *gl;
 
 	gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
 	if (!gl)
@@ -289,10 +312,53 @@ GL3_Draw_PicScaled(int x, int y, const char *pic, float factor, const char *altt
 		return;
 	}
 
+	if (gl->scrap)
+	{
+		/* Upload any pending scrap textures before rendering 2D elements */
+		GL3_Scrap_Upload();
+	}
+
 	GL3_UseProgram(gl3state.si2D.shaderProgram);
 	GL3_Bind(gl->texnum);
 
+	drawTexturedRectangle(x, y, gl->width * factor, gl->height * factor,
+		gl->sl, gl->tl, gl->sh, gl->th);
+}
+
+void
+GL3_Draw_PicScaledCol(int x, int y, const char *pic, float factor, const vec3_t color,
+	const char *alttext)
+{
+	const gl3image_t *gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
+	if (!gl)
+	{
+		if (alttext && alttext[0])
+		{
+			/* Show alttext if provided */
+			GL3_Draw_StringScaled(x, y, factor, false, alttext);
+			return;
+		}
+
+		Com_Printf("Can't find pic: %s\n", pic);
+		return;
+	}
+
+	if (gl->scrap)
+	{
+		/* Upload any pending scrap textures before rendering 2D elements */
+		GL3_Scrap_Upload();
+	}
+
+	gl3state.uniCommonData.color = HMM_Vec4(color[0], color[1], color[2], 1.0f);
+	GL3_UpdateUBOCommon();
+
+	GL3_UseProgram(gl3state.si2Dtinted.shaderProgram);
+	GL3_Bind(gl->texnum);
+
 	drawTexturedRectangle(x, y, gl->width*factor, gl->height*factor, gl->sl, gl->tl, gl->sh, gl->th);
+
+	gl3state.uniCommonData.color = HMM_Vec4(1, 1, 1, 1);
+	GL3_UpdateUBOCommon();
 }
 
 /*
@@ -303,17 +369,24 @@ GL3_Draw_PicScaled(int x, int y, const char *pic, float factor, const char *altt
 void
 GL3_Draw_TileClear(int x, int y, int w, int h, const char *pic)
 {
-	gl3image_t *image = R_FindPic(pic, (findimage_t)GL3_FindImage);
+	const gl3image_t *image = R_FindPic(pic, (findimage_t)GL3_FindImage);
 	if (!image)
 	{
-		Com_Printf("Can't find pic: %s\n", pic);
+		Com_Printf("%s(): Can't find pic: %s\n", __func__, pic);
 		return;
+	}
+
+	if (image->scrap)
+	{
+		/* Upload any pending scrap textures before rendering 2D elements */
+		GL3_Scrap_Upload();
 	}
 
 	GL3_UseProgram(gl3state.si2D.shaderProgram);
 	GL3_Bind(image->texnum);
 
-	drawTexturedRectangle(x, y, w, h, x/64.0f, y/64.0f, (x+w)/64.0f, (y+h)/64.0f);
+	drawTexturedRectangle(x, y, w, h,
+		x / 64.0f, y / 64.0f, (x + w) / 64.0f, (y + h) / 64.0f);
 }
 
 void
@@ -348,7 +421,7 @@ GL3_Draw_Fill(int x, int y, int w, int h, int c)
 		unsigned c;
 		byte v[4];
 	} color;
-	int i;
+	size_t i;
 
 	if ((unsigned)c > 255)
 	{
@@ -366,10 +439,11 @@ GL3_Draw_Fill(int x, int y, int w, int h, int c)
 		x+w, y
 	};
 
-	for (i=0; i<3; ++i)
+	for (i = 0; i < 3; ++i)
 	{
 		gl3state.uniCommonData.color.Elements[i] = color.v[i] * (1.0f/255.0f);
 	}
+
 	gl3state.uniCommonData.color.A = 1.0f;
 
 	GL3_UpdateUBOCommon();
@@ -389,12 +463,12 @@ GL3_Draw_Fill(int x, int y, int w, int h, int c)
 void
 GL3_Draw_Flash(const float color[4], float x, float y, float w, float h)
 {
+	size_t i = 0;
+
 	if (gl_polyblend->value == 0)
 	{
 		return;
 	}
-
-	int i=0;
 
 	GLfloat vBuf[8] = {
 	//  X,   Y
@@ -406,7 +480,10 @@ GL3_Draw_Flash(const float color[4], float x, float y, float w, float h)
 
 	glEnable(GL_BLEND);
 
-	for (i=0; i<4; ++i)  gl3state.uniCommonData.color.Elements[i] = color[i];
+	for (i = 0; i < 4; ++i)
+	{
+		gl3state.uniCommonData.color.Elements[i] = color[i];
+	}
 
 	GL3_UpdateUBOCommon();
 
@@ -432,8 +509,6 @@ GL3_Draw_FadeScreen(void)
 void
 GL3_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *data, int bits)
 {
-	int i, j;
-
 	GL3_Bind(0);
 
 	unsigned image32[320*240]; /* was 256 * 256, but we want a bit more space */
@@ -446,17 +521,22 @@ GL3_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *
 	}
 	else
 	{
-		if (cols*rows > 320*240)
+		size_t i;
+
+		if (cols * rows > 320 * 240)
 		{
 			/* in case there is a bigger video after all,
 			 * malloc enough space to hold the frame */
 			img = (unsigned*)malloc(cols*rows*4);
 		}
 
-		for (i=0; i<rows; ++i)
+		for (i = 0; i < rows; ++i)
 		{
-			int rowOffset = i*cols;
-			for (j=0; j<cols; ++j)
+			size_t j, rowOffset;
+
+			rowOffset = i * cols;
+
+			for (j = 0; j < cols; ++j)
 			{
 				byte palIdx = data[rowOffset+j];
 				img[rowOffset+j] = gl3_rawpalette[palIdx];

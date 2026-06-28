@@ -39,14 +39,14 @@ static mframe_t wizard_frames_finish [] =
 };
 
 /* decino: Quake plays this animation backwards, so we'll have to do some hacking */
-mmove_t wizard_move_finish =
-{
+mmove_t wizard_move_finish = {
 	FRAME_magatt5,
 	FRAME_magatt1,
 	wizard_frames_finish,
 	monster_dynamic_run
 };
 
+/* ->moveinfo.endfunc = wizard_finish_attack; */
 void
 wizard_finish_attack(edict_t *self)
 {
@@ -54,7 +54,7 @@ wizard_finish_attack(edict_t *self)
 }
 
 void
-spit_touch(edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+spit_touch(edict_t *self, edict_t *other, const cplane_t *plane, const csurface_t *surf)
 {
 	if (other == self->owner)
 	{
@@ -141,7 +141,7 @@ wizard_spit(edict_t *self)
 	vec3_t	offset = {0, 0, 30};
 
 	AngleVectors(self->s.angles, forward, right, NULL);
-	G_ProjectSource(self->s.origin, offset, forward, right, start);
+	M_ProjectFlashSource(self, offset, forward, right, start);
 	VectorCopy(self->enemy->s.origin, vec);
 	vec[2] += self->enemy->viewheight;
 
@@ -168,8 +168,8 @@ static mframe_t wizard_frames_attack [] =
 	{ai_charge, 0, wizard_spit},
 	{ai_charge, 0, NULL}
 };
-mmove_t wizard_move_attack =
-{
+
+mmove_t wizard_move_attack = {
 	FRAME_magatt1,
 	FRAME_magatt6,
 	wizard_frames_attack,
@@ -225,8 +225,8 @@ static mframe_t wizard_frames_death [] =
 	{ai_move, 0, NULL},
 	{ai_move, 0, NULL}
 };
-mmove_t wizard_move_death =
-{
+
+mmove_t wizard_move_death = {
 	FRAME_death1,
 	FRAME_death8,
 	wizard_frames_death,
@@ -234,7 +234,7 @@ mmove_t wizard_move_death =
 };
 
 void
-wizard_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
+wizard_die(edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, const vec3_t point)
 {
 	if (self->health <= self->gib_health)
 	{

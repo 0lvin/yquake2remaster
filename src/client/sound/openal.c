@@ -66,6 +66,7 @@ static ALuint s_srcnums[MAX_CHANNELS - 1];
 static ALuint streamSource;
 static int s_framecount;
 static ALuint underwaterFilter;
+static ALuint occlusionFilter;
 static ALuint ReverbEffect[QAL_EFX_MAX] = {0};
 static ALuint ReverbEffectSlot[QAL_EFX_MAX] = {0};
 static int lastreverteffect = -1; /* just some invalid index value */
@@ -627,7 +628,7 @@ AL_Spatialize(channel_t *ch)
 
 		if (!snd_is_underwater &&
 			s_occlusion_strength->value &&
-			underwaterFilter != 0)
+			occlusionFilter != 0)
 		{
 			trace_t trace;
 			vec3_t mins = { 0, 0, 0 }, maxs = { 0, 0, 0 };
@@ -640,6 +641,7 @@ AL_Spatialize(channel_t *ch)
 				vec3_t distance;
 				float dist;
 				float final;
+				float gain_hf;
 
 				VectorSubtract(origin, listener_origin, distance);
 				dist = VectorLength(distance);
@@ -648,7 +650,15 @@ AL_Spatialize(channel_t *ch)
 
 				qalSourcef(ch->srcnum, AL_GAIN, Q_min(Q_max(final, 0), 1));
 
-				qalSourcei(ch->srcnum, AL_DIRECT_FILTER, underwaterFilter);
+				/* Scale high-frequency attenuation with distance.
+				   Preserve enough HF content for HRTF spatial cues */
+				gain_hf = 1.0f - (0.5f * s_occlusion_strength->value *
+					Q_min(dist / 1000.0f, 1.0f));
+				gain_hf = Q_min(Q_max(gain_hf, AL_LOWPASS_MIN_GAINHF),
+					AL_LOWPASS_MAX_GAINHF);
+				qalFilterf(occlusionFilter, AL_LOWPASS_GAINHF, gain_hf);
+
+				qalSourcei(ch->srcnum, AL_DIRECT_FILTER, occlusionFilter);
 
 				source_occluded = true;
 			}
@@ -659,18 +669,6 @@ AL_Spatialize(channel_t *ch)
 			/* Remove filter */
 			if (!snd_is_underwater)
 				qalSourcei(ch->srcnum, AL_DIRECT_FILTER, 0) ;
-
-			/* Auto reverb */
-			if(s_reverb_preset->value == -2)
-			{
-				AL_ApplyReverb();
-			}
-
-			/* Forsed reverb effect */
-			else if (s_reverb_preset->value >= 0)
-			{
-				AL_SetReverb(s_reverb_preset->value);
-			}
 
 			if(s_reverb_preset->value != -1) /* Non Disabled reverb */
 			{
@@ -859,7 +857,6 @@ AL_AddLoopSounds(void)
 		return;
 	}
 
-	memset(&sounds, 0, sizeof(int) * MAX_EDICTS);
 	S_BuildSoundList(sounds);
 
 	for (i = 0; i < cl.frame.num_entities; i++)
@@ -1121,6 +1118,15 @@ AL_Update(void)
 	qalListener3f(AL_POSITION, AL_UnpackVector(listener_origin));
 	qalListenerfv(AL_ORIENTATION, orientation);
 
+	if (s_reverb_preset->value == -2)
+	{
+		AL_ApplyReverb();
+	}
+	else if (s_reverb_preset->value >= 0)
+	{
+		AL_SetReverb(s_reverb_preset->value);
+	}
+
 	if (s_doppler->value) {
 		CL_GetViewVelocity(listener_velocity);
 		VectorScale(listener_velocity, AL_METER_OF_Q2_UNIT, listener_velocity);
@@ -1308,6 +1314,38 @@ AL_InitUnderwaterFilter()
 	s_underwater_gain_hf->modified = true;
 }
 
+/*
+ * Set up the occlusion filter (separate from underwater)
+ */
+static void
+AL_InitOcclusionFilter(void)
+{
+	occlusionFilter = 0;
+
+	if (!AL_Efx_Enabled())
+		return;
+
+	qalGenFilters(1, &occlusionFilter);
+
+	if (qalGetError() != AL_NO_ERROR)
+	{
+		Com_Printf("Couldn't generate occlusion filter!\n");
+		return;
+	}
+
+	qalFilteri(occlusionFilter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+
+	if (qalGetError() != AL_NO_ERROR)
+	{
+		Com_Printf("Low pass filter is not supported!\n");
+		occlusionFilter = 0;
+		return;
+	}
+
+	qalFilterf(occlusionFilter, AL_LOWPASS_GAIN, AL_LOWPASS_DEFAULT_GAIN);
+	qalFilterf(occlusionFilter, AL_LOWPASS_GAINHF, AL_LOWPASS_DEFAULT_GAINHF);
+}
+
 static void
 AL_InitReverbEffect(void)
 {
@@ -1389,6 +1427,7 @@ AL_Init(void)
 	s_numchannels = i;
 	AL_InitStreamSource();
 	AL_InitUnderwaterFilter();
+	AL_InitOcclusionFilter();
 	AL_InitReverbEffect();
 
 	Com_Printf("Number of OpenAL sources: %d\n\n", s_numchannels);
@@ -1413,6 +1452,7 @@ AL_Shutdown(void)
 
 	qalDeleteSources(1, &streamSource);
 	qalDeleteFilters(1, &underwaterFilter);
+	qalDeleteFilters(1, &occlusionFilter);
 	qalDeleteAuxiliaryEffectSlots(QAL_EFX_MAX, ReverbEffectSlot);
 	qalDeleteEffects(QAL_EFX_MAX, ReverbEffect);
 

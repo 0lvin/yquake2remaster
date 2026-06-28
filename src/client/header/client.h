@@ -39,6 +39,9 @@
 #define	PARTICLE_GRAVITY 40
 #define INSTANT_PARTICLE -10000.0
 
+// Number of entries in server addressbook.
+#define NUM_ADDRESSBOOK_ENTRIES 9
+
 #include <math.h>
 #include <string.h>
 #include <stdarg.h>
@@ -78,6 +81,7 @@ typedef struct
 	entity_xstate_t	current;
 	entity_xstate_t	prev; /* will always be valid, but might just be a copy of current */
 
+	int			serverframe_created; /* set any time the client ent is initialized */
 	int			serverframe; /* if not current, this ent isn't in the frame */
 
 	int			trailcount;	 /* for diminishing grenade trails */
@@ -390,7 +394,8 @@ typedef struct cl_sustain
 
 void CL_ParticleSteamEffect2(cl_sustain_t *self);
 
-void CL_TeleporterParticles (const entity_xstate_t *ent);
+void CL_TeleporterParticles(const entity_xstate_t *ent);
+void CL_TeleporterParticles2(const entity_xstate_t *ent);
 void CL_ParticleEffect(vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
 	int count);
 void CL_ParticleEffect2(vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
@@ -414,41 +419,46 @@ typedef struct particle_s
 void CL_ClearEffects(void);
 void CL_ClearTEnts(void);
 void CL_ClearTEntModels(void);
-void CL_BlasterTrail(vec3_t start, vec3_t end);
-void CL_QuadTrail(vec3_t start, vec3_t end);	// unused
-void CL_RailTrail(vec3_t start, vec3_t end);
-void CL_BubbleTrail(vec3_t start, vec3_t end);
-void CL_FlagTrail(vec3_t start, vec3_t end, int color);
+void CL_BlasterTrail(const vec3_t start, const vec3_t end);
+void CL_QuadTrail(const vec3_t start, const vec3_t end);	// unused
+void CL_RailTrail(const vec3_t start, const vec3_t end);
+void CL_BubbleTrail(const vec3_t start, const vec3_t end);
+void CL_FlagTrail(const vec3_t start, const vec3_t end, int color);
 
-void CL_IonripperTrail(vec3_t start, vec3_t end);
+void CL_IonripperTrail(const vec3_t start, const vec3_t end);
 
-void CL_BlasterParticles2(vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor);
-void CL_BlasterTrail2(vec3_t start, vec3_t end);
-void CL_DebugTrail(vec3_t start, vec3_t end);
-void CL_SmokeTrail(vec3_t start, vec3_t end, unsigned int basecolor, unsigned int finalcolor,
+void CL_BlasterParticles2(const vec3_t org, const vec3_t dir, unsigned int basecolor, unsigned int finalcolor);
+void CL_BlasterTrail2(const vec3_t start, const vec3_t end);
+void CL_DebugTrail(const vec3_t start, const vec3_t end);
+void CL_SmokeTrail(const vec3_t start, const vec3_t end, unsigned int basecolor, unsigned int finalcolor,
 	int spacing);	// unused
-void CL_Flashlight(int ent, vec3_t pos);
-void CL_ForceWall(vec3_t start, vec3_t end, int color);
-void CL_FlameEffects(vec3_t origin);
+void CL_Flashlight(int ent, const vec3_t pos);
+void CL_ForceWall(const vec3_t start, const vec3_t end, int color);
+void CL_FlameEffects(const vec3_t origin);
 void CL_GenericParticleEffect(vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
 	int count, int numcolors, int dirspread, float alphavel);	// unused
 void CL_BubbleTrail2(vec3_t start, vec3_t end, int dist);
-void CL_Heatbeam(vec3_t start, vec3_t end);
+void CL_Heatbeam(vec3_t start, vec3_t forward);
 void CL_ParticleSteamEffect (vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
 	int count, int magnitude);
-void CL_TrackerTrail(vec3_t start, vec3_t end, unsigned int particleColor);
-void CL_Tracker_Explode(vec3_t origin);	// unused
-void CL_TagTrail(vec3_t start, vec3_t end, int color);
+void CL_TrackerTrail(const vec3_t start, const vec3_t end, unsigned int color);
+void CL_Tracker_Explode(const vec3_t origin);	// unused
+void CL_TagTrail(const vec3_t start, const vec3_t end, int color);
 void CL_ColorFlash(vec3_t pos, int ent, float intensity, float r, float g, float b);
-void CL_Tracker_Shell(vec3_t origin);
+void CL_Tracker_Shell(const vec3_t origin);
 void CL_MonsterPlasma_Shell(vec3_t origin);
-void CL_ColorExplosionParticles(vec3_t org, unsigned int basecolor, unsigned int finalcolor);
-void CL_ParticleSmokeEffect(vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
+void CL_ColorExplosionParticles(const vec3_t org, unsigned int basecolor, unsigned int finalcolor);
+void CL_ParticleSmokeEffect(const vec3_t org, vec3_t dir, unsigned int basecolor, unsigned int finalcolor,
 	int count, int magnitude);
 unsigned int CL_CombineColors(unsigned int basecolor, unsigned int finalcolor, float scale);
 void CL_Widowbeamout(cl_sustain_t *self);
 void CL_Nukeblast(cl_sustain_t *self);
-void CL_WidowSplash(vec3_t org);
+void CL_WidowSplash(const vec3_t org);
+void CL_LogoutEffect(const vec3_t org, int type);
+void CL_ItemRespawnParticles(const vec3_t org);
+void CL_ClearLightStyles(void);
+void CL_ClearDlights(void);
+void CL_ClearParticles(void);
 
 void CL_ParseTEnt(void);
 void CL_AddMuzzleFlash(void);
@@ -471,7 +481,7 @@ struct model_s *CL_PowerScreenModel(void);
 
 void CL_SetSky(void);
 void CL_PrepRefresh(void);
-void CL_LoadShadowLight(int index, const char *s);
+void CL_LoadShadowLight(int idx, const char *s);
 void CL_RegisterSounds(void);
 
 void CL_Quit_f(void);
@@ -519,6 +529,10 @@ typedef enum
 char *Key_KeynumToString(int keynum);
 char *Key_KeynumToString_Joy(int key);
 
+void IN_GetClipboardText(char *out, size_t n);
+int IN_SetClipboardText(const char *s);
+void CalibrationFinishedCallback(void);
+
 int CL_MaxClients(void);
 void CL_WriteDemoMessage(void);
 void CL_Stop_f(void);
@@ -537,7 +551,7 @@ extern	struct model_s	*gun_model;
 
 void V_Init(void);
 void V_RenderView(float stereo_separation);
-void V_AddEntity(entity_t *ent);
+void V_AddEntity(const entity_t *ent);
 void V_AddParticle(vec3_t org, unsigned int color, float alpha);
 void V_AddLight(vec3_t org, float intensity, float r, float g, float b);
 void V_AddLightStyle(int style, float r, float g, float b);
@@ -553,11 +567,12 @@ void CL_SmokeAndFlash(vec3_t origin);
 void CL_CheckPredictionError(void);
 
 cdlight_t *CL_AllocDlight(int key);
-void CL_BigTeleportParticles(vec3_t org);
-void CL_RocketTrail(vec3_t start, vec3_t end, centity_t *old);
-void CL_DiminishingTrail(vec3_t start, vec3_t end, centity_t *old, int flags);
-void CL_FlyEffect(centity_t *ent, vec3_t origin);
+void CL_BigTeleportParticles(const vec3_t org);
+void CL_RocketTrail(const vec3_t start, const vec3_t end, centity_t *old);
+void CL_DiminishingTrail(const vec3_t start, const vec3_t end, centity_t *old, int flags);
+void CL_FlyEffect(centity_t *ent, const vec3_t origin);
 void CL_BfgParticles(entity_t *ent);
+void CL_HologramParticles(const vec3_t org, float radius);
 void CL_AddParticles(void);
 void CL_EntityEvent(entity_xstate_t *ent);
 void CL_TrapParticles(entity_t *ent);
@@ -567,10 +582,12 @@ void M_Keydown(int key);
 void M_Draw(void);
 void M_Menu_Main_f(void);
 void M_ForceMenuOff(void);
-void M_AddToServerList(netadr_t adr, char *info);
+void M_AddToServerList(netadr_t adr, const char *info);
 
 void CL_ParseInventory(void);
 void CL_DrawInventory(void);
+const char *CL_GetBindByAction(const char *binding);
+
 
 void CL_PredictMovement(void);
 trace_t CL_PMTrace(vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end);

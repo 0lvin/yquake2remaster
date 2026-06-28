@@ -32,7 +32,7 @@
 
 #define	DLIGHT_CUTOFF	64
 #define	MAX_DLIGHTS		32
-#define	MAX_ENTITIES	128
+#define	MAX_ENTITIES	512
 #define	MAX_PARTICLES	4096
 #define	MAX_LIGHTSTYLES	256
 
@@ -131,8 +131,7 @@ typedef enum {
 	RESTART_PARTIAL
 } ref_restart_t;
 
-// FIXME: bump API_VERSION?
-#define	API_VERSION		7
+#define	API_VERSION		8
 #define EXPORT
 #define IMPORT
 
@@ -197,7 +196,7 @@ typedef struct
 	void	(EXPORT *SetSky) (const char *name, float rotate, int autorotate, const vec3_t axis);
 	void	(EXPORT *EndRegistration) (void);
 
-	void	(EXPORT *RenderFrame) (refdef_t *fd);
+	void	(EXPORT *RenderFrame) (const refdef_t *fd);
 
 	struct image_s * (EXPORT *DrawFindPic)(const char *name);
 
@@ -224,6 +223,9 @@ typedef struct
 	void	(EXPORT *EndFrame) (void);
 	qboolean	(EXPORT *EndWorldRenderpass) (void); // finish world rendering, apply postprocess and switch to UI render pass
 
+	void 	(EXPORT *DrawPicScaledCol) (int x, int y, const char *pic, float factor,
+		const vec3_t color, const char *alttext);
+
 	//void	(EXPORT *AppActivate)( qboolean activate );
 } refexport_t;
 
@@ -246,7 +248,7 @@ typedef struct
 	// NULL can be passed for buf to just determine existance
 	int		(IMPORT *FS_LoadFile) (const char *name, void **buf);
 	void	(IMPORT *FS_FreeFile) (void *buf);
-	void	*(IMPORT *FS_AllocFile) (int size);
+	void	*(IMPORT *FS_AllocFile) (size_t size);
 
 	// gamedir will be the current directory that generated
 	// files should be stored to, ie: "f:\quake\id1"
@@ -300,6 +302,8 @@ void Draw_GetPicSize(int *w, int *h, const char *name);
 void Draw_StretchPic(int x, int y, int w, int h, const char *name);
 void Draw_PicScaled(int x, int y, const char *pic, float factor);
 void Draw_PicScaledAltText(int x, int y, const char *pic, float factor, const char *alttext);
+void Draw_PicScaledCol(int x, int y, const char *pic, float factor,
+	const vec3_t color, const char *alttext);
 
 void Draw_CharScaled(int x, int y, int num, float scale);
 void Draw_StringScaled(int x, int y, float scale, qboolean alt, const char *message);
