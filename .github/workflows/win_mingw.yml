@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - 'master'
+    tags:
+      - "*"
   pull_request:
     types:
       - edited
@@ -17,7 +19,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       actions: read
-      contents: read
+      contents: write
     strategy:
       fail-fast: false
       # Abuse the build matrix to hack around inconsistent naming.
